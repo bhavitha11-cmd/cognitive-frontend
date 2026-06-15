@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import type { Role } from '../types';
 
-const MODULES = ['HR', 'Clients', 'Finance', 'Projects', 'Inventory', 'Settings', 'Reports'];
+const MODULES = ['HR', 'Clients', 'Finance', 'Projects', 'Inventory', 'Settings', 'Reports', 'Timesheets', 'Tasks', 'Attendance', 'Leave', 'Analytics'];
 const PERMISSION_ACTIONS = [
   { key: 'can_view', label: 'View' },
   { key: 'can_create', label: 'Create' },

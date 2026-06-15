@@ -189,7 +189,7 @@ export const useSetRolePermissions = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, permissions }: { id: string; permissions: Record<string, any> }) => {
-      const payload = Object.entries(permissions).map(([module_name, perms]) => ({
+      const permissionsList = Object.entries(permissions).map(([module_name, perms]) => ({
         module_name,
         can_view: perms.can_view || false,
         can_create: perms.can_create || false,
@@ -198,7 +198,7 @@ export const useSetRolePermissions = () => {
         can_approve: perms.can_approve || false,
         can_export: perms.can_export || false,
       }));
-      const response = await api.put(`/roles/${id}/permissions`, payload);
+      const response = await api.put(`/roles/${id}/permissions`, { permissions: permissionsList });
       return response.data;
     },
     onSuccess: () => {

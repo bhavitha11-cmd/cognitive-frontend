@@ -194,7 +194,7 @@ export const TimesheetListPage: React.FC = () => {
 
       {/* Filter Toolbar */}
       <Card sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
+        <Grid container spacing={2} sx={{ alignItems: 'center' }}>
           {/* Date From */}
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField

@@ -39,24 +39,10 @@ export const ReportsPage: React.FC = () => {
 
   const isLoading = planLoading || utilLoading || deptLoading || clientLoading || scopeLoading;
 
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   const filteredProjects = useMemo(() => {
     if (!planVsActual?.projects) return [];
     return planVsActual.projects;
   }, [planVsActual]);
-
-  const overrunColor = (pct: number): 'success' | 'warning' | 'error' => {
-    if (pct <= 10) return 'success';
-    if (pct <= 30) return 'warning';
-    return 'error';
-  };
 
   const deptNames = useMemo(() => {
     const names = new Set(deptLoad.map((d) => d.department));
@@ -91,6 +77,20 @@ export const ReportsPage: React.FC = () => {
     if (!clientPerf?.clients) return [];
     return [...clientPerf.clients].sort((a, b) => b.onTimeDeliveryPct - a.onTimeDeliveryPct);
   }, [clientPerf]);
+
+  const overrunColor = (pct: number): 'success' | 'warning' | 'error' => {
+    if (pct <= 10) return 'success';
+    if (pct <= 30) return 'warning';
+    return 'error';
+  };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>

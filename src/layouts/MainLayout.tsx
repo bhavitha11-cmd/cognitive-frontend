@@ -7,7 +7,6 @@ import {
   IconButton,
   Typography,
   InputBase,
-  Badge,
   Menu,
   MenuItem,
   Drawer,
@@ -18,11 +17,10 @@ import {
   ListItemText,
   Collapse,
   Button,
-  LinearProgress,
   Avatar,
   Tooltip,
-  Divider,
   Chip,
+  Divider,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -32,10 +30,8 @@ import { styled, alpha } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import MailIcon from '@mui/icons-material/Mail';
 import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import LightModeIcon from '@mui/icons-material/LightMode';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLess from '@mui/icons-material/ExpandLess';
@@ -46,16 +42,14 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
-import WorkOutlinedIcon from '@mui/icons-material/WorkOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
 import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
-import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 
@@ -270,7 +264,7 @@ export const MainLayout: React.FC = () => {
       children: [
         { name: 'Log Time', path: '/timesheets/create', icon: <ScheduleOutlinedIcon fontSize="small" /> },
         { name: 'My Timesheets', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
-        { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlineIcon fontSize="small" /> },
+        { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlinedIcon fontSize="small" /> },
         { name: 'My Leaves', path: '/timesheets/leave', icon: <EventBusyOutlinedIcon fontSize="small" /> },
         { name: 'Leave Approval', path: '/timesheets/leave-approval', icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />, adminOnly: true },
       ],
@@ -279,19 +273,11 @@ export const MainLayout: React.FC = () => {
       name: 'Calendar',
       path: '/calendar',
       icon: <CalendarTodayOutlinedIcon />,
-      comingSoon: true,
-    },
-    {
-      name: 'Tickets',
-      path: '/tickets',
-      icon: <ConfirmationNumberOutlinedIcon />,
-      comingSoon: true,
     },
     {
       name: 'Reports',
       path: '/reports',
       icon: <BarChartOutlinedIcon />,
-      comingSoon: true,
     },
     {
       name: 'Settings',
@@ -745,35 +731,25 @@ export const MainLayout: React.FC = () => {
               </Box>
             </Box>
 
-            {/* Middle Header item: Setup Progress */}
-            {!isMobile && (
-              <Box sx={{ width: 160, textAlign: 'center' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }} color="textSecondary">
-                    Setup Progress
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }} color="primary">
-                    3/6
-                  </Typography>
-                </Box>
-                <LinearProgress variant="determinate" value={50} sx={{ height: 4, borderRadius: 2 }} />
-              </Box>
-            )}
-
             {/* Right Header items */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {/* Search Bar */}
+              {/* Search Bar — navigates to search pages */}
               <Search sx={{ display: { xs: 'none', sm: 'block' } }}>
                 <SearchIconWrapper>
                   <SearchIcon fontSize="small" />
                 </SearchIconWrapper>
-                <StyledInputBase placeholder="Search…" inputProps={{ 'aria-label': 'search' }} />
+                <StyledInputBase
+                  placeholder="Search tasks, projects, clients…"
+                  inputProps={{ 'aria-label': 'search' }}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    const val = (e.target as HTMLInputElement).value.trim();
+                    if (e.key === 'Enter' && val) {
+                      navigate(`/tasks?search=${encodeURIComponent(val)}`);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }}
+                />
               </Search>
-
-              {/* Theme Toggle placeholder */}
-              <IconButton size="small">
-                <LightModeIcon fontSize="small" />
-              </IconButton>
 
               {/* Live Clock Widget */}
               <Box
@@ -844,11 +820,9 @@ export const MainLayout: React.FC = () => {
                 </MenuItem>
               </Menu>
 
-              {/* Notification Bell */}
-              <IconButton size="small">
-                <Badge badgeContent={8} color="primary">
-                  <NotificationsIcon fontSize="small" />
-                </Badge>
+              {/* Notification Bell — shows when available */}
+              <IconButton size="small" disabled>
+                <NotificationsIcon fontSize="small" />
               </IconButton>
 
               <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />

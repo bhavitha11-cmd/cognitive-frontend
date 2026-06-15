@@ -56,7 +56,10 @@ export const RoleListPage: React.FC = () => {
             permMut.mutate({ id: editingRole.id, permissions }, {
               onSuccess: () => {
                 console.log('[Frontend] Permissions updated successfully for role:', editingRole.id);
-              }
+              },
+              onError: (err: any) => {
+                console.error('[Frontend] Failed to update permissions:', err?.response?.data || err);
+              },
             });
           }
           setIsModalOpen(false);

@@ -107,8 +107,8 @@ export const useGetEmployeeCapacity = (employeeId: string, fromDate: string, toD
   return useQuery<EmployeeCapacity>({
     queryKey: ['employee-capacity', employeeId, fromDate, toDate],
     queryFn: async () => {
-      const response = await api.get('/planning/capacity', {
-        params: { employee_id: employeeId, from_date: fromDate, to_date: toDate },
+      const response = await api.get(`/planning/capacity/${employeeId}`, {
+        params: { from_date: fromDate, to_date: toDate },
       });
       const raw = response.data?.data || response.data;
       return {
@@ -202,9 +202,7 @@ export const useGetProjectDependencies = (projectId: string) => {
   return useQuery<TaskDependency[]>({
     queryKey: ['project-dependencies', projectId],
     queryFn: async () => {
-      const response = await api.get(`/planning/dependencies`, {
-        params: { project_id: projectId },
-      });
+      const response = await api.get(`/planning/project-dependencies/${projectId}`);
       const raw = response.data?.data || response.data;
       const items = Array.isArray(raw) ? raw : (Array.isArray(raw.dependencies) ? raw.dependencies : []);
       return items.map(mapTaskDependency);
@@ -217,9 +215,7 @@ export const useGetTaskDependencies = (taskId: string) => {
   return useQuery<TaskDependency[]>({
     queryKey: ['task-dependencies', taskId],
     queryFn: async () => {
-      const response = await api.get(`/planning/dependencies`, {
-        params: { task_id: taskId },
-      });
+      const response = await api.get(`/planning/dependencies/${taskId}`);
       const raw = response.data?.data || response.data;
       const items = Array.isArray(raw) ? raw : (Array.isArray(raw.dependencies) ? raw.dependencies : []);
       return items.map(mapTaskDependency);

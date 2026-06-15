@@ -118,11 +118,11 @@ export const useGetMyTimesheet = (dateFrom: string, dateTo: string) => {
   return useQuery<TimeEntryListResponse>({
     queryKey: timeEntryKeys.mySheet(dateFrom, dateTo),
     queryFn: async () => {
-      const response = await api.get('/time-entries', {
+      const response = await api.get('/time-entries/my-timesheet', {
         params: { date_from: dateFrom, date_to: dateTo },
       });
-      const data = response.data?.data;
-      const rawEntries = data?.entries || data?.time_entries || data || [];
+      const data = response.data?.data?.summary || response.data?.data || {};
+      const rawEntries = data?.entries || data?.time_entries || [];
       const entries = Array.isArray(rawEntries)
         ? rawEntries.map(mapBackendTimeEntryToFrontend)
         : [];

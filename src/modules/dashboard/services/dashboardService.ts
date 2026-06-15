@@ -139,7 +139,7 @@ export const useGetDashboardStats = () =>
   useQuery({
     queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<any>>('/analytics/dashboard-stats');
+      const res = await api.get<ApiResponse<any>>('/analytics/dashboard');
       return mapStats(res.data.data);
     },
   });
@@ -170,7 +170,9 @@ export const useGetDepartmentLoad = () =>
     queryKey: ['dashboard', 'department-load'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/department-load');
-      return (res.data.data ?? []).map(mapDepartmentLoad) as DepartmentLoad[];
+      const raw = res.data.data;
+      const items = raw?.departments ?? raw ?? [];
+      return (Array.isArray(items) ? items : []).map(mapDepartmentLoad) as DepartmentLoad[];
     },
   });
 
@@ -179,7 +181,9 @@ export const useGetOverdueTasks = () =>
     queryKey: ['dashboard', 'overdue-tasks'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/overdue-tasks');
-      return (res.data.data ?? []).map(mapOverdueTask) as OverdueTask[];
+      const raw = res.data.data;
+      const items = raw?.tasks ?? raw ?? [];
+      return (Array.isArray(items) ? items : []).map(mapOverdueTask) as OverdueTask[];
     },
   });
 
@@ -188,7 +192,9 @@ export const useGetUpcomingDeadlines = (days: number = 14) =>
     queryKey: ['dashboard', 'upcoming-deadlines', days],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/upcoming-deadlines', { params: { days } });
-      return (res.data.data ?? []).map(mapOverdueTask) as OverdueTask[];
+      const raw = res.data.data;
+      const items = raw?.tasks ?? raw ?? [];
+      return (Array.isArray(items) ? items : []).map(mapOverdueTask) as OverdueTask[];
     },
   });
 
@@ -206,7 +212,9 @@ export const useGetScopeDistribution = () =>
     queryKey: ['dashboard', 'scope-distribution'],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/scope-distribution');
-      return (res.data.data ?? []).map(mapScopeDist) as ScopeDist[];
+      const raw = res.data.data;
+      const items = raw?.scopes ?? raw ?? [];
+      return (Array.isArray(items) ? items : []).map(mapScopeDist) as ScopeDist[];
     },
   });
 
@@ -215,6 +223,8 @@ export const useGetCalendarEvents = (fromDate: string, toDate: string) =>
     queryKey: ['dashboard', 'calendar-events', fromDate, toDate],
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/calendar-events', { params: { from_date: fromDate, to_date: toDate } });
-      return (res.data.data ?? []).map(mapCalendarEvent) as CalendarEvent[];
+      const raw = res.data.data;
+      const items = raw?.events ?? raw ?? [];
+      return (Array.isArray(items) ? items : []).map(mapCalendarEvent) as CalendarEvent[];
     },
   });

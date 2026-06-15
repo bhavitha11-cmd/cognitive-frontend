@@ -27,6 +27,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
 import { useCreateTask, useGetScopeOfWork } from '../services/taskService';
+import { useGetProjects } from '../../projects/services/projectService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
 
@@ -105,6 +106,10 @@ const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
 export const CreateTaskPage: React.FC = () => {
   const navigate = useNavigate();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Project options — fetch all active projects for the dropdown
+  const { data: projectData, isLoading: projectsLoading } = useGetProjects({ limit: 500 });
+  const projects = projectData?.projects ?? [];
 
   // Scope-of-work options (unfiltered — we'll filter in display)
   const { data: scopeData, isLoading: scopeLoading } = useGetScopeOfWork();
@@ -230,8 +235,7 @@ export const CreateTaskPage: React.FC = () => {
                       size="small"
                       error={!!errors.taskCode}
                       helperText={errors.taskCode?.message || 'Engineering part number or unique task code'}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      inputProps={{ style: { fontFamily: 'monospace', fontWeight: 600 } }}
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { style: { fontFamily: 'monospace', fontWeight: 600 } } }}
                     />
                   )}
                 />
@@ -242,18 +246,48 @@ export const CreateTaskPage: React.FC = () => {
                 <Controller
                   name="projectId"
                   control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Project ID *"
-                      placeholder="Enter project ID"
-                      fullWidth
-                      size="small"
-                      error={!!errors.projectId}
-                      helperText={errors.projectId?.message || 'ID of the parent project'}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  )}
+                  render={({ field }) => {
+                    const selectedProject = projects.find((p) => p.id === field.value) ?? null;
+                    return (
+                      <Autocomplete
+                        options={projects}
+                        loading={projectsLoading}
+                        value={selectedProject}
+                        getOptionLabel={(option) =>
+                          `${option.projectCode} — ${option.name}`
+                        }
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        onChange={(_, newVal) => {
+                          field.onChange(newVal?.id ?? '');
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Project *"
+                            size="small"
+                            placeholder="Select project..."
+                            error={!!errors.projectId}
+                            helperText={errors.projectId?.message || 'Select the parent project'}
+                            slotProps={{
+                              ...params.slotProps,
+                              inputLabel: { shrink: true },
+                              input: {
+                                ...params.slotProps.input,
+                                endAdornment: (
+                                  <>
+                                    {projectsLoading ? (
+                                      <CircularProgress color="inherit" size={14} />
+                                    ) : null}
+                                    {params.slotProps.input.endAdornment}
+                                  </>
+                                ),
+                              },
+                            }}
+                          />
+                        )}
+                      />
+                    );
+                  }}
                 />
               </Grid>
 
@@ -332,15 +366,16 @@ export const CreateTaskPage: React.FC = () => {
                             placeholder="Select scope..."
                             helperText="Auto-fills Department Category"
                             slotProps={{
+                              ...params.slotProps,
                               inputLabel: { shrink: true },
                               input: {
-                                ...params.InputProps,
+                                ...params.slotProps.input,
                                 endAdornment: (
                                   <>
                                     {scopeLoading ? (
                                       <CircularProgress color="inherit" size={14} />
                                     ) : null}
-                                    {params.InputProps.endAdornment}
+                                    {params.slotProps.input.endAdornment}
                                   </>
                                 ),
                               },

@@ -417,7 +417,7 @@ export const CreateProjectPage: React.FC = () => {
           />
           <Divider sx={{ mt: 1.5 }} />
           <CardContent>
-            <Grid container spacing={3} alignItems="center">
+            <Grid container spacing={3} sx={{ alignItems: 'center' }}>
               {/* Estimated Hours */}
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller

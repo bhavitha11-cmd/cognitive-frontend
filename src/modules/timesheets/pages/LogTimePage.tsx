@@ -226,12 +226,13 @@ export const LogTimePage: React.FC = () => {
                             error={!!errors.taskId}
                             helperText={errors.taskId?.message}
                             slotProps={{
+                              ...params.slotProps,
                               input: {
-                                ...params.InputProps,
+                                ...params.slotProps.input,
                                 endAdornment: (
                                   <>
                                     {taskLoading && <CircularProgress color="inherit" size={16} />}
-                                    {params.InputProps.endAdornment}
+                                    {params.slotProps.input.endAdornment}
                                   </>
                                 ),
                               },

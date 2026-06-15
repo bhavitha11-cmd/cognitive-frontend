@@ -23,7 +23,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 
 import { SearchFilters } from '../../../components/SearchFilters';
 import {
@@ -138,7 +138,7 @@ const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onDele
         open={open}
         onClose={handleClose}
         onClick={(e) => e.stopPropagation()}
-        PaperProps={{ sx: { minWidth: 160 } }}
+        slotProps={{ paper: { sx: { minWidth: 160 } } }}
       >
         <MenuItem
           onClick={() => {
@@ -174,7 +174,7 @@ const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onDele
           }}
           sx={{ color: 'error.main' }}
         >
-          <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+          <DeleteOutlinedIcon fontSize="small" sx={{ mr: 1 }} />
           Delete
         </MenuItem>
       </Menu>
@@ -216,7 +216,7 @@ const StatusChangeChip: React.FC<StatusPopoverProps> = ({ project, onStatusChang
         open={Boolean(anchorEl)}
         onClose={handleClose}
         onClick={(e) => e.stopPropagation()}
-        PaperProps={{ sx: { minWidth: 140 } }}
+        slotProps={{ paper: { sx: { minWidth: 140 } } }}
       >
         <Typography variant="caption" sx={{ px: 1.5, py: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
           Change status

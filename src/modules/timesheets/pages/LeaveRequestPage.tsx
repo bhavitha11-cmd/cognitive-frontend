@@ -254,7 +254,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
         <DialogContent sx={{ pt: 1 }}>
           <Grid container spacing={2}>
             {/* Leave Type */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Controller
                 name="leaveTypeId"
                 control={control}
@@ -271,7 +271,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                           const bal = balances.find((b) => b.leaveTypeId === lt.id);
                           return (
                             <MenuItem key={lt.id} value={lt.id}>
-                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <Box
                                   sx={{
                                     width: 10,
@@ -299,7 +299,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             </Grid>
 
             {/* From Date */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Controller
                 name="fromDate"
                 control={control}
@@ -319,7 +319,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             </Grid>
 
             {/* To Date */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Controller
                 name="toDate"
                 control={control}
@@ -340,7 +340,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
 
             {/* Auto-calculated days */}
             {days > 0 && (
-              <Grid item xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Alert
                   severity={insufficientBalance ? 'warning' : 'info'}
                   sx={{ py: 0.5 }}
@@ -355,7 +355,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             )}
 
             {/* Reason */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Controller
                 name="reason"
                 control={control}
@@ -485,7 +485,7 @@ export const LeaveRequestPage: React.FC = () => {
         ) : (
           <Grid container spacing={2}>
             {balanceCardData.map((bal) => (
-              <Grid item key={bal.id} xs={12} sm={6} md={4} lg={3}>
+              <Grid key={bal.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
                 <BalanceCard
                   name={bal.name}
                   code={bal.code}

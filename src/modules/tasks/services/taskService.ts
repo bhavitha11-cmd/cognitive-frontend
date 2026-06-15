@@ -66,7 +66,7 @@ const mapTaskCreateToBackend = (data: TaskCreate) => ({
   department_category: data.departmentCategory || null,
   status: data.status || 'NOT_STARTED',
   priority: data.priority || 'MEDIUM',
-  estimated_hours: data.estimatedHours || null,
+  estimated_hours: data.estimatedHours ?? 0,
   planned_start_date: data.plannedStartDate || null,
   planned_end_date: data.plannedEndDate || null,
   received_date: data.receivedDate || null,

@@ -98,7 +98,7 @@ export const PrivateDashboard: React.FC = () => {
             </Box>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 300 }}>
-              <ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={(stats?.totalProjects ?? 0) > 0 ? [
                     { name: 'Estimated', hours: stats?.totalEstimatedHours ?? 0 },

@@ -201,11 +201,6 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // Coming Soon routes — routes still resolve so direct URL access doesn't 404
-      {
-        path: 'tickets',
-        element: lazyLoad(() => import('../modules/tickets/pages/TicketsPage'), 'table'),
-      },
       {
         path: 'reports',
         element: lazyLoad(() => import('../modules/reports/pages/ReportsPage'), 'dashboard'),

@@ -29,7 +29,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import FilterListIcon from '@mui/icons-material/FilterList';
 
@@ -432,7 +432,7 @@ export const LeaveApprovalPage: React.FC = () => {
                                 size="small"
                                 variant="outlined"
                                 color="success"
-                                startIcon={<CheckCircleOutlineIcon fontSize="small" />}
+                                startIcon={<CheckCircleOutlinedIcon fontSize="small" />}
                                 disabled={isActioning}
                                 onClick={() => handleApprove(req)}
                                 sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}

@@ -127,14 +127,13 @@ export const CalendarPage: React.FC = () => {
                     <ListItemText
                       primary={task.taskCode}
                       secondary={`${task.daysOverdue}d overdue`}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 600, color: 'error' }}
-                      secondaryTypographyProps={{ variant: 'caption', color: 'error' }}
+                      slotProps={{ primary: { variant: 'body2', fontWeight: 600, color: 'error' }, secondary: { variant: 'caption', color: 'error' } }}
                     />
                   </ListItem>
                 ))
               ) : (
                 <ListItem>
-                  <ListItemText primary="No overdue tasks" primaryTypographyProps={{ variant: 'body2', color: 'textSecondary' }} />
+                  <ListItemText primary="No overdue tasks" slotProps={{ primary: { variant: 'body2', color: 'textSecondary' } }} />
                 </ListItem>
               )}
             </List>
@@ -155,14 +154,13 @@ export const CalendarPage: React.FC = () => {
                     <ListItemText
                       primary={task.taskCode}
                       secondary={task.plannedDeliveryDate ? new Date(task.plannedDeliveryDate).toLocaleDateString() : ''}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
-                      secondaryTypographyProps={{ variant: 'caption' }}
+                      slotProps={{ primary: { variant: 'body2', fontWeight: 500 }, secondary: { variant: 'caption' } }}
                     />
                   </ListItem>
                 ))
               ) : (
                 <ListItem>
-                  <ListItemText primary="No upcoming deadlines" primaryTypographyProps={{ variant: 'body2', color: 'textSecondary' }} />
+                  <ListItemText primary="No upcoming deadlines" slotProps={{ primary: { variant: 'body2', color: 'textSecondary' } }} />
                 </ListItem>
               )}
             </List>

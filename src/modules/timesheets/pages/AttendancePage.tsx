@@ -22,7 +22,7 @@ import {
   Typography,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LoginIcon from '@mui/icons-material/Login';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
@@ -161,7 +161,7 @@ interface SummaryCardProps {
 const SummaryCard: React.FC<SummaryCardProps> = ({ label, count, color, bgcolor, icon }) => (
   <Card sx={{ height: '100%' }}>
     <CardContent sx={{ pb: '16px !important' }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
+      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
             {label}
@@ -306,8 +306,8 @@ export const AttendancePage: React.FC = () => {
               Loading your attendance…
             </Typography>
           ) : (
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
-              <Stack direction="row" spacing={2} flexWrap="wrap">
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+              <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
                 {myAttendance?.clockIn ? (
                   <Chip
                     icon={<LoginIcon sx={{ fontSize: 16 }} />}
@@ -388,7 +388,7 @@ export const AttendancePage: React.FC = () => {
                   )}
                   {isToday && myAttendance?.clockIn && myAttendance?.clockOut && (
                     <Chip
-                      icon={<CheckCircleOutlineIcon />}
+                      icon={<CheckCircleOutlinedIcon />}
                       label="Attendance complete"
                       color="success"
                       sx={{ fontWeight: 600 }}
@@ -427,7 +427,7 @@ export const AttendancePage: React.FC = () => {
 
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard
             label="Present"
             count={summary.present}
@@ -436,7 +436,7 @@ export const AttendancePage: React.FC = () => {
             icon={<PeopleAltIcon sx={{ color: '#2e7d32', fontSize: 22 }} />}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard
             label="Absent"
             count={summary.absent}
@@ -445,7 +445,7 @@ export const AttendancePage: React.FC = () => {
             icon={<PersonOffIcon sx={{ color: '#c62828', fontSize: 22 }} />}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard
             label="Late"
             count={summary.late}
@@ -454,7 +454,7 @@ export const AttendancePage: React.FC = () => {
             icon={<ScheduleIcon sx={{ color: '#e65100', fontSize: 22 }} />}
           />
         </Grid>
-        <Grid item xs={6} sm={3}>
+        <Grid size={{ xs: 6, sm: 3 }}>
           <SummaryCard
             label="On Leave"
             count={summary.onLeave}
