@@ -1,42 +1,57 @@
 import { create } from 'zustand';
-import type { Client, Project, Task, TimesheetEntry, AppSettings, TaskStatus } from '../types';
-import { generateMockData } from '../utils/mockData';
+import type { TimesheetEntry, AppSettings } from '../types';
+
+// ---------------------------------------------------------------------------
+// State Shape
+// ---------------------------------------------------------------------------
 
 interface AppState {
-  clients: Client[];
-  projects: Project[];
-  tasks: Task[];
+  /**
+   * Timesheets are still managed locally (Coming-Soon module, no API yet).
+   */
   timesheets: TimesheetEntry[];
+
+  /**
+   * Global app settings (company info, profile, notifications, etc.)
+   */
   settings: AppSettings;
+
+  /**
+   * Sidebar collapse state.
+   */
   sidebarCollapsed: boolean;
-  
+
+  // ---------------------------------------------------------------------------
   // Actions
+  // ---------------------------------------------------------------------------
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
-  addClient: (client: Client) => void;
-  addProject: (project: Project) => void;
-  addTask: (task: Task) => void;
+
+  /** Log a timesheet entry (used by the Coming-Soon LogTime page). */
   logTime: (entry: TimesheetEntry) => void;
-  updateTaskStatus: (taskId: string, status: TaskStatus) => void;
+
+  /** Persist a settings section update (used by SettingsPage). */
   updateSettings: (section: keyof AppSettings, sectionData: any) => void;
 }
 
-const initialData = generateMockData();
+// ---------------------------------------------------------------------------
+// Default App Settings
+// ---------------------------------------------------------------------------
 
 const initialSettings: AppSettings = {
   companySettings: {
     companyName: 'Cognitive Technologies',
     contactPerson: 'Admin User',
     email: 'admin@cognitive.com',
-    phone: '+1 555-0199',
+    phone: '+91 999-0000',
     website: 'https://cognitive.com',
   },
   businessAddress: {
-    address: '100 Innovation Way, Suite 400',
-    city: 'San Francisco',
-    state: 'California',
-    postalCode: '94107',
-    country: 'United States',
+    address: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'India',
   },
   appSettings: {
     theme: 'light',
@@ -46,8 +61,8 @@ const initialSettings: AppSettings = {
   profileSettings: {
     name: 'Admin User',
     email: 'admin@cognitive.com',
-    phone: '+1 555-0199',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+    phone: '+91 999-0000',
+    avatar: undefined,
   },
   notificationSettings: {
     emailNotifications: true,
@@ -56,19 +71,19 @@ const initialSettings: AppSettings = {
     projectDeadline: true,
   },
   currencySettings: {
-    currencyCode: 'USD',
-    currencySymbol: '$',
+    currencyCode: 'INR',
+    currencySymbol: '₹',
     thousandSeparator: ',',
     decimalSeparator: '.',
   },
   taxSettings: {
-    taxName: 'VAT',
-    taxRate: 15,
-    vatNumber: 'VAT-US-102030',
+    taxName: 'GST',
+    taxRate: 18,
+    vatNumber: '',
   },
   projectSettings: {
     allowClientToTask: false,
-    defaultTaskStatus: 'To Do',
+    defaultTaskStatus: 'NOT_STARTED',
   },
   attendanceSettings: {
     officeStartTime: '09:00',
@@ -78,40 +93,24 @@ const initialSettings: AppSettings = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
 export const useAppStore = create<AppState>((set) => ({
-  clients: initialData.clients,
-  projects: initialData.projects,
-  tasks: initialData.tasks,
-  timesheets: initialData.timesheets,
+  timesheets: [],
   settings: initialSettings,
   sidebarCollapsed: false,
 
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  toggleSidebar: () =>
+    set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
-  addClient: (client) =>
-    set((state) => ({
-      clients: [client, ...state.clients],
-    })),
-
-  addProject: (project) =>
-    set((state) => ({
-      projects: [project, ...state.projects],
-    })),
-
-  addTask: (task) =>
-    set((state) => ({
-      tasks: [task, ...state.tasks],
-    })),
+  setSidebarCollapsed: (collapsed) =>
+    set({ sidebarCollapsed: collapsed }),
 
   logTime: (entry) =>
     set((state) => ({
       timesheets: [entry, ...state.timesheets],
-    })),
-
-  updateTaskStatus: (taskId, status) =>
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status } : t)),
     })),
 
   updateSettings: (section, sectionData) =>

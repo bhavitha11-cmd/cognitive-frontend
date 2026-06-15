@@ -1,89 +1,72 @@
 import React from 'react';
-import { Grid, Card, CardContent, Typography, Box, Divider, Table, TableBody, TableCell, TableHead, TableRow, Avatar } from '@mui/material';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
+import { Grid, Card, CardContent, Typography, Box, Divider, Table, TableBody, TableCell, TableHead, TableRow, Chip, CircularProgress, Alert } from '@mui/material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import FolderIcon from '@mui/icons-material/Folder';
 import QueryBuilderIcon from '@mui/icons-material/QueryBuilder';
+import { useGetDashboardStats, useGetPlanVsActual, useGetUtilization, useGetOverdueTasks, useGetScopeDistribution } from '../services/dashboardService';
+import { EmptyState } from '../../../components/EmptyState';
 
-import { useAppStore } from '../../../store/useAppStore';
-import { mockEmployees } from '../../../utils/mockData';
-
-const COLORS = ['#206bc4', '#2fb344', '#f59f00', '#d63939', '#4299e1'];
+const PIE_COLORS = ['#206bc4', '#2fb344', '#f59f00', '#d63939', '#4299e1', '#ae3ec9', '#17a2b8', '#6c757d'];
 
 export const AdvancedDashboard: React.FC = () => {
-  const clients = useAppStore((state) => state.clients);
-  const projects = useAppStore((state) => state.projects);
-  const tasks = useAppStore((state) => state.tasks);
-  const timesheets = useAppStore((state) => state.timesheets);
+  const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
+  const { data: planVsActual, isLoading: planLoading } = useGetPlanVsActual();
+  const { data: utilData, isLoading: utilLoading } = useGetUtilization();
+  const { data: overdueTasks = [], isLoading: overdueLoading } = useGetOverdueTasks();
+  const { data: scopeData = [] } = useGetScopeDistribution();
 
-  // Dynamic statistics calculations
-  const totalClients = clients.length;
-  const totalEmployees = mockEmployees.length;
-  const totalProjects = projects.length;
-  const totalHours = timesheets.reduce((acc, curr) => acc + curr.totalHours, 0);
+  const isLoading = statsLoading || planLoading || utilLoading || overdueLoading;
 
-  // Stats Card definitions
-  const stats = [
-    { title: 'Total Clients', value: totalClients, icon: <PeopleIcon sx={{ color: 'text.secondary' }} /> },
-    { title: 'Total Employees', value: totalEmployees, icon: <PersonIcon sx={{ color: 'text.secondary' }} /> },
-    { title: 'Total Projects', value: totalProjects, icon: <FolderIcon sx={{ color: 'text.secondary' }} /> },
-    { title: 'Hours Logged', value: `${totalHours} hrs`, icon: <QueryBuilderIcon sx={{ color: 'text.secondary' }} /> },
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  const statCards = [
+    { title: 'Total Clients', value: stats?.totalClients ?? 0, icon: <PeopleIcon sx={{ color: 'text.secondary' }} /> },
+    { title: 'Total Employees', value: stats?.totalEmployees ?? 0, icon: <PersonIcon sx={{ color: 'text.secondary' }} /> },
+    { title: 'Total Projects', value: stats?.totalProjects ?? 0, icon: <FolderIcon sx={{ color: 'text.secondary' }} /> },
+    { title: 'Hours Logged', value: `${stats?.totalActualHours ?? 0} hrs`, icon: <QueryBuilderIcon sx={{ color: 'text.secondary' }} /> },
   ];
 
-  // 1. Group logged hours by Project Name
-  const hoursByProject = projects.slice(0, 6).map((proj) => {
-    const hours = timesheets
-      .filter((t) => t.projectId === proj.id)
-      .reduce((sum, entry) => sum + entry.totalHours, 0);
-    return {
-      name: proj.shortCode,
-      fullName: proj.name,
-      hours: hours || Math.floor(Math.random() * 20) + 5, // Fallback if no logs
-    };
+  const taskStatusData = [
+    { name: 'Pending', value: stats?.pendingTasks ?? 0 },
+    { name: 'In Progress', value: stats?.inProgressTasks ?? 0 },
+    { name: 'Completed', value: stats?.completedTasks ?? 0 },
+    { name: 'Overdue', value: stats?.overdueTasks ?? 0 },
+  ];
+
+  const categoryMap = new Map<string, { name: string; estimated: number; actual: number }>();
+  scopeData.forEach((s) => {
+    const cat = s.departmentCategory || 'Uncategorized';
+    if (!categoryMap.has(cat)) {
+      categoryMap.set(cat, { name: cat, estimated: 0, actual: 0 });
+    }
+    const entry = categoryMap.get(cat)!;
+    entry.estimated += s.estimatedHours;
+    entry.actual += s.actualHours;
   });
+  const categoryChartData = Array.from(categoryMap.values());
 
-  // 2. Count Tasks by Status
-  const taskStatusCounts = tasks.reduce(
-    (acc, task) => {
-      acc[task.status] = (acc[task.status] || 0) + 1;
-      return acc;
-    },
-    { 'To Do': 0, 'In Progress': 0, Review: 0, Completed: 0 } as Record<string, number>
-  );
+  const topEmployees = [...(utilData?.employees ?? [])]
+    .sort((a, b) => b.utilizationPercentage - a.utilizationPercentage)
+    .slice(0, 5);
 
-  const taskChartData = Object.keys(taskStatusCounts).map((status) => ({
-    name: status,
-    value: taskStatusCounts[status],
-  }));
-
-  // 3. Count Projects by Category
-  const projectsByCategory = projects.reduce((acc, proj) => {
-    acc[proj.category] = (acc[proj.category] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const categoryChartData = Object.keys(projectsByCategory).map((cat) => ({
-    name: cat,
-    value: projectsByCategory[cat],
-  }));
-
-  // 4. Get last 5 timesheet entries
-  const recentLogs = timesheets.slice(0, 5).map((entry) => {
-    const proj = projects.find((p) => p.id === entry.projectId);
-    const task = tasks.find((t) => t.id === entry.taskId);
-    return {
-      ...entry,
-      projectCode: proj?.shortCode || 'PRJ',
-      taskTitle: task?.title || 'General Work',
-    };
-  });
+  const projectHours = planVsActual?.projects.map((p) => ({
+    name: p.projectCode,
+    estimated: p.estimatedHours,
+    actual: p.actualHours,
+  })) ?? [];
 
   return (
     <Box>
-      {/* Stat Cards Grid */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        {stats.map((stat, idx) => (
+        {statCards.map((stat, idx) => (
           <Grid size={{ xs: 12, sm: 6, md: 3 }} key={idx}>
             <Card>
               <CardContent sx={{ p: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -95,16 +78,7 @@ export const AdvancedDashboard: React.FC = () => {
                     {stat.value}
                   </Typography>
                 </Box>
-                <Box
-                  sx={{
-                    bgcolor: 'primary.light',
-                    p: 1.5,
-                    borderRadius: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
+                <Box sx={{ bgcolor: 'primary.light', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {stat.icon}
                 </Box>
               </CardContent>
@@ -113,70 +87,59 @@ export const AdvancedDashboard: React.FC = () => {
         ))}
       </Grid>
 
-      {/* Charts section */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Hours Logged per Project Bar Chart */}
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ p: 2.5, height: '100%' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              Logged Hours by Project (PRJ Code)
+              Hours by Project (Estimated vs Actual)
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 300 }}>
-              <ResponsiveContainer>
-                <BarChart data={hoursByProject} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip cursor={{ fill: 'rgba(0, 0, 0, 0.02)' }} />
-                  <Legend wrapperStyle={{ fontSize: 12, marginTop: 10 }} />
-                  <Bar dataKey="hours" fill="#206bc4" radius={[4, 4, 0, 0]} name="Hours Logged" />
-                </BarChart>
-              </ResponsiveContainer>
+              {projectHours.length > 0 ? (
+                <ResponsiveContainer>
+                  <BarChart data={projectHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 12, marginTop: 10 }} />
+                    <Bar dataKey="estimated" fill="#206bc4" radius={[4, 4, 0, 0]} name="Estimated" />
+                    <Bar dataKey="actual" fill="#f59f00" radius={[4, 4, 0, 0]} name="Actual" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState title="No project data" description="No plan vs actual data available yet." />
+              )}
             </Box>
           </Card>
         </Grid>
 
-        {/* Task Status Distribution Pie Chart */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              Tasks Status
+              Task Status Distribution
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={taskChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {taskChartData.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {taskStatusData.some((d) => d.value > 0) ? (
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={taskStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={3} dataKey="value">
+                      {taskStatusData.map((_entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <Typography variant="body2" color="textSecondary">No task data</Typography>
+              )}
             </Box>
-            {/* Custom Legend for Pie Chart */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 2, mt: 1 }}>
-              {taskChartData.map((data, idx) => (
+              {taskStatusData.map((data, idx) => (
                 <Box key={idx} sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Box
-                    sx={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      bgcolor: COLORS[idx % COLORS.length],
-                      mr: 1,
-                    }}
-                  />
+                  <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: PIE_COLORS[idx % PIE_COLORS.length], mr: 1 }} />
                   <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600 }}>
                     {data.name}: {data.value}
                   </Typography>
@@ -186,92 +149,127 @@ export const AdvancedDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Projects by Category Chart */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              Projects by Category
+              Department Category Load
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={categoryChartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${percent !== undefined ? (percent * 100).toFixed(0) : 0}%)`}
-                    labelLine={false}
-                  >
-                    {categoryChartData.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {categoryChartData.length > 0 ? (
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData.map((d) => ({ name: d.name, value: d.actual }))}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+                      labelLine={false}
+                    >
+                      {categoryChartData.map((_entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[(index + 2) % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <Typography variant="body2" color="textSecondary">No scope data</Typography>
+              )}
             </Box>
           </Card>
         </Grid>
 
-        {/* Recent Hours Logged Table */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ px: 2.5, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Recent Logged Timesheets
+                Top 5 Employees by Utilization
               </Typography>
             </Box>
             <Divider />
             <Box sx={{ overflowX: 'auto', flexGrow: 1 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Employee</TableCell>
-                    <TableCell>Project</TableCell>
-                    <TableCell>Hours</TableCell>
-                    <TableCell>Task</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentLogs.map((log) => (
-                    <TableRow key={log.id} hover>
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: 'primary.main' }}>
-                            {log.employeeName.charAt(0)}
-                          </Avatar>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {log.employeeName}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }} color="primary">
-                          {log.projectCode}
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {log.totalHours} hrs
-                        </Typography>
-                      </TableCell>
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography
-                          variant="body2"
-                          color="textSecondary"
-                          noWrap
-                          sx={{ maxWidth: 150 }}
-                        >
-                          {log.taskTitle}
-                        </Typography>
-                      </TableCell>
+              {topEmployees.length > 0 ? (
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Employee</TableCell>
+                      <TableCell>Department</TableCell>
+                      <TableCell>Hours Logged</TableCell>
+                      <TableCell>Utilization</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {topEmployees.map((emp) => (
+                      <TableRow key={emp.id} hover>
+                        <TableCell sx={{ fontWeight: 500 }}>{emp.employeeName}</TableCell>
+                        <TableCell>{emp.departmentName || '-'}</TableCell>
+                        <TableCell>{emp.totalHoursLogged}h</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={`${emp.utilizationPercentage.toFixed(0)}%`}
+                            size="small"
+                            color={emp.utilizationPercentage >= 80 ? 'success' : emp.utilizationPercentage >= 50 ? 'warning' : 'error'}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, py: 4 }}>
+                  <EmptyState title="No utilization data" description="No employee utilization data available." />
+                </Box>
+              )}
+            </Box>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12 }}>
+          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ px: 2.5, py: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Overdue Tasks
+              </Typography>
+            </Box>
+            <Divider />
+            <Box sx={{ overflowX: 'auto', flexGrow: 1 }}>
+              {overdueTasks.length > 0 ? (
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Task Code</TableCell>
+                      <TableCell>Title</TableCell>
+                      <TableCell>Project</TableCell>
+                      <TableCell>Priority</TableCell>
+                      <TableCell>Days Overdue</TableCell>
+                      <TableCell>Assignee</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {overdueTasks.slice(0, 10).map((task) => (
+                      <TableRow key={task.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>{task.taskCode}</TableCell>
+                        <TableCell>{task.title}</TableCell>
+                        <TableCell>{task.projectName}</TableCell>
+                        <TableCell>
+                          <Chip label={task.priority} size="small" color={task.priority === 'URGENT' || task.priority === 'HIGH' ? 'error' : 'warning'} />
+                        </TableCell>
+                        <TableCell>
+                          <Typography color="error" fontWeight={600}>{task.daysOverdue}d</Typography>
+                        </TableCell>
+                        <TableCell>{task.assigneeName || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+                  <EmptyState title="No overdue tasks" description="All tasks are on track." />
+                </Box>
+              )}
             </Box>
           </Card>
         </Grid>

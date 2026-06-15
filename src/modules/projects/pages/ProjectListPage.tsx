@@ -1,337 +1,571 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box,
   Button,
   Card,
-  CardContent,
-  Grid,
-  Typography,
-  LinearProgress,
   Chip,
-  ToggleButton,
-  ToggleButtonGroup,
-  Avatar,
-  AvatarGroup,
+  IconButton,
+  LinearProgress,
+  Menu,
+  MenuItem,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TablePagination,
+  TableRow,
+  Tooltip,
+  Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import GridViewIcon from '@mui/icons-material/GridView';
-import KanbanIcon from '@mui/icons-material/Dashboard';
-import GanttIcon from '@mui/icons-material/FormatAlignLeft';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
-import { useAppStore } from '../../../store/useAppStore';
+import { SearchFilters } from '../../../components/SearchFilters';
+import {
+  useGetProjects,
+  useUpdateProjectStatus,
+  useDeleteProject,
+} from '../services/projectService';
+import { useGetClients } from '../../clients/services/clientService';
+import type { Project } from '../types';
+
+// ==========================================
+// CHIP HELPERS
+// ==========================================
+
+const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  DRAFT:     { bg: '#e2e8f0', color: '#475569', label: 'Draft' },
+  ACTIVE:    { bg: '#dcfce7', color: '#166534', label: 'Active' },
+  ON_HOLD:   { bg: '#fef3c7', color: '#92400e', label: 'On Hold' },
+  COMPLETED: { bg: '#dbeafe', color: '#1e40af', label: 'Completed' },
+  CANCELLED: { bg: '#fee2e2', color: '#991b1b', label: 'Cancelled' },
+};
+
+const PRIORITY_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  LOW:      { bg: '#dbeafe', color: '#1e40af', label: 'Low' },
+  MEDIUM:   { bg: '#ffedd5', color: '#9a3412', label: 'Medium' },
+  HIGH:     { bg: '#fee2e2', color: '#b91c1c', label: 'High' },
+  CRITICAL: { bg: '#fecdd3', color: '#7f1d1d', label: 'Critical' },
+};
+
+const StatusChip: React.FC<{
+  status: string;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  interactive?: boolean;
+}> = ({ status, onClick, interactive }) => {
+  const cfg = STATUS_COLORS[status] || { bg: '#e2e8f0', color: '#475569', label: status };
+  return (
+    <Chip
+      label={cfg.label}
+      size="small"
+      onClick={interactive ? onClick : undefined}
+      sx={{
+        bgcolor: cfg.bg,
+        color: cfg.color,
+        fontWeight: 600,
+        fontSize: '0.7rem',
+        height: 22,
+        cursor: interactive ? 'pointer' : 'default',
+        '&:hover': interactive ? { opacity: 0.85 } : {},
+      }}
+    />
+  );
+};
+
+const PriorityChip: React.FC<{ priority: string }> = ({ priority }) => {
+  const cfg = PRIORITY_COLORS[priority] || { bg: '#e2e8f0', color: '#475569', label: priority };
+  return (
+    <Chip
+      label={cfg.label}
+      size="small"
+      sx={{
+        bgcolor: cfg.bg,
+        color: cfg.color,
+        fontWeight: 600,
+        fontSize: '0.7rem',
+        height: 22,
+      }}
+    />
+  );
+};
+
+// ==========================================
+// ROW ACTIONS MENU
+// ==========================================
+
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  DRAFT:     ['ACTIVE', 'CANCELLED'],
+  ACTIVE:    ['ON_HOLD', 'COMPLETED', 'CANCELLED'],
+  ON_HOLD:   ['ACTIVE', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
+interface RowActionsProps {
+  project: Project;
+  onStatusChange: (id: string, status: string) => void;
+  onDelete: (id: string) => void;
+  onView: (id: string) => void;
+}
+
+const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onDelete, onView }) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+
+  const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    setAnchorEl(e.currentTarget);
+  };
+
+  const handleClose = () => setAnchorEl(null);
+
+  const transitions = STATUS_TRANSITIONS[project.status] || [];
+
+  return (
+    <>
+      <Tooltip title="Actions">
+        <IconButton size="small" onClick={handleOpen}>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        onClick={(e) => e.stopPropagation()}
+        PaperProps={{ sx: { minWidth: 160 } }}
+      >
+        <MenuItem
+          onClick={() => {
+            handleClose();
+            onView(project.id);
+          }}
+          dense
+        >
+          <OpenInNewIcon fontSize="small" sx={{ mr: 1 }} />
+          View Detail
+        </MenuItem>
+        {transitions.map((s) => (
+          <MenuItem
+            key={s}
+            dense
+            onClick={() => {
+              handleClose();
+              onStatusChange(project.id, s);
+            }}
+          >
+            <StatusChip status={s} />
+            <Typography variant="caption" sx={{ ml: 1 }}>
+              Move to {STATUS_COLORS[s]?.label || s}
+            </Typography>
+          </MenuItem>
+        ))}
+        {transitions.length > 0 && <Box component="hr" sx={{ my: 0.5, border: 0, borderTop: '1px solid #e2e8f0' }} />}
+        <MenuItem
+          dense
+          onClick={() => {
+            handleClose();
+            onDelete(project.id);
+          }}
+          sx={{ color: 'error.main' }}
+        >
+          <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+          Delete
+        </MenuItem>
+      </Menu>
+    </>
+  );
+};
+
+// ==========================================
+// STATUS CHANGE POPOVER (inline chip click)
+// ==========================================
+
+interface StatusPopoverProps {
+  project: Project;
+  onStatusChange: (id: string, status: string) => void;
+}
+
+const StatusChangeChip: React.FC<StatusPopoverProps> = ({ project, onStatusChange }) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const transitions = STATUS_TRANSITIONS[project.status] || [];
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (transitions.length > 0) {
+      setAnchorEl(e.currentTarget as HTMLElement);
+    }
+  };
+
+  const handleClose = () => setAnchorEl(null);
+
+  return (
+    <>
+      <StatusChip
+        status={project.status}
+        onClick={handleClick}
+        interactive={transitions.length > 0}
+      />
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+        onClick={(e) => e.stopPropagation()}
+        PaperProps={{ sx: { minWidth: 140 } }}
+      >
+        <Typography variant="caption" sx={{ px: 1.5, py: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
+          Change status
+        </Typography>
+        {transitions.map((s) => (
+          <MenuItem
+            key={s}
+            dense
+            onClick={() => {
+              handleClose();
+              onStatusChange(project.id, s);
+            }}
+          >
+            <StatusChip status={s} />
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
+  );
+};
+
+// ==========================================
+// MAIN PAGE
+// ==========================================
 
 export const ProjectListPage: React.FC = () => {
   const navigate = useNavigate();
-  const projects = useAppStore((state) => state.projects);
-  const clients = useAppStore((state) => state.clients);
-  const tasks = useAppStore((state) => state.tasks);
-  const updateTaskStatus = useAppStore((state) => state.updateTaskStatus);
 
-  // View toggle: 'grid', 'kanban', 'gantt'
-  const [viewMode, setViewMode] = useState<'grid' | 'kanban' | 'gantt'>('grid');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
 
-  const handleViewChange = (
-    _event: React.MouseEvent<HTMLElement>,
-    nextView: 'grid' | 'kanban' | 'gantt' | null
-  ) => {
-    if (nextView !== null) {
-      setViewMode(nextView);
-    }
+  const { data: projectsData, isLoading: projectsLoading } = useGetProjects({
+    skip: page * rowsPerPage,
+    limit: rowsPerPage,
+    search: search || undefined,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    clientId: clientFilter !== 'all' ? clientFilter : undefined,
+  });
+
+  const { data: clientsData } = useGetClients({ limit: 200 });
+
+  const updateStatus = useUpdateProjectStatus();
+  const deleteProject = useDeleteProject();
+
+  const projects = projectsData?.projects || [];
+  const totalCount = projectsData?.total ?? 0;
+  const clients = clientsData?.clients || [];
+
+  const handleStatusChange = useCallback(
+    (id: string, status: string) => {
+      updateStatus.mutate({ id, status });
+    },
+    [updateStatus]
+  );
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      if (window.confirm('Are you sure you want to delete this project?')) {
+        deleteProject.mutate(id);
+      }
+    },
+    [deleteProject]
+  );
+
+  const handleRowClick = (id: string) => {
+    navigate(`/projects/${id}`);
   };
 
-  // Helper to find client name
-  const getClientName = (clientId: string) => {
-    return clients.find((c) => c.id === clientId)?.companyName || 'Unknown Client';
-  };
+  const clientOptions = clients.map((c) => ({
+    value: c.id,
+    label: c.name,
+  }));
 
-  // Status color mapper
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Finished':
-        return 'success';
-      case 'On Hold':
-        return 'warning';
-      case 'Canceled':
-        return 'error';
-      default:
-        return 'primary';
-    }
+  const progressPercent = (project: Project): number => {
+    if (!project.taskCount) return 0;
+    return Math.round((project.completedTaskCount / project.taskCount) * 100);
   };
-
-  // Kanban status columns
-  const kanbanColumns = [
-    { title: 'To Do', status: 'To Do' as const, color: '#e2e8f0' },
-    { title: 'In Progress', status: 'In Progress' as const, color: '#e8f1fc' },
-    { title: 'Review', status: 'Review' as const, color: '#fef3d6' },
-    { title: 'Completed', status: 'Completed' as const, color: '#d6f0da' },
-  ];
 
   return (
     <Box sx={{ width: '100%' }}>
-      {/* Header section with add button and view toggles */}
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 3 }}>
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 3,
+        }}
+      >
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             Projects
           </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Engineering packages and client deliverables
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2, width: { xs: '100%', sm: 'auto' }, justifyContent: 'space-between' }}>
-          <ToggleButtonGroup value={viewMode} exclusive onChange={handleViewChange} size="small">
-            <ToggleButton value="grid" aria-label="grid view">
-              <GridViewIcon fontSize="small" sx={{ mr: 0.5 }} /> Grid
-            </ToggleButton>
-            <ToggleButton value="kanban" aria-label="kanban task board">
-              <KanbanIcon fontSize="small" sx={{ mr: 0.5 }} /> Task Board
-            </ToggleButton>
-            <ToggleButton value="gantt" aria-label="gantt chart">
-              <GanttIcon fontSize="small" sx={{ mr: 0.5 }} /> Gantt
-            </ToggleButton>
-          </ToggleButtonGroup>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/projects/create')}
-          >
-            Add Project
-          </Button>
-        </Box>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/projects/create')}
+        >
+          Create Project
+        </Button>
       </Box>
 
-      {/* Grid Card View */}
-      {viewMode === 'grid' && (
-        <Grid container spacing={3}>
-          {projects.map((project) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={project.id}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ flexGrow: 1, p: 2.5 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                    <Box>
-                      <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>
-                        {project.shortCode}
-                      </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 600, mt: 0.5, lineHeight: 1.3 }}>
-                        {project.name}
-                      </Typography>
-                    </Box>
-                    <Chip
-                      label={project.status}
-                      size="small"
-                      color={getStatusColor(project.status)}
-                      sx={{ fontSize: '0.75rem', fontWeight: 600 }}
-                    />
-                  </Box>
+      {/* Filters */}
+      <Card sx={{ p: 2, mb: 2 }}>
+        <SearchFilters
+          searchQuery={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(0);
+          }}
+          searchPlaceholder="Search by project name or code..."
+          filters={[
+            {
+              value: statusFilter,
+              placeholder: 'All Statuses',
+              options: [
+                { value: 'DRAFT', label: 'Draft' },
+                { value: 'ACTIVE', label: 'Active' },
+                { value: 'ON_HOLD', label: 'On Hold' },
+                { value: 'COMPLETED', label: 'Completed' },
+                { value: 'CANCELLED', label: 'Cancelled' },
+              ],
+              onChange: (val) => {
+                setStatusFilter(val);
+                setPage(0);
+              },
+            },
+            {
+              value: clientFilter,
+              placeholder: 'All Clients',
+              options: clientOptions,
+              onChange: (val) => {
+                setClientFilter(val);
+                setPage(0);
+              },
+            },
+          ]}
+        />
+      </Card>
 
-                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2, minHeight: 42 }}>
-                    {project.summary}
-                  </Typography>
-
-                  <Grid container spacing={1} sx={{ mb: 2, fontSize: '0.8125rem' }}>
-                    <Grid size={{ xs: 6 }}>
-                      <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        Client
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {getClientName(project.clientId)}
-                      </Typography>
-                    </Grid>
-                    <Grid size={{ xs: 6 }}>
-                      <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        Deadline
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {project.deadline}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-
-                  <Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                      <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600 }}>
-                        Progress
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                        {project.progress}%
-                      </Typography>
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={project.progress}
-                      sx={{ height: 6, borderRadius: 3 }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
-      {/* Task Board (Kanban Columns) */}
-      {viewMode === 'kanban' && (
-        <Grid container spacing={2}>
-          {kanbanColumns.map((col) => {
-            const colTasks = tasks.filter((t) => t.status === col.status);
-            return (
-              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={col.status}>
-                <Card sx={{ bgcolor: '#f8fafc', height: '70vh', display: 'flex', flexDirection: 'column' }}>
-                  <Box
-                    sx={{
-                      px: 2,
-                      py: 1.5,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      borderTop: `4px solid ${getStatusColor(col.status) === 'primary' ? '#206bc4' : getStatusColor(col.status) === 'success' ? '#2fb344' : '#f59f00'}`
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      {col.title}
-                    </Typography>
-                    <Chip label={colTasks.length} size="small" sx={{ fontWeight: 600, fontSize: '0.75rem' }} />
-                  </Box>
-                  <Box sx={{ p: 1, flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    {colTasks.map((task) => {
-                      const proj = projects.find((p) => p.id === task.projectId);
-                      return (
-                        <Card
-                          key={task.id}
-                          elevation={1}
-                          sx={{
-                            p: 1.5,
-                            cursor: 'pointer',
-                            bgcolor: 'background.paper',
-                            '&:hover': { boxShadow: 3 },
-                          }}
-                        >
-                          <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 0.5, fontWeight: 700 }}>
-                            {proj?.shortCode || 'TASK'}
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 600 }} gutterBottom>
-                            {task.title}
-                          </Typography>
-                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-                            Due: {task.dueDate}
-                          </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Chip
-                              label={task.priority}
-                              size="small"
-                              color={task.priority === 'High' ? 'error' : task.priority === 'Medium' ? 'warning' : 'default'}
-                              sx={{ height: 18, fontSize: '0.6875rem', fontWeight: 600 }}
-                            />
-                            <AvatarGroup max={2}>
-                              {task.assignees.map((name, idx) => (
-                                <Avatar
-                                  key={idx}
-                                  sx={{ width: 20, height: 20, fontSize: '0.625rem' }}
-                                >
-                                  {name.charAt(0)}
-                                </Avatar>
-                              ))}
-                            </AvatarGroup>
-                          </Box>
-                          
-                          {/* Status Toggles on Click */}
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
-                            {kanbanColumns
-                              .filter((c) => c.status !== col.status)
-                              .map((c) => (
-                                <Button
-                                  key={c.status}
-                                  size="small"
-                                  onClick={() => updateTaskStatus(task.id, c.status)}
-                                  sx={{ fontSize: '0.625rem', p: 0.2, minWidth: 0 }}
-                                >
-                                  → {c.title.split(' ')[0]}
-                                </Button>
-                              ))}
-                          </Box>
-                        </Card>
-                      );
-                    })}
-                  </Box>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
-      )}
-
-      {/* Gantt Chart Timeline representation */}
-      {viewMode === 'gantt' && (
-        <Card sx={{ p: 3 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 3 }}>
-            Project Timeline (Gantt Chart)
-          </Typography>
-          <Box sx={{ overflowX: 'auto' }}>
-            <Box sx={{ minWidth: 800 }}>
-              {/* Table Gantt Header */}
-              <Box sx={{ display: 'flex', borderBottom: '1px solid #e2e8f0', pb: 1, mb: 2, fontWeight: 600 }}>
-                <Box sx={{ width: '250px' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }} color="textSecondary">
-                    Project Name
-                  </Typography>
-                </Box>
-                <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Jan</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Feb</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Mar</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Apr</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">May</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Jun</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Jul</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Aug</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Sep</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Oct</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Nov</Typography>
-                  <Typography variant="caption" sx={{ width: '8%' }} align="center">Dec</Typography>
-                </Box>
-              </Box>
-
-              {/* Gantt Timelines */}
-              {projects.slice(0, 10).map((proj, idx) => {
-                // Calculate random margins to show timeline bars
-                const barStart = 5 + (idx % 4) * 8;
-                const barWidth = 20 + (idx % 3) * 15;
+      {/* Table */}
+      <Card>
+        {projectsLoading && <LinearProgress />}
+        <TableContainer component={Paper} elevation={0}>
+          <Table sx={{ minWidth: 1100 }} size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Project Code</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Package Name</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Client</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Manager</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Priority</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hrs</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hrs</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Tasks</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Delivery</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {projects.map((project) => {
+                const pct = progressPercent(project);
                 return (
-                  <Box key={proj.id} sx={{ display: 'flex', alignItems: 'center', py: 1.5, borderBottom: '1px solid #f1f5f9' }}>
-                    <Box sx={{ width: '250px', pr: 2 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-                        {proj.name}
+                  <TableRow
+                    key={project.id}
+                    hover
+                    onClick={() => handleRowClick(project.id)}
+                    sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
+                  >
+                    {/* Project Code */}
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', fontSize: '0.8rem' }}
+                      >
+                        {project.projectCode}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {proj.shortCode} • {proj.startDate} to {proj.deadline}
+                    </TableCell>
+
+                    {/* Package Name */}
+                    <TableCell sx={{ maxWidth: 220 }}>
+                      <Tooltip title={project.name}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          {project.name}
+                        </Typography>
+                      </Tooltip>
+                      {project.description && (
+                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                          {project.description}
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* Client */}
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {project.clientName || '—'}
                       </Typography>
-                    </Box>
-                    <Box sx={{ flexGrow: 1, position: 'relative', height: '24px', bgcolor: '#f8fafc', borderRadius: '4px' }}>
-                      <Box
+                    </TableCell>
+
+                    {/* Manager */}
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {project.projectManagerName || '—'}
+                      </Typography>
+                    </TableCell>
+
+                    {/* Status — clickable to change */}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <StatusChangeChip project={project} onStatusChange={handleStatusChange} />
+                    </TableCell>
+
+                    {/* Priority */}
+                    <TableCell>
+                      <PriorityChip priority={project.priority} />
+                    </TableCell>
+
+                    {/* Est. Hours */}
+                    <TableCell align="right">
+                      <Typography variant="body2">{project.estimatedHours.toLocaleString()}</Typography>
+                    </TableCell>
+
+                    {/* Act. Hours */}
+                    <TableCell align="right">
+                      <Typography
+                        variant="body2"
                         sx={{
-                          position: 'absolute',
-                          left: `${barStart}%`,
-                          width: `${barWidth}%`,
-                          height: '100%',
-                          bgcolor: 'primary.main',
-                          borderRadius: '12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          pl: 1,
-                          boxShadow: '0 2px 4px rgba(32, 107, 196, 0.2)',
+                          color:
+                            project.actualHours > project.estimatedHours && project.estimatedHours > 0
+                              ? 'error.main'
+                              : 'text.primary',
+                          fontWeight: project.actualHours > project.estimatedHours ? 700 : 400,
                         }}
                       >
-                        <Typography variant="caption" color="white" sx={{ fontWeight: 600 }}>
-                          {proj.progress}%
+                        {project.actualHours.toLocaleString()}
+                      </Typography>
+                    </TableCell>
+
+                    {/* Tasks with progress bar */}
+                    <TableCell sx={{ minWidth: 120 }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          {project.completedTaskCount}/{project.taskCount}
                         </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={pct}
+                          sx={{
+                            height: 5,
+                            borderRadius: 3,
+                            mt: 0.5,
+                            bgcolor: 'grey.200',
+                            '& .MuiLinearProgress-bar': {
+                              bgcolor:
+                                pct === 100
+                                  ? 'success.main'
+                                  : pct >= 50
+                                  ? 'primary.main'
+                                  : 'warning.main',
+                            },
+                          }}
+                        />
                       </Box>
-                    </Box>
-                  </Box>
+                    </TableCell>
+
+                    {/* Delivery date */}
+                    <TableCell>
+                      {project.plannedEndDate ? (
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color:
+                              new Date(project.plannedEndDate) < new Date() &&
+                              project.status !== 'COMPLETED' &&
+                              project.status !== 'CANCELLED'
+                                ? 'error.main'
+                                : 'text.primary',
+                            fontWeight:
+                              new Date(project.plannedEndDate) < new Date() &&
+                              project.status !== 'COMPLETED' &&
+                              project.status !== 'CANCELLED'
+                                ? 700
+                                : 400,
+                          }}
+                        >
+                          {new Date(project.plannedEndDate).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          —
+                        </Typography>
+                      )}
+                    </TableCell>
+
+                    {/* Actions */}
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      <RowActions
+                        project={project}
+                        onStatusChange={handleStatusChange}
+                        onDelete={handleDelete}
+                        onView={handleRowClick}
+                      />
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </Box>
-          </Box>
-        </Card>
-      )}
+
+              {!projectsLoading && projects.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No projects found. Create your first project to get started.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+        />
+      </Card>
     </Box>
   );
 };

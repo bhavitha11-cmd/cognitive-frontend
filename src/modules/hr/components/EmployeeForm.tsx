@@ -35,7 +35,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   mobile: z.string().min(5, 'Mobile number must be valid'),
   phone: z.string().optional(),
   alternatePhone: z.string().optional(),
-  gender: z.enum(['Male', 'Female', 'Others']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
   dateOfBirth: z.string().min(1, 'Date of Birth is required'),
   profilePhoto: z.string().optional(),
 
@@ -44,7 +44,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   roleIds: z.array(z.string()).optional(),
   reportingManagerId: z.string().optional(),
   dateOfJoining: z.string().min(1, 'Date of Joining is required'),
-  employmentType: z.enum(['Full-Time', 'Part-Time', 'Contract', 'Intern']),
+  employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']),
   status: z.enum(['ACTIVE', 'PROBATION', 'NOTICE_PERIOD', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED']),
 
   username: z.string().min(4, 'Username must be at least 4 characters'),
@@ -94,7 +94,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       mobile: initialValues?.mobile || '',
       phone: initialValues?.phone || '',
       alternatePhone: initialValues?.alternatePhone || '',
-      gender: initialValues?.gender || 'Male',
+      gender: initialValues?.gender || 'MALE',
       dateOfBirth: initialValues?.dateOfBirth || '',
       profilePhoto: initialValues?.profilePhoto || '',
       departmentId: initialValues?.departmentId || '',
@@ -102,7 +102,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       roleIds: initialValues?.roleIds || [],
       reportingManagerId: initialValues?.reportingManagerId || '',
       dateOfJoining: initialValues?.dateOfJoining || '',
-      employmentType: initialValues?.employmentType || 'Full-Time',
+      employmentType: initialValues?.employmentType || 'FULL_TIME',
       status: initialValues?.status || 'ACTIVE',
       username: initialValues?.username || '',
       password: '',
@@ -297,9 +297,10 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
               control={control}
               render={({ field }) => (
                 <Select {...field}>
-                  <MenuItem value="Male">Male</MenuItem>
-                  <MenuItem value="Female">Female</MenuItem>
-                  <MenuItem value="Others">Others</MenuItem>
+                  <MenuItem value="MALE">Male</MenuItem>
+                  <MenuItem value="FEMALE">Female</MenuItem>
+                  <MenuItem value="OTHER">Other</MenuItem>
+                  <MenuItem value="PREFER_NOT_TO_SAY">Prefer not to say</MenuItem>
                 </Select>
               )}
             />
@@ -519,10 +520,10 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
               control={control}
               render={({ field }) => (
                 <Select {...field}>
-                  <MenuItem value="Full-Time">Full-Time</MenuItem>
-                  <MenuItem value="Part-Time">Part-Time</MenuItem>
-                  <MenuItem value="Contract">Contract</MenuItem>
-                  <MenuItem value="Intern">Intern</MenuItem>
+                  <MenuItem value="FULL_TIME">Full-Time</MenuItem>
+                  <MenuItem value="PART_TIME">Part-Time</MenuItem>
+                  <MenuItem value="CONTRACT">Contract</MenuItem>
+                  <MenuItem value="INTERN">Intern</MenuItem>
                 </Select>
               )}
             />

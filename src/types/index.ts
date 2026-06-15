@@ -1,3 +1,12 @@
+// Re-export module-level types so the rest of the app can import from '@/types'
+export type { Client, ClientCreate, ClientUpdate } from '../modules/clients/types';
+export type { Project, ProjectCreate } from '../modules/projects/types';
+export type { Task, TaskCreate, TaskAssignment, ScopeOfWork } from '../modules/tasks/types';
+
+// ---------------------------------------------------------------------------
+// Auth / User
+// ---------------------------------------------------------------------------
+
 export interface User {
   id: string;
   name: string;
@@ -6,67 +15,9 @@ export interface User {
   avatar?: string;
 }
 
-export interface Client {
-  id: string;
-  salutation?: string;
-  name: string;
-  email: string;
-  password?: string;
-  country: string;
-  mobile: string;
-  gender: string;
-  language: string;
-  category?: string;
-  subCategory?: string;
-  loginAllowed: boolean;
-  receiveNotifications: boolean;
-  profilePicture?: string;
-  
-  // Company Details
-  companyName: string;
-  website?: string;
-  taxName?: string;
-  taxNumber?: string; // GST/VAT
-  officePhone?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  address?: string;
-  
-  // Extra CRM details
-  skype?: string;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  shortCode: string;
-  startDate: string;
-  deadline: string;
-  clientId: string;
-  department: string;
-  category: string;
-  summary: string;
-  notes?: string;
-  progress: number; // 0 - 100
-  status: 'In Progress' | 'Finished' | 'On Hold' | 'Canceled';
-}
-
-export type TaskPriority = 'High' | 'Medium' | 'Low';
-export type TaskStatus = 'To Do' | 'In Progress' | 'Review' | 'Completed';
-
-export interface Task {
-  id: string;
-  title: string;
-  projectId: string;
-  assignees: string[]; // User IDs or Names
-  priority: TaskPriority;
-  status: TaskStatus;
-  startDate: string;
-  dueDate: string;
-  description: string;
-  attachments?: string[]; // file names or paths
-}
+// ---------------------------------------------------------------------------
+// Timesheets
+// ---------------------------------------------------------------------------
 
 export interface TimesheetEntry {
   id: string;
@@ -79,6 +30,10 @@ export interface TimesheetEntry {
   memo: string;
   totalHours: number;
 }
+
+// ---------------------------------------------------------------------------
+// App Settings
+// ---------------------------------------------------------------------------
 
 export interface AppSettings {
   companySettings: {

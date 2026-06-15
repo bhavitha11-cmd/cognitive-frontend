@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,100 +10,255 @@ import {
   CardContent,
   FormControl,
   FormHelperText,
-  FormLabel,
   Grid,
   MenuItem,
   Select,
   TextField,
   Typography,
-  Checkbox,
-  ListItemText,
+  Alert,
+  CircularProgress,
+  Autocomplete,
+  InputLabel,
+  Divider,
+  Stack,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 
-import { useAppStore } from '../../../store/useAppStore';
-import { mockEmployees } from '../../../utils/mockData';
-import type { Task  } from '../../../types';
+import { useCreateTask, useGetScopeOfWork } from '../services/taskService';
+import type { TaskCreate } from '../types';
+import { parseError } from '../../../utils/api';
 
-const taskFormSchema = z
-  .object({
-    title: z.string().min(3, 'Task Title must be at least 3 characters'),
-    projectId: z.string().min(1, 'Project is required'),
-    assignees: z.array(z.string()).min(1, 'Assign at least one employee'),
-    priority: z.enum(['High', 'Medium', 'Low']),
-    status: z.enum(['To Do', 'In Progress', 'Review', 'Completed']),
-    startDate: z.string().min(1, 'Start Date is required'),
-    dueDate: z.string().min(1, 'Due Date is required'),
-    description: z.string().min(10, 'Description must be at least 10 characters'),
-  })
-  .refine((data) => new Date(data.dueDate) >= new Date(data.startDate), {
-    message: 'Due Date cannot be before the start date',
-    path: ['dueDate'],
-  });
+// ==========================================
+// SCHEMA
+// ==========================================
+
+const taskFormSchema = z.object({
+  taskCode: z.string().min(1, 'Part Number / Task Code is required'),
+  projectId: z.string().min(1, 'Project is required'),
+  title: z.string().min(2, 'Title must be at least 2 characters'),
+  description: z.string().optional(),
+  scopeOfWorkId: z.string().optional(),
+  departmentCategory: z
+    .enum(['CAD', 'CAM', 'GEN', 'SALES', 'ADMIN', 'MKRT', 'SUPRT', ''])
+    .optional(),
+  status: z
+    .enum(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED'])
+    .default('NOT_STARTED'),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
+  estimatedHours: z.preprocess(
+    (val) => (val === '' || val === undefined ? undefined : Number(val)),
+    z.number().min(0).optional()
+  ),
+  receivedDate: z.string().optional(),
+  plannedStartDate: z.string().optional(),
+  plannedEndDate: z.string().optional(),
+  plannedDeliveryDate: z.string().optional(),
+  remarks: z.string().optional(),
+});
 
 type TaskFormInputs = z.infer<typeof taskFormSchema>;
 
+const DEPT_OPTIONS = [
+  { value: 'CAD', label: 'CAD — Computer-Aided Design' },
+  { value: 'CAM', label: 'CAM — Computer-Aided Manufacturing' },
+  { value: 'GEN', label: 'GEN — General' },
+  { value: 'SALES', label: 'SALES — Sales' },
+  { value: 'ADMIN', label: 'ADMIN — Administration' },
+  { value: 'MKRT', label: 'MKRT — Marketing' },
+  { value: 'SUPRT', label: 'SUPRT — Support' },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'NOT_STARTED', label: 'Not Started' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'ON_HOLD', label: 'On Hold' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'CRITICAL', label: 'Critical' },
+];
+
+// ==========================================
+// SECTION LABEL HELPER
+// ==========================================
+
+const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
+  <Box sx={{ mb: 2, mt: 1 }}>
+    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: 1 }}>
+      {label}
+    </Typography>
+    <Divider sx={{ mt: 0.5 }} />
+  </Box>
+);
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
 export const CreateTaskPage: React.FC = () => {
   const navigate = useNavigate();
-  const projects = useAppStore((state) => state.projects);
-  const addTask = useAppStore((state) => state.addTask);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Scope-of-work options (unfiltered — we'll filter in display)
+  const { data: scopeData, isLoading: scopeLoading } = useGetScopeOfWork();
+  const scopes = scopeData ?? [];
+
+  const createMutation = useCreateTask();
 
   const {
     control,
     handleSubmit,
-    formState: { errors },
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
   } = useForm<TaskFormInputs>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: {
-      title: '',
+      taskCode: '',
       projectId: '',
-      assignees: [],
-      priority: 'Medium',
-      status: 'To Do',
-      startDate: new Date().toISOString().split('T')[0],
-      dueDate: '',
+      title: '',
       description: '',
+      scopeOfWorkId: '',
+      departmentCategory: '',
+      status: 'NOT_STARTED',
+      priority: 'MEDIUM',
+      estimatedHours: undefined,
+      receivedDate: '',
+      plannedStartDate: '',
+      plannedEndDate: '',
+      plannedDeliveryDate: '',
+      remarks: '',
     },
   });
 
-  const onSubmit = (data: TaskFormInputs) => {
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      title: data.title,
-      projectId: data.projectId,
-      assignees: data.assignees,
-      priority: data.priority,
-      status: data.status,
-      startDate: data.startDate,
-      dueDate: data.dueDate,
-      description: data.description,
-      attachments: [],
-    };
+  const watchedScopeId = watch('scopeOfWorkId');
 
-    addTask(newTask);
-    navigate('/tasks');
+  // Auto-fill department when scope changes
+  useEffect(() => {
+    if (watchedScopeId) {
+      const selectedScope = scopes.find((s) => s.id === watchedScopeId);
+      if (selectedScope?.departmentCategory) {
+        setValue('departmentCategory', selectedScope.departmentCategory as any, {
+          shouldValidate: true,
+        });
+      }
+    }
+  }, [watchedScopeId, scopes, setValue]);
+
+  const onSubmit = async (data: TaskFormInputs) => {
+    setSubmitError(null);
+    try {
+      const payload: TaskCreate = {
+        taskCode: data.taskCode,
+        projectId: data.projectId,
+        title: data.title,
+        description: data.description || undefined,
+        scopeOfWorkId: data.scopeOfWorkId || undefined,
+        departmentCategory: data.departmentCategory || undefined,
+        status: data.status,
+        priority: data.priority,
+        estimatedHours: data.estimatedHours,
+        receivedDate: data.receivedDate || undefined,
+        plannedStartDate: data.plannedStartDate || undefined,
+        plannedEndDate: data.plannedEndDate || undefined,
+        plannedDeliveryDate: data.plannedDeliveryDate || undefined,
+        remarks: data.remarks || undefined,
+      };
+      await createMutation.mutateAsync(payload);
+      navigate('/tasks');
+    } catch (err: any) {
+      setSubmitError(parseError(err));
+    }
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto' }}>
       {/* Page Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Create Task
-        </Typography>
-        <Button variant="outlined" color="secondary" startIcon={<CloseIcon />} onClick={() => navigate('/tasks')}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <AssignmentIcon color="primary" sx={{ fontSize: 28 }} />
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              Create Engineering Task
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Add a new part or work item to the system
+            </Typography>
+          </Box>
+        </Stack>
+        <Button
+          variant="outlined"
+          color="secondary"
+          startIcon={<CloseIcon />}
+          onClick={() => navigate('/tasks')}
+        >
           Cancel
         </Button>
       </Box>
 
-      {/* Task Form */}
-      <form onSubmit={handleSubmit(onSubmit)}>
+      {/* Error Banner */}
+      {submitError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSubmitError(null)}>
+          {submitError}
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <Card sx={{ mb: 3 }}>
           <CardContent sx={{ p: 3 }}>
+            {/* IDENTIFICATION */}
+            <SectionLabel label="Part Identification" />
             <Grid container spacing={3}>
-              {/* Task Title */}
-              <Grid size={{ xs: 12, sm: 8 }}>
+              {/* Part Number / Task Code */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Controller
+                  name="taskCode"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Part Number / Task Code *"
+                      placeholder="e.g. 715-075598-002"
+                      fullWidth
+                      size="small"
+                      error={!!errors.taskCode}
+                      helperText={errors.taskCode?.message || 'Engineering part number or unique task code'}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                      inputProps={{ style: { fontFamily: 'monospace', fontWeight: 600 } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Project */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Controller
+                  name="projectId"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Project ID *"
+                      placeholder="Enter project ID"
+                      fullWidth
+                      size="small"
+                      error={!!errors.projectId}
+                      helperText={errors.projectId?.message || 'ID of the parent project'}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Title */}
+              <Grid size={{ xs: 12 }}>
                 <Controller
                   name="title"
                   control={control}
@@ -111,138 +266,11 @@ export const CreateTaskPage: React.FC = () => {
                     <TextField
                       {...field}
                       label="Task Title *"
-                      placeholder="e.g. Design User Flow Wireframes"
+                      placeholder="e.g. 3D Model — Bracket Assembly Rev B"
                       fullWidth
                       size="small"
                       error={!!errors.title}
                       helperText={errors.title?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  )}
-                />
-              </Grid>
-
-              {/* Project Selection */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small" error={!!errors.projectId}>
-                  <FormLabel sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 600 }}>Project *</FormLabel>
-                  <Controller
-                    name="projectId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} displayEmpty>
-                        <MenuItem value="" disabled>
-                          -- Choose Project --
-                        </MenuItem>
-                        {projects.map((p) => (
-                          <MenuItem key={p.id} value={p.id}>
-                            {p.shortCode} - {p.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  {errors.projectId && <FormHelperText>{errors.projectId.message}</FormHelperText>}
-                </FormControl>
-              </Grid>
-
-              {/* Assignees Selection (Multi-select) */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small" error={!!errors.assignees}>
-                  <FormLabel sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 600 }}>Assignees *</FormLabel>
-                  <Controller
-                    name="assignees"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        multiple
-                        renderValue={(selected) => (selected as string[]).join(', ')}
-                      >
-                        {mockEmployees.map((emp) => (
-                          <MenuItem key={emp.id} value={emp.name}>
-                            <Checkbox checked={field.value.indexOf(emp.name) > -1} size="small" />
-                            <ListItemText primary={<Typography sx={{ fontSize: '0.875rem' }}>{emp.name}</Typography>} />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  {errors.assignees && <FormHelperText>{errors.assignees.message}</FormHelperText>}
-                </FormControl>
-              </Grid>
-
-              {/* Priority */}
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 600 }}>Priority *</FormLabel>
-                  <Controller
-                    name="priority"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field}>
-                        <MenuItem value="High">High</MenuItem>
-                        <MenuItem value="Medium">Medium</MenuItem>
-                        <MenuItem value="Low">Low</MenuItem>
-                      </Select>
-                    )}
-                  />
-                </FormControl>
-              </Grid>
-
-              {/* Status */}
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <FormControl fullWidth size="small">
-                  <FormLabel sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 600 }}>Status *</FormLabel>
-                  <Controller
-                    name="status"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field}>
-                        <MenuItem value="To Do">To Do</MenuItem>
-                        <MenuItem value="In Progress">In Progress</MenuItem>
-                        <MenuItem value="Review">Review</MenuItem>
-                        <MenuItem value="Completed">Completed</MenuItem>
-                      </Select>
-                    )}
-                  />
-                </FormControl>
-              </Grid>
-
-              {/* Start Date */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="startDate"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      type="date"
-                      label="Start Date *"
-                      fullWidth
-                      size="small"
-                      error={!!errors.startDate}
-                      helperText={errors.startDate?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  )}
-                />
-              </Grid>
-
-              {/* Due Date */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="dueDate"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      type="date"
-                      label="Due Date *"
-                      fullWidth
-                      size="small"
-                      error={!!errors.dueDate}
-                      helperText={errors.dueDate?.message}
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
                   )}
@@ -257,10 +285,10 @@ export const CreateTaskPage: React.FC = () => {
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Description *"
-                      placeholder="Describe the goals and requirements of this task..."
+                      label="Description"
+                      placeholder="Describe the deliverables, revision notes, or special requirements..."
                       multiline
-                      rows={4}
+                      rows={3}
                       fullWidth
                       size="small"
                       error={!!errors.description}
@@ -270,17 +298,263 @@ export const CreateTaskPage: React.FC = () => {
                   )}
                 />
               </Grid>
+            </Grid>
 
-              {/* File Attachment mockup */}
+            {/* SCOPE & CLASSIFICATION */}
+            <Box sx={{ mt: 3 }}>
+              <SectionLabel label="Scope & Classification" />
+            </Box>
+            <Grid container spacing={3}>
+              {/* Scope of Work */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Controller
+                  name="scopeOfWorkId"
+                  control={control}
+                  render={({ field }) => {
+                    const selectedScope = scopes.find((s) => s.id === field.value) ?? null;
+                    return (
+                      <Autocomplete
+                        options={scopes}
+                        loading={scopeLoading}
+                        value={selectedScope}
+                        getOptionLabel={(option) =>
+                          `${option.code} — ${option.name} (${option.departmentCategory})`
+                        }
+                        isOptionEqualToValue={(option, value) => option.id === value.id}
+                        onChange={(_, newVal) => {
+                          field.onChange(newVal?.id ?? '');
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Scope of Work"
+                            size="small"
+                            placeholder="Select scope..."
+                            helperText="Auto-fills Department Category"
+                            slotProps={{
+                              inputLabel: { shrink: true },
+                              input: {
+                                ...params.InputProps,
+                                endAdornment: (
+                                  <>
+                                    {scopeLoading ? (
+                                      <CircularProgress color="inherit" size={14} />
+                                    ) : null}
+                                    {params.InputProps.endAdornment}
+                                  </>
+                                ),
+                              },
+                            }}
+                          />
+                        )}
+                      />
+                    );
+                  }}
+                />
+              </Grid>
+
+              {/* Department Category */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small" error={!!errors.departmentCategory}>
+                  <InputLabel shrink>Department Category</InputLabel>
+                  <Controller
+                    name="departmentCategory"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Department Category" displayEmpty notched>
+                        <MenuItem value="">— Select Department —</MenuItem>
+                        {DEPT_OPTIONS.map((d) => (
+                          <MenuItem key={d.value} value={d.value}>
+                            {d.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  {errors.departmentCategory && (
+                    <FormHelperText>{errors.departmentCategory.message}</FormHelperText>
+                  )}
+                  <FormHelperText>Auto-filled from Scope of Work</FormHelperText>
+                </FormControl>
+              </Grid>
+
+              {/* Status */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel shrink>Status</InputLabel>
+                  <Controller
+                    name="status"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Status" notched>
+                        {STATUS_OPTIONS.map((s) => (
+                          <MenuItem key={s.value} value={s.value}>
+                            {s.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                </FormControl>
+              </Grid>
+
+              {/* Priority */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel shrink>Priority</InputLabel>
+                  <Controller
+                    name="priority"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Priority" notched>
+                        {PRIORITY_OPTIONS.map((p) => (
+                          <MenuItem key={p.value} value={p.value}>
+                            {p.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                </FormControl>
+              </Grid>
+
+              {/* Estimated Hours */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="estimatedHours"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      label="Estimated Hours"
+                      placeholder="e.g. 8"
+                      type="number"
+                      fullWidth
+                      size="small"
+                      error={!!errors.estimatedHours}
+                      helperText={errors.estimatedHours?.message}
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: { min: 0, step: 0.5 },
+                      }}
+                    />
+                  )}
+                />
+              </Grid>
+            </Grid>
+
+            {/* DATES */}
+            <Box sx={{ mt: 3 }}>
+              <SectionLabel label="Dates" />
+            </Box>
+            <Grid container spacing={3}>
+              {/* Received Date */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="receivedDate"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      type="date"
+                      label="Received Date"
+                      fullWidth
+                      size="small"
+                      error={!!errors.receivedDate}
+                      helperText={errors.receivedDate?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Planned Start Date */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="plannedStartDate"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      type="date"
+                      label="Planned Start Date"
+                      fullWidth
+                      size="small"
+                      error={!!errors.plannedStartDate}
+                      helperText={errors.plannedStartDate?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Planned End Date */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="plannedEndDate"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      type="date"
+                      label="Planned End Date"
+                      fullWidth
+                      size="small"
+                      error={!!errors.plannedEndDate}
+                      helperText={errors.plannedEndDate?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Planned Delivery Date */}
+              <Grid size={{ xs: 12, sm: 3 }}>
+                <Controller
+                  name="plannedDeliveryDate"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      type="date"
+                      label="Planned Delivery Date"
+                      fullWidth
+                      size="small"
+                      error={!!errors.plannedDeliveryDate}
+                      helperText={errors.plannedDeliveryDate?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+            </Grid>
+
+            {/* REMARKS */}
+            <Box sx={{ mt: 3 }}>
+              <SectionLabel label="Remarks" />
+            </Box>
+            <Grid container spacing={3}>
               <Grid size={{ xs: 12 }}>
-                <FormLabel sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 600, display: 'block' }}>Attachments</FormLabel>
-                <Button variant="outlined" component="label" size="small">
-                  Choose Files
-                  <input type="file" hidden multiple />
-                </Button>
-                <Typography variant="caption" color="textSecondary" sx={{ ml: 2 }}>
-                  Max file size: 5MB. Supported files: PDF, PNG, JPG, ZIP.
-                </Typography>
+                <Controller
+                  name="remarks"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Remarks"
+                      placeholder="Any additional notes, client instructions, or reference information..."
+                      multiline
+                      rows={3}
+                      fullWidth
+                      size="small"
+                      error={!!errors.remarks}
+                      helperText={errors.remarks?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
               </Grid>
             </Grid>
           </CardContent>
@@ -288,10 +562,16 @@ export const CreateTaskPage: React.FC = () => {
 
         {/* Action Buttons */}
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button type="submit" variant="contained" color="primary" startIcon={<SaveIcon />}>
-            Create Task
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Creating...' : 'Create Task'}
           </Button>
-          <Button variant="outlined" color="secondary" onClick={() => navigate('/tasks')}>
+          <Button variant="outlined" color="secondary" onClick={() => navigate('/tasks')} disabled={isSubmitting}>
             Cancel
           </Button>
         </Box>

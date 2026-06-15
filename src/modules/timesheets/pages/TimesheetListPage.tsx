@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box,
   Button,
   Card,
+  Chip,
+  CircularProgress,
+  FormControl,
   Grid,
+  IconButton,
+  InputLabel,
   MenuItem,
   Select,
   Table,
@@ -14,63 +19,161 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TextField,
+  Tooltip,
   Typography,
-  Chip,
-  IconButton,
-  Avatar,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import SendIcon from '@mui/icons-material/Send';
+import { parseError } from '../../../utils/api';
+import {
+  useGetTimeEntries,
+  useDeleteTimeEntry,
+  useSubmitTimeEntry,
+} from '../services/timesheetService';
+import type { TimeEntry } from '../types';
 
-import { useAppStore } from '../../../store/useAppStore';
-import { mockEmployees } from '../../../utils/mockData';
+// ==========================================
+// HELPERS
+// ==========================================
+
+const getMonday = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
+};
+
+const formatDateISO = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+const getWeekRange = () => {
+  const now = new Date();
+  const monday = getMonday(now);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { start: formatDateISO(monday), end: formatDateISO(sunday) };
+};
+
+const STATUS_META: Record<
+  TimeEntry['status'],
+  { label: string; color: 'default' | 'primary' | 'success' | 'error' }
+> = {
+  DRAFT: { label: 'Draft', color: 'default' },
+  SUBMITTED: { label: 'Submitted', color: 'primary' },
+  APPROVED: { label: 'Approved', color: 'success' },
+  REJECTED: { label: 'Rejected', color: 'error' },
+};
+
+const TYPE_META: Record<string, string> = {
+  REGULAR: 'Regular',
+  OVERTIME: 'Overtime',
+  CORRECTION: 'Correction',
+};
+
+// ==========================================
+// USER HELPERS
+// ==========================================
+
+const getCurrentUser = () => {
+  try {
+    const profile = localStorage.getItem('cognitive_profile');
+    if (profile) return JSON.parse(profile);
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const isAdmin = (profile: any): boolean => {
+  if (!profile) return false;
+  const adminRoles = ['Administrator', 'CEO', 'ADMIN', 'Chief Executive Officer', 'Manager'];
+  const roles: string[] = profile.roles || [];
+  return roles.some((r) => adminRoles.includes(r));
+};
+
+// ==========================================
+// COMPONENT
+// ==========================================
 
 export const TimesheetListPage: React.FC = () => {
   const navigate = useNavigate();
-  const timesheets = useAppStore((state) => state.timesheets);
-  const projects = useAppStore((state) => state.projects);
-  const tasks = useAppStore((state) => state.tasks);
+  const profile = getCurrentUser();
+  const userIsAdmin = isAdmin(profile);
+  const currentEmployeeId: string | undefined = profile?.id || profile?.employee_id;
 
-  // Filters
-  const [projectFilter, setProjectFilter] = useState('all');
-  const [employeeFilter, setEmployeeFilter] = useState('all');
+  const weekRange = useMemo(() => getWeekRange(), []);
 
-  // Pagination
+  const [dateFrom, setDateFrom] = useState(weekRange.start);
+  const [dateTo, setDateTo] = useState(weekRange.end);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Helper resolvers
-  const getProjectCode = (projectId: string) => {
-    return projects.find((p) => p.id === projectId)?.shortCode || 'PRJ';
+  const queryParams = useMemo(
+    () => ({
+      skip: page * rowsPerPage,
+      limit: rowsPerPage,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      employeeId: userIsAdmin ? undefined : currentEmployeeId,
+      projectId: projectFilter || undefined,
+      status: statusFilter || undefined,
+    }),
+    [page, rowsPerPage, dateFrom, dateTo, userIsAdmin, currentEmployeeId, projectFilter, statusFilter]
+  );
+
+  const { data, isLoading, isError, error, refetch } = useGetTimeEntries(queryParams);
+  const deleteMutation = useDeleteTimeEntry();
+  const submitMutation = useSubmitTimeEntry();
+
+  const entries = data?.entries ?? [];
+  const totalCount = data?.total ?? 0;
+
+  // Derive unique project names for filter dropdown
+  const projectOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    entries.forEach((e) => {
+      if (e.projectId && e.projectName) map.set(e.projectId, e.projectName);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [entries]);
+
+  const totalHours = useMemo(
+    () => entries.reduce((sum, e) => sum + (e.hoursSpent ?? 0), 0),
+    [entries]
+  );
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this time entry?')) return;
+    try {
+      await deleteMutation.mutateAsync(id);
+    } catch (err) {
+      alert('Failed to delete: ' + parseError(err));
+    }
   };
 
-  const getTaskTitle = (taskId: string) => {
-    return tasks.find((t) => t.id === taskId)?.title || 'General Work';
+  const handleSubmit = async (id: string) => {
+    try {
+      await submitMutation.mutateAsync(id);
+    } catch (err) {
+      alert('Failed to submit: ' + parseError(err));
+    }
   };
 
-  // Filter logs
-  const filteredLogs = timesheets.filter((log) => {
-    const matchesProject = projectFilter === 'all' || log.projectId === projectFilter;
-    const matchesEmployee = employeeFilter === 'all' || log.employeeId === employeeFilter;
-    return matchesProject && matchesEmployee;
-  });
-
-  const handleChangePage = (_event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+  const handleResetFilters = () => {
+    const wr = getWeekRange();
+    setDateFrom(wr.start);
+    setDateTo(wr.end);
+    setProjectFilter('');
+    setStatusFilter('');
     setPage(0);
   };
-
-  const formatDateTime = (isoString: string) => {
-    const d = new Date(isoString);
-    return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const paginatedLogs = filteredLogs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -89,153 +192,273 @@ export const TimesheetListPage: React.FC = () => {
         </Button>
       </Box>
 
-      {/* Filter toolbar */}
+      {/* Filter Toolbar */}
       <Card sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Select
-              value={projectFilter}
-              onChange={(e) => {
-                setProjectFilter(e.target.value);
-                setPage(0);
-              }}
+        <Grid container spacing={2} alignItems="center">
+          {/* Date From */}
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="From"
+              type="date"
               size="small"
               fullWidth
-              displayEmpty
-            >
-              <MenuItem value="all">All Projects</MenuItem>
-              {projects.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.shortCode} - {p.name}
-                </MenuItem>
-              ))}
-            </Select>
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(0);
+              }}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
           </Grid>
-          <Grid size={{ xs: 6, md: 3 }}>
-            <Select
-              value={employeeFilter}
-              onChange={(e) => {
-                setEmployeeFilter(e.target.value);
-                setPage(0);
-              }}
+
+          {/* Date To */}
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              label="To"
+              type="date"
               size="small"
               fullWidth
-              displayEmpty
-            >
-              <MenuItem value="all">All Employees</MenuItem>
-              {mockEmployees.map((emp) => (
-                <MenuItem key={emp.id} value={emp.id}>
-                  {emp.name} ({emp.role})
-                </MenuItem>
-              ))}
-            </Select>
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(0);
+              }}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Grid>
+
+          {/* Project Filter */}
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Project</InputLabel>
+              <Select
+                value={projectFilter}
+                label="Project"
+                onChange={(e) => {
+                  setProjectFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Projects</MenuItem>
+                {projectOptions.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Status Filter */}
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Status"
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                <MenuItem value="DRAFT">Draft</MenuItem>
+                <MenuItem value="SUBMITTED">Submitted</MenuItem>
+                <MenuItem value="APPROVED">Approved</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Reset */}
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <Button variant="outlined" size="small" onClick={handleResetFilters} fullWidth>
+              This Week
+            </Button>
           </Grid>
         </Grid>
       </Card>
 
-      {/* Timesheets Table */}
+      {/* Error */}
+      {isError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => refetch()}>
+          {parseError(error)}
+        </Alert>
+      )}
+
+      {/* Table */}
       <Card>
         <TableContainer>
-          <Table sx={{ minWidth: 800 }}>
+          <Table sx={{ minWidth: 900 }}>
             <TableHead>
               <TableRow>
-                <TableCell>Employee</TableCell>
-                <TableCell>Project Code</TableCell>
-                <TableCell>Task</TableCell>
-                <TableCell>Time Interval</TableCell>
-                <TableCell>Hours Logged</TableCell>
-                <TableCell>Memo</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Task Code</TableCell>
+                <TableCell>Task Title</TableCell>
+                <TableCell>Project</TableCell>
+                {userIsAdmin && <TableCell>Employee</TableCell>}
+                <TableCell>Type</TableCell>
+                <TableCell align="right">Hours</TableCell>
+                <TableCell align="center">Billable</TableCell>
+                <TableCell align="center">Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginatedLogs.map((log) => (
-                <TableRow key={log.id} hover>
-                  {/* Employee Info */}
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', bgcolor: 'primary.main' }}>
-                        {log.employeeName.charAt(0)}
-                      </Avatar>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {log.employeeName}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-
-                  {/* Project Code */}
-                  <TableCell>
-                    <Chip
-                      label={getProjectCode(log.projectId)}
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ fontWeight: 600, fontSize: '0.75rem' }}
-                    />
-                  </TableCell>
-
-                  {/* Task */}
-                  <TableCell sx={{ maxWidth: 180 }}>
-                    <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>
-                      {getTaskTitle(log.taskId)}
-                    </Typography>
-                  </TableCell>
-
-                  {/* Interval */}
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
-                      {formatDateTime(log.startTime)}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      to {formatDateTime(log.endTime)}
-                    </Typography>
-                  </TableCell>
-
-                  {/* Hours */}
-                  <TableCell>
-                    <Typography variant="body2" color="primary.dark" sx={{ fontWeight: 700 }}>
-                      {log.totalHours} hrs
-                    </Typography>
-                  </TableCell>
-
-                  {/* Memo */}
-                  <TableCell sx={{ maxWidth: 200 }}>
-                    <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
-                      {log.memo}
-                    </Typography>
-                  </TableCell>
-
-                  {/* Actions */}
-                  <TableCell align="right">
-                    <IconButton size="small">
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" color="error">
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredLogs.length === 0 && (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={userIsAdmin ? 10 : 9} align="center" sx={{ py: 4 }}>
+                    <CircularProgress size={32} />
+                  </TableCell>
+                </TableRow>
+              ) : entries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={userIsAdmin ? 10 : 9} align="center">
                     <Typography variant="body2" color="textSecondary" sx={{ py: 3 }}>
-                      No timesheet entries found matching the criteria.
+                      No time entries found for the selected period.
                     </Typography>
                   </TableCell>
                 </TableRow>
+              ) : (
+                entries.map((entry) => {
+                  const statusMeta = STATUS_META[entry.status] ?? { label: entry.status, color: 'default' as const };
+                  const isDraft = entry.status === 'DRAFT';
+                  return (
+                    <TableRow key={entry.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {entry.date}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {entry.taskCode ? (
+                          <Chip
+                            label={entry.taskCode}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontWeight: 600, fontSize: '0.75rem' }}
+                          />
+                        ) : (
+                          <Typography variant="caption" color="textSecondary">
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 200 }}>
+                        <Typography variant="body2" noWrap>
+                          {entry.taskTitle || '—'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 160 }}>
+                        <Typography variant="body2" noWrap>
+                          {entry.projectName || '—'}
+                        </Typography>
+                      </TableCell>
+                      {userIsAdmin && (
+                        <TableCell>
+                          <Typography variant="body2">{entry.employeeName || entry.employeeCode || '—'}</Typography>
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <Typography variant="body2" color="textSecondary">
+                          {TYPE_META[entry.entryType] ?? entry.entryType}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.dark' }}>
+                          {entry.hoursSpent.toFixed(2)}h
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" color={entry.isBillable ? 'success.main' : 'textSecondary'}>
+                          {entry.isBillable ? 'Yes' : 'No'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={statusMeta.label}
+                          color={statusMeta.color}
+                          size="small"
+                          sx={{ fontWeight: 600, minWidth: 80 }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        {isDraft && (
+                          <>
+                            <Tooltip title="Submit for approval">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => handleSubmit(entry.id)}
+                                  disabled={submitMutation.isPending}
+                                >
+                                  <SendIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Delete entry">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDelete(entry.id)}
+                                  disabled={deleteMutation.isPending}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </>
+                        )}
+                        {entry.status === 'REJECTED' && (
+                          <Tooltip title={entry.rejectionReason || 'Rejected'}>
+                            <Chip label="Reason" size="small" variant="outlined" color="error" sx={{ cursor: 'pointer' }} />
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Total Hours Row */}
+        {!isLoading && entries.length > 0 && (
+          <Box
+            sx={{
+              px: 3,
+              py: 1.5,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'grey.50',
+            }}
+          >
+            <Typography variant="body2" color="textSecondary" sx={{ mr: 1 }}>
+              Total hours (this page):
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.dark' }}>
+              {totalHours.toFixed(2)}h
+            </Typography>
+          </Box>
+        )}
+
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
+          rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredLogs.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
+          onPageChange={(_event, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(event) => {
+            setRowsPerPage(parseInt(event.target.value, 10));
+            setPage(0);
+          }}
         />
       </Card>
     </Box>

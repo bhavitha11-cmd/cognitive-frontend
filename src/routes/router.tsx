@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { MainLayout } from '../layouts/MainLayout';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { DashboardSkeleton, TableSkeleton, FormSkeleton } from '../components/LoadingSkeleton';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
 // Reusable Lazy Loading Wrapper
 const lazyLoad = (
@@ -10,7 +11,7 @@ const lazyLoad = (
   fallbackType: 'dashboard' | 'table' | 'form' = 'dashboard'
 ) => {
   const LazyComponent = lazy(importFunc);
-  
+
   let fallback = <DashboardSkeleton />;
   if (fallbackType === 'table') fallback = <TableSkeleton />;
   if (fallbackType === 'form') fallback = <FormSkeleton />;
@@ -23,8 +24,6 @@ const lazyLoad = (
     </ErrorBoundary>
   );
 };
-
-import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -61,10 +60,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      {
-        path: 'calendar',
-        element: lazyLoad(() => import('../modules/calendar/pages/CalendarPage'), 'dashboard'),
-      },
+      // Clients — creation is via modal on the list page; /clients/create redirects back to /clients
       {
         path: 'clients',
         children: [
@@ -74,10 +70,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'create',
-            element: lazyLoad(() => import('../modules/clients/pages/AddClientPage'), 'form'),
+            element: <Navigate to="/clients" replace />,
           },
         ],
       },
+      // Projects
       {
         path: 'projects',
         children: [
@@ -89,8 +86,13 @@ export const router = createBrowserRouter([
             path: 'create',
             element: lazyLoad(() => import('../modules/projects/pages/CreateProjectPage'), 'form'),
           },
+          {
+            path: ':id',
+            element: lazyLoad(() => import('../modules/projects/pages/ProjectDetailPage'), 'dashboard'),
+          },
         ],
       },
+      // Tasks
       {
         path: 'tasks',
         children: [
@@ -104,6 +106,21 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Planning — Phase 3 (Gantt, Capacity)
+      {
+        path: 'planning',
+        children: [
+          {
+            path: 'projects/:id/timeline',
+            element: lazyLoad(() => import('../modules/planning/pages/ProjectTimelinePage'), 'dashboard'),
+          },
+          {
+            path: 'capacity',
+            element: lazyLoad(() => import('../modules/planning/pages/CapacityPlanningPage'), 'dashboard'),
+          },
+        ],
+      },
+      // Timesheets — Phase 2
       {
         path: 'timesheets',
         children: [
@@ -115,8 +132,21 @@ export const router = createBrowserRouter([
             path: 'create',
             element: lazyLoad(() => import('../modules/timesheets/pages/LogTimePage'), 'form'),
           },
+          {
+            path: 'leave',
+            element: lazyLoad(() => import('../modules/timesheets/pages/LeaveRequestPage'), 'table'),
+          },
+          {
+            path: 'leave-approval',
+            element: lazyLoad(() => import('../modules/timesheets/pages/LeaveApprovalPage'), 'table'),
+          },
+          {
+            path: 'attendance',
+            element: lazyLoad(() => import('../modules/timesheets/pages/AttendancePage'), 'table'),
+          },
         ],
       },
+      // HR
       {
         path: 'hr',
         children: [
@@ -171,6 +201,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Coming Soon routes — routes still resolve so direct URL access doesn't 404
       {
         path: 'tickets',
         element: lazyLoad(() => import('../modules/tickets/pages/TicketsPage'), 'table'),
@@ -179,6 +210,11 @@ export const router = createBrowserRouter([
         path: 'reports',
         element: lazyLoad(() => import('../modules/reports/pages/ReportsPage'), 'dashboard'),
       },
+      {
+        path: 'calendar',
+        element: lazyLoad(() => import('../modules/calendar/pages/CalendarPage'), 'dashboard'),
+      },
+      // Settings
       {
         path: 'settings',
         element: lazyLoad(() => import('../modules/settings/pages/SettingsPage'), 'form'),

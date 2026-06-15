@@ -22,6 +22,7 @@ import {
   Avatar,
   Tooltip,
   Divider,
+  Chip,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -39,18 +40,22 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 // Sidebar Icons
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
-import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import WorkOutlinedIcon from '@mui/icons-material/WorkOutlined';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
+import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
-import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
-import ChatBubbleOutlinedIcon from '@mui/icons-material/ChatBubbleOutlined';
-import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
-import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 
@@ -100,11 +105,19 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
+interface SidebarChild {
+  name: string;
+  path: string;
+  icon?: React.ReactNode;
+  adminOnly?: boolean;
+}
+
 interface SidebarItem {
   name: string;
   path?: string;
   icon: React.ReactNode;
-  children?: { name: string; path: string }[];
+  comingSoon?: boolean;
+  children?: SidebarChild[];
 }
 
 export const MainLayout: React.FC = () => {
@@ -117,17 +130,16 @@ export const MainLayout: React.FC = () => {
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const settings = useAppStore((state) => state.settings);
 
-  // States
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     Dashboard: true,
+    HR: false,
     Work: true,
+    Timesheets: false,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Quick Add Menu Anchor
   const [quickAddAnchor, setQuickAddAnchor] = useState<null | HTMLElement>(null);
-  // Profile Menu Anchor
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
 
   const [currentUser, setCurrentUser] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
@@ -173,7 +185,7 @@ export const MainLayout: React.FC = () => {
 
   const hasPermission = (itemName: string): boolean => {
     if (!profile) return true;
-    
+
     if (
       profile.roles.includes('Administrator') ||
       profile.roles.includes('CEO') ||
@@ -184,17 +196,19 @@ export const MainLayout: React.FC = () => {
     }
 
     const permissionMap: Record<string, string> = {
-      'Clients': 'Clients',
-      'HR': 'HR',
-      'Work': 'Projects',
-      'Reports': 'Reports',
-      'Settings': 'Settings',
+      Clients: 'Clients',
+      HR: 'HR',
+      Work: 'Projects',
+      Reports: 'Reports',
+      Settings: 'Settings',
     };
 
     const targetModule = permissionMap[itemName];
     if (!targetModule) return true;
 
-    const userPerm = profile.permissions.find((p) => p.module_name.toLowerCase() === targetModule.toLowerCase());
+    const userPerm = profile.permissions.find(
+      (p) => p.module_name.toLowerCase() === targetModule.toLowerCase()
+    );
     return userPerm ? userPerm.can_view : false;
   };
 
@@ -210,6 +224,7 @@ export const MainLayout: React.FC = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
+  // Navigation structure — Phase 1 scope
   const menuItems: SidebarItem[] = [
     {
       name: 'Dashboard',
@@ -219,8 +234,11 @@ export const MainLayout: React.FC = () => {
         { name: 'Advanced Dashboard', path: '/dashboard/advanced' },
       ],
     },
-    { name: 'My Calendar', path: '/calendar', icon: <CalendarTodayOutlinedIcon /> },
-    { name: 'Clients', path: '/clients', icon: <PeopleOutlinedIcon /> },
+    {
+      name: 'Clients',
+      path: '/clients',
+      icon: <PeopleOutlinedIcon />,
+    },
     {
       name: 'HR',
       icon: <BadgeOutlinedIcon />,
@@ -236,26 +254,54 @@ export const MainLayout: React.FC = () => {
       ],
     },
     {
-      name: 'Work',
-      icon: <WorkOutlinedIcon />,
+      name: 'Projects',
+      path: '/projects',
+      icon: <FolderOutlinedIcon />,
+    },
+    {
+      name: 'Tasks',
+      path: '/tasks',
+      icon: <AssignmentOutlinedIcon />,
+    },
+    // Phase 2 — Timesheets
+    {
+      name: 'Timesheets',
+      icon: <ScheduleOutlinedIcon />,
       children: [
-        { name: 'Projects', path: '/projects' },
-        { name: 'Tasks', path: '/tasks' },
-        { name: 'Timesheets', path: '/timesheets' },
+        { name: 'Log Time', path: '/timesheets/create', icon: <ScheduleOutlinedIcon fontSize="small" /> },
+        { name: 'My Timesheets', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
+        { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlineIcon fontSize="small" /> },
+        { name: 'My Leaves', path: '/timesheets/leave', icon: <EventBusyOutlinedIcon fontSize="small" /> },
+        { name: 'Leave Approval', path: '/timesheets/leave-approval', icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />, adminOnly: true },
       ],
     },
-    { name: 'Tickets', path: '/tickets', icon: <ConfirmationNumberOutlinedIcon /> },
-    { name: 'Events', path: '/calendar', icon: <EventOutlinedIcon /> },
-    { name: 'Messages', path: '/tickets', icon: <ChatBubbleOutlinedIcon /> },
-    { name: 'Notice Board', path: '/dashboard/private', icon: <CampaignOutlinedIcon /> },
-    { name: 'Knowledge Base', path: '/dashboard/private', icon: <MenuBookOutlinedIcon /> },
-    { name: 'Reports', path: '/reports', icon: <BarChartOutlinedIcon /> },
-    { name: 'Settings', path: '/settings', icon: <SettingsOutlinedIcon /> },
+    {
+      name: 'Calendar',
+      path: '/calendar',
+      icon: <CalendarTodayOutlinedIcon />,
+      comingSoon: true,
+    },
+    {
+      name: 'Tickets',
+      path: '/tickets',
+      icon: <ConfirmationNumberOutlinedIcon />,
+      comingSoon: true,
+    },
+    {
+      name: 'Reports',
+      path: '/reports',
+      icon: <BarChartOutlinedIcon />,
+      comingSoon: true,
+    },
+    {
+      name: 'Settings',
+      path: '/settings',
+      icon: <SettingsOutlinedIcon />,
+    },
   ];
 
   const filteredMenuItems = menuItems.filter((item) => hasPermission(item.name));
 
-  // Helper to determine if a route is active
   const isRouteActive = (path?: string) => {
     if (!path) return false;
     if (path === '/dashboard/private') {
@@ -264,13 +310,11 @@ export const MainLayout: React.FC = () => {
     return location.pathname.startsWith(path);
   };
 
-  // Helper to determine if a parent menu contains the active route
   const isParentActive = (item: SidebarItem) => {
     if (!item.children) return false;
-    return item.children.some((child) => location.pathname === child.path);
+    return item.children.some((child) => location.pathname.startsWith(child.path));
   };
 
-  // Render Sidebar Content
   const renderSidebar = (
     <Box
       sx={{
@@ -318,17 +362,25 @@ export const MainLayout: React.FC = () => {
             const hasChildren = !!item.children;
             const parentActive = isParentActive(item);
             const active = isRouteActive(item.path);
+            const isComingSoon = !!item.comingSoon;
 
             if (sidebarCollapsed && !isMobile) {
               return (
-                <Tooltip key={item.name} title={item.name} placement="right">
+                <Tooltip
+                  key={item.name}
+                  title={isComingSoon ? `${item.name} — Coming Soon` : item.name}
+                  placement="right"
+                >
                   <ListItem disablePadding sx={{ mb: 0.5 }}>
                     <ListItemButton
+                      disabled={isComingSoon}
                       onClick={() => {
-                        if (hasChildren && item.children) {
-                          navigate(item.children[0].path);
-                        } else if (item.path) {
-                          navigate(item.path);
+                        if (!isComingSoon) {
+                          if (hasChildren && item.children) {
+                            navigate(item.children[0].path);
+                          } else if (item.path) {
+                            navigate(item.path);
+                          }
                         }
                       }}
                       sx={{
@@ -336,10 +388,22 @@ export const MainLayout: React.FC = () => {
                         borderRadius: '6px',
                         py: 1.5,
                         px: 0,
-                        color: active || parentActive ? theme.palette.sidebar.activeText : theme.palette.sidebar.text,
-                        bgcolor: active || parentActive ? theme.palette.sidebar.active : 'transparent',
+                        opacity: isComingSoon ? 0.45 : 1,
+                        color:
+                          active || parentActive
+                            ? theme.palette.sidebar.activeText
+                            : theme.palette.sidebar.text,
+                        bgcolor:
+                          active || parentActive ? theme.palette.sidebar.active : 'transparent',
                         '&:hover': {
-                          bgcolor: active || parentActive ? theme.palette.sidebar.active : theme.palette.sidebar.hover,
+                          bgcolor:
+                            active || parentActive
+                              ? theme.palette.sidebar.active
+                              : theme.palette.sidebar.hover,
+                        },
+                        '&.Mui-disabled': {
+                          opacity: 0.45,
+                          color: theme.palette.sidebar.text,
                         },
                       }}
                     >
@@ -347,10 +411,11 @@ export const MainLayout: React.FC = () => {
                         sx={{
                           minWidth: 0,
                           justifyContent: 'center',
-                          color: active || parentActive ? theme.palette.sidebar.activeText : 'inherit',
+                          color:
+                            active || parentActive ? theme.palette.sidebar.activeText : 'inherit',
                         }}
                       >
-                        {item.icon}
+                        {isComingSoon ? <LockOutlinedIcon fontSize="small" /> : item.icon}
                       </ListItemIcon>
                     </ListItemButton>
                   </ListItem>
@@ -362,7 +427,9 @@ export const MainLayout: React.FC = () => {
               <React.Fragment key={item.name}>
                 <ListItem disablePadding sx={{ mb: 0.5 }}>
                   <ListItemButton
+                    disabled={isComingSoon}
                     onClick={() => {
+                      if (isComingSoon) return;
                       if (hasChildren) {
                         handleSubmenuToggle(item.name);
                       } else if (item.path) {
@@ -371,12 +438,17 @@ export const MainLayout: React.FC = () => {
                     }}
                     sx={{
                       borderRadius: '6px',
+                      opacity: isComingSoon ? 0.5 : 1,
                       color: active ? theme.palette.sidebar.activeText : theme.palette.sidebar.text,
                       bgcolor: active ? theme.palette.sidebar.active : 'transparent',
                       '&:hover': {
                         bgcolor: active ? theme.palette.sidebar.active : theme.palette.sidebar.hover,
                         color: '#ffffff',
                         '& .MuiListItemIcon-root': { color: '#ffffff' },
+                      },
+                      '&.Mui-disabled': {
+                        opacity: 0.5,
+                        color: theme.palette.sidebar.text,
                       },
                     }}
                   >
@@ -388,44 +460,96 @@ export const MainLayout: React.FC = () => {
                     >
                       {item.icon}
                     </ListItemIcon>
-                    <ListItemText>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: active || parentActive ? 600 : 500 }}>
-                        {item.name}
-                      </Typography>
+                    <ListItemText disableTypography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          sx={{ fontSize: '0.875rem', fontWeight: active || parentActive ? 600 : 500 }}
+                        >
+                          {item.name}
+                        </Typography>
+                        {isComingSoon && (
+                          <Chip
+                            label="Soon"
+                            size="small"
+                            sx={{
+                              height: 16,
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              bgcolor: 'rgba(255,255,255,0.12)',
+                              color: 'rgba(255,255,255,0.6)',
+                              '& .MuiChip-label': { px: 0.75 },
+                            }}
+                          />
+                        )}
+                      </Box>
                     </ListItemText>
-                    {hasChildren && (openSubmenus[item.name] ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />)}
+                    {hasChildren &&
+                      (openSubmenus[item.name] ? (
+                        <ExpandLess sx={{ fontSize: 18 }} />
+                      ) : (
+                        <ExpandMore sx={{ fontSize: 18 }} />
+                      ))}
                   </ListItemButton>
                 </ListItem>
 
                 {hasChildren && item.children && (
-                  <Collapse in={openSubmenus[item.name]} timeout="auto" unmountOnExit sx={{ pl: 4 }}>
+                  <Collapse
+                    in={openSubmenus[item.name]}
+                    timeout="auto"
+                    unmountOnExit
+                    sx={{ pl: 4 }}
+                  >
                     <List disablePadding>
-                      {item.children.map((child) => {
-                        const childActive = location.pathname === child.path;
-                        return (
-                          <ListItem disablePadding key={child.name} sx={{ mb: 0.5 }}>
-                            <ListItemButton
-                              component={Link}
-                              to={child.path}
-                              sx={{
-                                borderRadius: '6px',
-                                py: 0.75,
-                                color: childActive ? '#ffffff' : theme.palette.sidebar.text,
-                                '&:hover': {
-                                  color: '#ffffff',
-                                  bgcolor: theme.palette.sidebar.hover,
-                                },
-                              }}
-                            >
-                              <ListItemText>
-                                <Typography sx={{ fontSize: '0.8125rem', fontWeight: childActive ? 600 : 400 }}>
-                                  {child.name}
-                                </Typography>
-                              </ListItemText>
-                            </ListItemButton>
-                          </ListItem>
-                        );
-                      })}
+                      {item.children
+                        .filter((child) => {
+                          if (!child.adminOnly) return true;
+                          if (!profile) return true;
+                          return (
+                            profile.roles.includes('Administrator') ||
+                            profile.roles.includes('CEO') ||
+                            profile.roles.includes('ADMIN') ||
+                            profile.roles.includes('Chief Executive Officer') ||
+                            profile.roles.includes('Manager')
+                          );
+                        })
+                        .map((child) => {
+                          const childActive = location.pathname.startsWith(child.path);
+                          return (
+                            <ListItem disablePadding key={child.name} sx={{ mb: 0.5 }}>
+                              <ListItemButton
+                                component={Link}
+                                to={child.path}
+                                sx={{
+                                  borderRadius: '6px',
+                                  py: 0.75,
+                                  color: childActive ? '#ffffff' : theme.palette.sidebar.text,
+                                  '&:hover': {
+                                    color: '#ffffff',
+                                    bgcolor: theme.palette.sidebar.hover,
+                                  },
+                                }}
+                              >
+                                {child.icon && (
+                                  <ListItemIcon
+                                    sx={{
+                                      minWidth: 32,
+                                      color: childActive ? '#ffffff' : 'inherit',
+                                    }}
+                                  >
+                                    {child.icon}
+                                  </ListItemIcon>
+                                )}
+                                <ListItemText>
+                                  <Typography
+                                    sx={{ fontSize: '0.8125rem', fontWeight: childActive ? 600 : 400 }}
+                                  >
+                                    {child.name}
+                                  </Typography>
+                                </ListItemText>
+                              </ListItemButton>
+                            </ListItem>
+                          );
+                        })}
                     </List>
                   </Collapse>
                 )}
@@ -442,7 +566,7 @@ export const MainLayout: React.FC = () => {
             variant="contained"
             color="primary"
             fullWidth
-            onClick={() => navigate('/tickets')}
+            onClick={() => navigate('/settings')}
             sx={{
               mb: 2,
               py: 1,
@@ -451,13 +575,13 @@ export const MainLayout: React.FC = () => {
               whiteSpace: 'nowrap',
             }}
           >
-            Raise Support Ticket
+            App Settings
           </Button>
         )}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {(!sidebarCollapsed || isMobile) && (
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)' }}>
-              v5.5.24
+              v1.0.0
             </Typography>
           )}
           {!isMobile && (
@@ -484,23 +608,27 @@ export const MainLayout: React.FC = () => {
     if (paths.length === 0) return 'Private Dashboard';
     const first = paths[0];
     const second = paths[1];
-    
+
     if (first === 'dashboard') {
       return second === 'advanced' ? 'Advanced Dashboard' : 'Private Dashboard';
     }
-    if (first === 'clients') {
-      return second === 'create' ? 'Add Client' : 'Clients';
-    }
+    if (first === 'clients') return 'Clients';
     if (first === 'projects') {
-      return second === 'create' ? 'Add Project' : 'Projects';
+      if (second === 'create') return 'Add Project';
+      if (second) return 'Project Detail';
+      return 'Projects';
     }
     if (first === 'tasks') {
       return second === 'create' ? 'Add Task' : 'Tasks';
     }
     if (first === 'timesheets') {
-      return second === 'create' ? 'Log Time' : 'Timesheets';
+      if (second === 'create') return 'Log Time';
+      if (second === 'leave') return 'My Leaves';
+      if (second === 'leave-approval') return 'Leave Approval';
+      if (second === 'attendance') return 'Attendance';
+      return 'My Timesheets';
     }
-    if (first === 'calendar') return 'My Calendar';
+    if (first === 'calendar') return 'Calendar';
     if (first === 'settings') return 'Settings';
     if (first === 'reports') return 'Reports';
     if (first === 'tickets') return 'Tickets';
@@ -510,16 +638,19 @@ export const MainLayout: React.FC = () => {
       }
       if (second === 'roles') return 'Roles';
       if (second === 'departments') return 'Departments';
+      if (second === 'teams') return 'Teams';
+      if (second === 'organization-chart') return 'Org Chart';
+      if (second === 'offboarding') return 'Offboarding';
+      if (second === 'audit-logs') return 'Audit Logs';
       if (second === 'attendance-settings') return 'Attendance Settings';
       return 'HR Management';
     }
-    
+
     return first.charAt(0).toUpperCase() + first.slice(1);
   };
 
   const getBreadcrumbTrail = () => {
-    const title = getBreadcrumbTitle();
-    return `Home • ${title}`;
+    return `Home • ${getBreadcrumbTitle()}`;
   };
 
   return (
@@ -538,7 +669,6 @@ export const MainLayout: React.FC = () => {
           {renderSidebar}
         </Drawer>
       ) : (
-        /* Permanent Collapsible Sidebar for Desktop */
         <Box
           sx={{
             width: sidebarCollapsed ? collapsedDrawerWidth : drawerWidth,
@@ -600,11 +730,11 @@ export const MainLayout: React.FC = () => {
                 aria-label="open drawer"
                 edge="start"
                 onClick={isMobile ? handleDrawerToggle : toggleSidebar}
-                sx={{ mr: 1, display: isMobile ? 'flex' : 'flex' }}
+                sx={{ mr: 1 }}
               >
                 <MenuIcon />
               </IconButton>
-              
+
               <Box>
                 <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
                   {getBreadcrumbTitle()}
@@ -691,7 +821,7 @@ export const MainLayout: React.FC = () => {
                 <MenuItem
                   onClick={() => {
                     setQuickAddAnchor(null);
-                    navigate('/clients/create');
+                    navigate('/clients');
                   }}
                 >
                   Add Client
@@ -712,22 +842,7 @@ export const MainLayout: React.FC = () => {
                 >
                   Add Task
                 </MenuItem>
-                <MenuItem
-                  onClick={() => {
-                    setQuickAddAnchor(null);
-                    navigate('/timesheets/create');
-                  }}
-                >
-                  Log Time
-                </MenuItem>
               </Menu>
-
-              {/* Message Bell */}
-              <IconButton size="small">
-                <Badge badgeContent={5} color="error">
-                  <MailIcon fontSize="small" />
-                </Badge>
-              </IconButton>
 
               {/* Notification Bell */}
               <IconButton size="small">
@@ -745,11 +860,17 @@ export const MainLayout: React.FC = () => {
                 sx={{ p: 0.5 }}
               >
                 <Avatar
-                  alt={currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : settings.profileSettings.name}
+                  alt={
+                    currentUser
+                      ? `${currentUser.first_name} ${currentUser.last_name}`
+                      : settings.profileSettings.name
+                  }
                   src={settings.profileSettings.avatar}
                   sx={{ width: 32, height: 32 }}
                 >
-                  {currentUser ? `${currentUser.first_name.charAt(0)}${currentUser.last_name.charAt(0)}` : ''}
+                  {currentUser
+                    ? `${currentUser.first_name.charAt(0)}${currentUser.last_name.charAt(0)}`
+                    : ''}
                 </Avatar>
               </IconButton>
 
@@ -762,7 +883,9 @@ export const MainLayout: React.FC = () => {
               >
                 <Box sx={{ px: 2, py: 1 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                    {currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : settings.profileSettings.name}
+                    {currentUser
+                      ? `${currentUser.first_name} ${currentUser.last_name}`
+                      : settings.profileSettings.name}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     {currentUser ? currentUser.email : settings.profileSettings.email}
@@ -786,13 +909,17 @@ export const MainLayout: React.FC = () => {
                   App Settings
                 </MenuItem>
                 <Divider />
-                <MenuItem onClick={() => {
-                  setProfileAnchor(null);
-                  localStorage.removeItem('cognitive_token');
-                  localStorage.removeItem('cognitive_user');
-                  localStorage.removeItem('cognitive_profile');
-                  navigate('/login');
-                }}>Logout</MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchor(null);
+                    localStorage.removeItem('cognitive_token');
+                    localStorage.removeItem('cognitive_user');
+                    localStorage.removeItem('cognitive_profile');
+                    navigate('/login');
+                  }}
+                >
+                  Logout
+                </MenuItem>
               </Menu>
             </Box>
           </Toolbar>
