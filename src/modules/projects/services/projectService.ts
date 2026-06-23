@@ -8,8 +8,9 @@ import type { Project, ProjectCreate, ProjectUpdate, ProjectListParams } from '.
 
 const mapBackendProjectToFrontend = (p: any): Project => ({
   id: p.id,
-  projectCode: p.project_code,
+  partNumber: p.part_number,
   name: p.name,
+  partName: p.part_name,
   description: p.description || undefined,
   clientId: p.client_id,
   clientName: p.client_name || undefined,
@@ -17,7 +18,6 @@ const mapBackendProjectToFrontend = (p: any): Project => ({
   projectManagerName: p.project_manager_name || undefined,
   status: p.status,
   priority: p.priority,
-  billingType: p.billing_type,
   isBillable: p.is_billable ?? true,
   plannedStartDate: p.planned_start_date || undefined,
   plannedEndDate: p.planned_end_date || undefined,
@@ -28,6 +28,7 @@ const mapBackendProjectToFrontend = (p: any): Project => ({
   invoiceStatus: p.invoice_status ?? 'PENDING',
   tokForm: p.tok_form || undefined,
   feedbackStatus: p.feedback_status ?? 'PENDING',
+  statusReason: p.status_reason || undefined,
   isActive: p.is_active ?? true,
   taskCount: p.task_count ?? 0,
   completedTaskCount: p.completed_task_count ?? 0,
@@ -36,14 +37,14 @@ const mapBackendProjectToFrontend = (p: any): Project => ({
 });
 
 const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
-  project_code: data.projectCode,
+  part_number: data.partNumber,
   name: data.name,
+  part_name: data.partName,
   description: data.description || null,
   client_id: data.clientId,
   project_manager_id: data.projectManagerId || null,
-  status: data.status || 'DRAFT',
+  status: data.status || 'Yet To Start',
   priority: data.priority || 'MEDIUM',
-  billing_type: data.billingType || 'FIXED',
   is_billable: data.isBillable ?? true,
   planned_start_date: data.plannedStartDate || null,
   planned_end_date: data.plannedEndDate || null,
@@ -52,6 +53,7 @@ const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
   invoice_status: data.invoiceStatus || 'PENDING',
   tok_form: data.tokForm || null,
   feedback_status: data.feedbackStatus || 'PENDING',
+  status_reason: data.statusReason || null,
 });
 
 // ==========================================
@@ -108,14 +110,14 @@ export const useUpdateProject = () => {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: ProjectUpdate }) => {
       const payload: Record<string, any> = {};
-      if (data.projectCode !== undefined) payload.project_code = data.projectCode;
+      if (data.partNumber !== undefined) payload.part_number = data.partNumber;
       if (data.name !== undefined) payload.name = data.name;
+      if (data.partName !== undefined) payload.part_name = data.partName;
       if (data.description !== undefined) payload.description = data.description || null;
       if (data.clientId !== undefined) payload.client_id = data.clientId;
       if (data.projectManagerId !== undefined) payload.project_manager_id = data.projectManagerId || null;
       if (data.status !== undefined) payload.status = data.status;
       if (data.priority !== undefined) payload.priority = data.priority;
-      if (data.billingType !== undefined) payload.billing_type = data.billingType;
       if (data.isBillable !== undefined) payload.is_billable = data.isBillable;
       if (data.plannedStartDate !== undefined) payload.planned_start_date = data.plannedStartDate || null;
       if (data.plannedEndDate !== undefined) payload.planned_end_date = data.plannedEndDate || null;
@@ -124,6 +126,7 @@ export const useUpdateProject = () => {
       if (data.invoiceStatus !== undefined) payload.invoice_status = data.invoiceStatus;
       if (data.tokForm !== undefined) payload.tok_form = data.tokForm || null;
       if (data.feedbackStatus !== undefined) payload.feedback_status = data.feedbackStatus;
+      if (data.statusReason !== undefined) payload.status_reason = data.statusReason || null;
       const response = await api.put(`/projects/${id}`, payload);
       const raw = response.data?.data?.project || response.data?.data || response.data;
       return mapBackendProjectToFrontend(raw);
@@ -138,8 +141,8 @@ export const useUpdateProject = () => {
 export const useUpdateProjectStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await api.patch(`/projects/${id}/status`, { status });
+    mutationFn: async ({ id, status, reason }: { id: string; status: string; reason?: string }) => {
+      const response = await api.patch(`/projects/${id}/status`, { status, reason });
       const raw = response.data?.data?.project || response.data?.data || response.data;
       return mapBackendProjectToFrontend(raw);
     },
@@ -161,3 +164,14 @@ export const useDeleteProject = () => {
     },
   });
 };
+
+export const useGetHolidays = () => {
+  return useQuery<string[]>({
+    queryKey: ['holidays'],
+    queryFn: async () => {
+      const response = await api.get('/projects/holidays/list');
+      return response.data?.data?.holidays || [];
+    },
+  });
+};
+

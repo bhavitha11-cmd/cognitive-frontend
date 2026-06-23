@@ -12,11 +12,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Select,
   Snackbar,
   Stack,
   Table,
@@ -258,7 +253,7 @@ export const LeaveApprovalPage: React.FC = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
         <Box>
-          <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               Leave Approvals
             </Typography>
@@ -282,10 +277,9 @@ export const LeaveApprovalPage: React.FC = () => {
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={2}
-          alignItems={{ sm: 'center' }}
-          justifyContent="space-between"
+          sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
         >
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <FilterListIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
             {QUICK_FILTERS.map((f) => (
               <Chip

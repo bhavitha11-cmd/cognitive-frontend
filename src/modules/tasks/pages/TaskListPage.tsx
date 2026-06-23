@@ -41,13 +41,14 @@ import {
   useUpdateTaskStatus,
 } from '../services/taskService';
 import type { Task } from '../types';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
 // STATUS / PRIORITY HELPERS
 // ==========================================
 
 const STATUS_LABELS: Record<string, string> = {
-  NOT_STARTED: 'Not Started',
+  NOT_STARTED: 'Yet To Start',
   IN_PROGRESS: 'In Progress',
   ON_HOLD: 'On Hold',
   COMPLETED: 'Completed',
@@ -127,7 +128,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, open, onClose }
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
+        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1 }}>
           <AssignmentIcon color="primary" />
           <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
             {task.taskCode}
@@ -138,7 +139,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, open, onClose }
             color={getStatusColor(task.status)}
             sx={{ fontWeight: 600 }}
           />
-        </Stack>
+        </Box>
       </DialogTitle>
       <Divider />
       <DialogContent sx={{ pt: 2 }}>
@@ -512,19 +513,43 @@ export const TaskListPage: React.FC = () => {
       id: 'plannedDeliveryDate',
       label: 'Delivery Date',
       render: (row) => {
-        const date = row.plannedDeliveryDate;
+        const isCompleted = row.status === 'COMPLETED' || row.status === 'CANCELLED';
+        const actualDate = row.actualDeliveryDate;
+        const plannedDate = row.plannedDeliveryDate;
+
+        if (isCompleted && actualDate) {
+          // Show actual delivery date with a green badge
+          return (
+            <Box>
+              <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'success.dark', fontWeight: 600 }}>
+                {formatDate(actualDate)}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'success.main', fontWeight: 500 }}>
+                ✓ Actual
+              </Typography>
+            </Box>
+          );
+        }
+
+        // Not completed — show planned delivery date with overdue highlight
         const isOverdue =
-          date &&
-          row.status !== 'COMPLETED' &&
-          row.status !== 'CANCELLED' &&
-          new Date(date) < new Date();
+          plannedDate &&
+          !isCompleted &&
+          new Date(plannedDate) < new Date();
         return (
-          <Typography
-            variant="body2"
-            sx={{ fontSize: '0.8rem', color: isOverdue ? 'error.main' : 'text.primary', fontWeight: isOverdue ? 700 : 400 }}
-          >
-            {formatDate(date)}
-          </Typography>
+          <Box>
+            <Typography
+              variant="body2"
+              sx={{ fontSize: '0.8rem', color: isOverdue ? 'error.main' : 'text.primary', fontWeight: isOverdue ? 700 : 400 }}
+            >
+              {formatDate(plannedDate)}
+            </Typography>
+            {isOverdue && (
+              <Typography variant="caption" sx={{ fontSize: '0.68rem', color: 'error.main' }}>
+                ⚠ Overdue
+              </Typography>
+            )}
+          </Box>
         );
       },
     },
@@ -580,29 +605,33 @@ export const TaskListPage: React.FC = () => {
               <VisibilityIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Edit Task">
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/tasks/${row.id}/edit`);
-              }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Task">
-            <IconButton
-              size="small"
-              color="error"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteTask(row);
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {useAuthStore.getState().hasPermission('Tasks', 'edit') && (
+            <Tooltip title="Edit Task">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/tasks/${row.id}/edit`);
+                }}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          {useAuthStore.getState().hasPermission('Tasks', 'delete') && (
+            <Tooltip title="Delete Task">
+              <IconButton
+                size="small"
+                color="error"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTask(row);
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       ),
     },
@@ -620,14 +649,16 @@ export const TaskListPage: React.FC = () => {
             Manage part-level scope of work assignments
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/tasks/create')}
-        >
-          Create Task
-        </Button>
+        {useAuthStore.getState().hasPermission('Tasks', 'create') && (
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/tasks/create')}
+          >
+            Create Task
+          </Button>
+        )}
       </Box>
 
       {/* Error Alert */}

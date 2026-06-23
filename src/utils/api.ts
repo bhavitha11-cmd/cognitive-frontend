@@ -1,10 +1,24 @@
 import axios from 'axios';
 
+// ─── Resolve API base URL ──────────────────────────────────────────────────────
+// Priority: VITE_API_URL env var (set in .env or .env.local) → localhost fallback
+// For ngrok/remote access: set VITE_API_URL=https://your-backend.ngrok-free.app/api/v1
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+
+if (!import.meta.env.VITE_API_URL && import.meta.env.DEV) {
+  console.warn(
+    '[API] VITE_API_URL is not set. Falling back to http://127.0.0.1:8000/api/v1.\n' +
+    'For ngrok/remote access, create a .env.local file with:\n' +
+    '  VITE_API_URL=https://your-backend.ngrok-free.app/api/v1'
+  );
+}
+
 // Create a configured Axios instance pointing to the FastAPI backend
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -26,18 +26,28 @@ import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 
-import { useCreateTask, useGetScopeOfWork } from '../services/taskService';
-import { useGetProjects } from '../../projects/services/projectService';
+import {
+  useCreateTask,
+  useGetScopeOfWork,
+  useGetProjectDetailsByPart,
+  useGetTasksByProject,
+  useGetNextTaskCode,
+  useGetTask,
+  useUpdateTask,
+} from '../services/taskService';
+import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
+import { useGetEmployees } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
+import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
 
 // ==========================================
 // SCHEMA
 // ==========================================
 
 const taskFormSchema = z.object({
-  taskCode: z.string().min(1, 'Part Number / Task Code is required'),
-  projectId: z.string().min(1, 'Project is required'),
+  taskCode: z.string().min(1, 'Task Code is required'),
+  projectId: z.string().min(1, 'No project is associated with the selected Part Number.'),
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   scopeOfWorkId: z.string().optional(),
@@ -45,18 +55,17 @@ const taskFormSchema = z.object({
     .enum(['CAD', 'CAM', 'GEN', 'SALES', 'ADMIN', 'MKRT', 'SUPRT', ''])
     .optional(),
   status: z
-    .enum(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED'])
-    .default('NOT_STARTED'),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('MEDIUM'),
+    .enum(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED', 'REOPENED']),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   estimatedHours: z.preprocess(
     (val) => (val === '' || val === undefined ? undefined : Number(val)),
     z.number().min(0).optional()
   ),
-  receivedDate: z.string().optional(),
   plannedStartDate: z.string().optional(),
   plannedEndDate: z.string().optional(),
   plannedDeliveryDate: z.string().optional(),
   remarks: z.string().optional(),
+  assignedEmployeeId: z.string().optional(),
 });
 
 type TaskFormInputs = z.infer<typeof taskFormSchema>;
@@ -72,11 +81,12 @@ const DEPT_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: 'NOT_STARTED', label: 'Not Started' },
+  { value: 'NOT_STARTED', label: 'Yet To Start' },
   { value: 'IN_PROGRESS', label: 'In Progress' },
   { value: 'ON_HOLD', label: 'On Hold' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'REOPENED', label: 'Rework Reopened' },
 ];
 
 const PRIORITY_OPTIONS = [
@@ -105,26 +115,48 @@ const SectionLabel: React.FC<{ label: string }> = ({ label }) => (
 
 export const CreateTaskPage: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
+
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Part Number lookup states
+  const [selectedPartNumber, setSelectedPartNumber] = useState<string>('');
+  const [projectDetails, setProjectDetails] = useState<any>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  // Fetch task if in edit mode
+  const { data: taskToEdit, isLoading: taskLoading } = useGetTask(id || '');
 
   // Project options — fetch all active projects for the dropdown
   const { data: projectData, isLoading: projectsLoading } = useGetProjects({ limit: 500 });
   const projects = projectData?.projects ?? [];
+
+  // Active employees for task assignment
+  const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const activeEmployees = employees || [];
+
+  // Fetch project details reactively
+  const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);
 
   // Scope-of-work options (unfiltered — we'll filter in display)
   const { data: scopeData, isLoading: scopeLoading } = useGetScopeOfWork();
   const scopes = scopeData ?? [];
 
   const createMutation = useCreateTask();
+  const updateMutation = useUpdateTask();
 
   const {
     control,
     handleSubmit,
     setValue,
     watch,
+    setError,
+    clearErrors,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormInputs>({
-    resolver: zodResolver(taskFormSchema),
+    resolver: zodResolver(taskFormSchema) as any,
     defaultValues: {
       taskCode: '',
       projectId: '',
@@ -135,29 +167,180 @@ export const CreateTaskPage: React.FC = () => {
       status: 'NOT_STARTED',
       priority: 'MEDIUM',
       estimatedHours: undefined,
-      receivedDate: '',
       plannedStartDate: '',
       plannedEndDate: '',
       plannedDeliveryDate: '',
       remarks: '',
+      assignedEmployeeId: '',
     },
   });
 
-  const watchedScopeId = watch('scopeOfWorkId');
+  const { data: holidays = [] } = useGetHolidays();
 
-  // Auto-fill department when scope changes
+  // Today in YYYY-MM-DD — used as min for date pickers in create mode
+  const today = React.useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const watchedProjectId = watch('projectId');
+  const plannedStartDate = watch('plannedStartDate');
+  const plannedEndDate = watch('plannedEndDate');
+  const estimatedHours = watch('estimatedHours');
+
+  // Fetch tasks of selected project for auto-generating suffix code
+  const { data: existingTasks } = useGetTasksByProject(watchedProjectId);
+
+  // Fetch next available task code from server (bypasses RBAC, scans ALL tasks)
+  const { data: nextCodeData } = useGetNextTaskCode(watchedProjectId);
+
+  // Auto-calculate Planned End Date when Start Date or Estimated Hours change
   useEffect(() => {
-    if (watchedScopeId) {
-      const selectedScope = scopes.find((s) => s.id === watchedScopeId);
-      if (selectedScope?.departmentCategory) {
-        setValue('departmentCategory', selectedScope.departmentCategory as any, {
-          shouldValidate: true,
+    if (plannedStartDate && estimatedHours && estimatedHours > 0) {
+      const computedEndDate = calculateEndDate(plannedStartDate, estimatedHours, holidays);
+      setValue('plannedEndDate', computedEndDate, { shouldValidate: true });
+    }
+  }, [plannedStartDate, estimatedHours, holidays, setValue]);
+
+  // Calculate available capacity dynamically in real time
+  const availableCapacity = React.useMemo(() => {
+    if (plannedStartDate && plannedEndDate) {
+      return calculateWorkingHours(plannedStartDate, plannedEndDate, holidays);
+    }
+    return 0;
+  }, [plannedStartDate, plannedEndDate, holidays]);
+
+  // Only flag capacity exceeded when BOTH dates are provided — otherwise capacity is unknown
+  const isCapacityExceeded = !!(plannedStartDate && plannedEndDate && estimatedHours && estimatedHours > availableCapacity);
+
+  // Real-time capacity error handling
+  useEffect(() => {
+    if (plannedStartDate && plannedEndDate && estimatedHours && estimatedHours > 0) {
+      if (isCapacityExceeded) {
+        setError('estimatedHours', {
+          type: 'manual',
+          message: 'Estimated hours exceed available working hours between selected dates.',
         });
+      } else {
+        clearErrors('estimatedHours');
+      }
+    } else {
+      clearErrors('estimatedHours');
+    }
+  }, [isCapacityExceeded, plannedStartDate, plannedEndDate, estimatedHours, setError, clearErrors]);
+
+  // Real-time project end date constraint + past date validation
+  const projectPlannedEndDate = projectDetails?.plannedEndDate ?? null;
+  useEffect(() => {
+    if (!isEditMode && plannedStartDate && plannedStartDate < today) {
+      setError('plannedStartDate', { type: 'manual', message: 'Start date cannot be in the past.' });
+    } else {
+      clearErrors('plannedStartDate');
+    }
+  }, [plannedStartDate, today, isEditMode, setError, clearErrors]);
+
+  useEffect(() => {
+    if (!isEditMode && plannedEndDate && plannedEndDate < today) {
+      setError('plannedEndDate', { type: 'manual', message: 'End date cannot be in the past.' });
+    } else if (plannedEndDate && projectPlannedEndDate && plannedEndDate > projectPlannedEndDate) {
+      setError('plannedEndDate', {
+        type: 'manual',
+        message: `Cannot exceed project end date (${projectPlannedEndDate}).`,
+      });
+    } else {
+      clearErrors('plannedEndDate');
+    }
+  }, [plannedEndDate, today, isEditMode, projectPlannedEndDate, setError, clearErrors]);
+
+  // Handle Lookup changes and populate states
+  useEffect(() => {
+    if (selectedPartNumber === '') {
+      setProjectDetails(null);
+      setLookupError(null);
+      setValue('projectId', '');
+      setValue('taskCode', '');
+      return;
+    }
+
+    if (fetchedDetails) {
+      setProjectDetails(fetchedDetails);
+      setLookupError(null);
+      setValue('projectId', fetchedDetails.projectId, { shouldValidate: true });
+    } else if (fetchError) {
+      setProjectDetails(null);
+      const errMsg = parseError(fetchError) || 'No project is associated with the selected Part Number.';
+      setLookupError(errMsg);
+      setValue('projectId', '');
+      setValue('taskCode', '');
+    }
+  }, [fetchedDetails, fetchError, selectedPartNumber, setValue]);
+
+  // Pre-populate form in edit mode
+  useEffect(() => {
+    if (isEditMode && taskToEdit) {
+      reset({
+        taskCode: taskToEdit.taskCode,
+        projectId: taskToEdit.projectId,
+        title: taskToEdit.title,
+        description: taskToEdit.description || '',
+        scopeOfWorkId: taskToEdit.scopeOfWorkId || '',
+        departmentCategory: taskToEdit.departmentCategory || '',
+        status: taskToEdit.status,
+        priority: taskToEdit.priority,
+        estimatedHours: taskToEdit.estimatedHours,
+        plannedStartDate: taskToEdit.plannedStartDate || '',
+        plannedEndDate: taskToEdit.plannedEndDate || '',
+        plannedDeliveryDate: taskToEdit.plannedDeliveryDate || '',
+        remarks: taskToEdit.remarks || '',
+        assignedEmployeeId: taskToEdit.assignments?.[0]?.employeeId || '',
+      });
+
+      // Set selectedPartNumber based on taskCode (e.g. PN-1001-002 -> PN-1001)
+      const parts = taskToEdit.taskCode.split('-');
+      if (parts.length > 1) {
+        const partNumber = parts.slice(0, -1).join('-');
+        setSelectedPartNumber(partNumber);
       }
     }
-  }, [watchedScopeId, scopes, setValue]);
+  }, [isEditMode, taskToEdit, reset]);
+
+  // Handle auto-generation of task code suffix using server-provided next code
+  useEffect(() => {
+    if (!isEditMode && selectedPartNumber && watchedProjectId && nextCodeData?.next_code) {
+      setValue('taskCode', nextCodeData.next_code, { shouldValidate: true });
+    }
+  }, [isEditMode, nextCodeData, selectedPartNumber, watchedProjectId, setValue]);
 
   const onSubmit = async (data: TaskFormInputs) => {
+    if (data.plannedStartDate && data.plannedEndDate && data.estimatedHours) {
+      const capacity = calculateWorkingHours(data.plannedStartDate, data.plannedEndDate, holidays);
+      if (data.estimatedHours > capacity) {
+        setError('estimatedHours', {
+          type: 'manual',
+          message: 'Estimated hours exceed available working hours between selected dates.',
+        });
+        return;
+      }
+    }
+
+    // Guard: no past dates in create mode
+    if (!isEditMode) {
+      if (data.plannedStartDate && data.plannedStartDate < today) {
+        setError('plannedStartDate', { type: 'manual', message: 'Start date cannot be in the past.' });
+        return;
+      }
+      if (data.plannedEndDate && data.plannedEndDate < today) {
+        setError('plannedEndDate', { type: 'manual', message: 'End date cannot be in the past.' });
+        return;
+      }
+    }
+
+    // Guard: task end date must not exceed project end date
+    if (data.plannedEndDate && projectPlannedEndDate && data.plannedEndDate > projectPlannedEndDate) {
+      setError('plannedEndDate', {
+        type: 'manual',
+        message: `Cannot exceed project end date (${projectPlannedEndDate}).`,
+      });
+      return;
+    }
+
     setSubmitError(null);
     try {
       const payload: TaskCreate = {
@@ -170,34 +353,47 @@ export const CreateTaskPage: React.FC = () => {
         status: data.status,
         priority: data.priority,
         estimatedHours: data.estimatedHours,
-        receivedDate: data.receivedDate || undefined,
         plannedStartDate: data.plannedStartDate || undefined,
         plannedEndDate: data.plannedEndDate || undefined,
         plannedDeliveryDate: data.plannedDeliveryDate || undefined,
         remarks: data.remarks || undefined,
+        assignedEmployeeId: data.assignedEmployeeId || undefined,
       };
-      await createMutation.mutateAsync(payload);
+
+      if (isEditMode && id) {
+        await updateMutation.mutateAsync({ id, data: payload });
+      } else {
+        await createMutation.mutateAsync(payload);
+      }
       navigate('/tasks');
     } catch (err: any) {
       setSubmitError(parseError(err));
     }
   };
 
+  if (isEditMode && taskLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto' }}>
       {/* Page Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1.5 }}>
           <AssignmentIcon color="primary" sx={{ fontSize: 28 }} />
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              Create Engineering Task
+              {isEditMode ? 'Edit Engineering Task' : 'Create Engineering Task'}
             </Typography>
             <Typography variant="body2" color="textSecondary">
-              Add a new part or work item to the system
+              {isEditMode ? 'Update task details and assignments' : 'Add a new part or work item to the system'}
             </Typography>
           </Box>
-        </Stack>
+        </Box>
         <Button
           variant="outlined"
           color="secondary"
@@ -215,81 +411,160 @@ export const CreateTaskPage: React.FC = () => {
         </Alert>
       )}
 
+      {lookupError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setLookupError(null)}>
+          {lookupError}
+        </Alert>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <Card sx={{ mb: 3 }}>
           <CardContent sx={{ p: 3 }}>
             {/* IDENTIFICATION */}
             <SectionLabel label="Part Identification" />
             <Grid container spacing={3}>
-              {/* Part Number / Task Code */}
+              {/* Part Number Dropdown */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="taskCode"
-                  control={control}
-                  render={({ field }) => (
+                <Autocomplete
+                  options={projects}
+                  loading={projectsLoading}
+                  value={projects.find((p) => p.partNumber === selectedPartNumber) || null}
+                  getOptionLabel={(option) => option.partNumber}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  onChange={(_, newVal) => {
+                    const nextPart = newVal?.partNumber ?? '';
+                    setSelectedPartNumber(nextPart);
+                    // Clear previous values before loading new ones
+                    setProjectDetails(null);
+                    setLookupError(null);
+                    setValue('projectId', '');
+                    setValue('taskCode', '');
+                    setValue('departmentCategory', '');
+                  }}
+                  renderInput={(params) => (
                     <TextField
-                      {...field}
-                      label="Part Number / Task Code *"
-                      placeholder="e.g. 715-075598-002"
-                      fullWidth
+                      {...params}
+                      label="Part Number *"
                       size="small"
-                      error={!!errors.taskCode}
-                      helperText={errors.taskCode?.message || 'Engineering part number or unique task code'}
-                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { style: { fontFamily: 'monospace', fontWeight: 600 } } }}
+                      placeholder="Select part number..."
+                      error={!!errors.projectId || !!lookupError}
+                      helperText={
+                        lookupError ||
+                        errors.projectId?.message ||
+                        'Select the parent project by Part Number'
+                      }
+                      slotProps={{
+                        ...params.slotProps,
+                        inputLabel: { shrink: true },
+                        input: {
+                          ...params.slotProps.input,
+                          endAdornment: (
+                            <>
+                              {projectsLoading || detailsLoading ? (
+                                <CircularProgress color="inherit" size={14} />
+                              ) : null}
+                              {params.slotProps.input.endAdornment}
+                            </>
+                          ),
+                        },
+                      }}
                     />
                   )}
                 />
               </Grid>
 
-              {/* Project */}
+              {/* Project Name (Read Only) */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="projectId"
-                  control={control}
-                  render={({ field }) => {
-                    const selectedProject = projects.find((p) => p.id === field.value) ?? null;
-                    return (
-                      <Autocomplete
-                        options={projects}
-                        loading={projectsLoading}
-                        value={selectedProject}
-                        getOptionLabel={(option) =>
-                          `${option.projectCode} — ${option.name}`
-                        }
-                        isOptionEqualToValue={(option, value) => option.id === value.id}
-                        onChange={(_, newVal) => {
-                          field.onChange(newVal?.id ?? '');
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Project *"
-                            size="small"
-                            placeholder="Select project..."
-                            error={!!errors.projectId}
-                            helperText={errors.projectId?.message || 'Select the parent project'}
-                            slotProps={{
-                              ...params.slotProps,
-                              inputLabel: { shrink: true },
-                              input: {
-                                ...params.slotProps.input,
-                                endAdornment: (
-                                  <>
-                                    {projectsLoading ? (
-                                      <CircularProgress color="inherit" size={14} />
-                                    ) : null}
-                                    {params.slotProps.input.endAdornment}
-                                  </>
-                                ),
-                              },
-                            }}
-                          />
-                        )}
-                      />
-                    );
-                  }}
+                <TextField
+                  label="Project Name (Read Only)"
+                  value={projectDetails?.projectName ?? ''}
+                  fullWidth
+                  size="small"
+                  disabled
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  placeholder="Associated project name"
                 />
               </Grid>
+
+              {/* Read Only Details */}
+              {projectDetails && (
+                <>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      label="Package Name (Read Only)"
+                      value={projectDetails?.packageName ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      label="Part Name (Read Only)"
+                      value={projectDetails?.partName ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <TextField
+                      label="Client (Read Only)"
+                      value={projectDetails?.clientName ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 3 }}>
+                    <TextField
+                      label="Assigned To (Read Only)"
+                      value={projectDetails?.projectManager ?? 'Unassigned'}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 3 }}>
+                    <TextField
+                      label="Part Priority (Read Only)"
+                      value={projectDetails?.priority ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 3 }}>
+                    <TextField
+                      label="Project Status (Read Only)"
+                      value={projectDetails?.status ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 3 }}>
+                    <TextField
+                      label="Task Code (Auto-generated)"
+                      value={watch('taskCode') ?? ''}
+                      fullWidth
+                      size="small"
+                      disabled
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: { style: { fontFamily: 'monospace', fontWeight: 600 } }
+                      }}
+                      helperText="Generated from Part Number & sequence suffix"
+                    />
+                  </Grid>
+                </>
+              )}
 
               {/* Title */}
               <Grid size={{ xs: 12 }}>
@@ -339,55 +614,6 @@ export const CreateTaskPage: React.FC = () => {
               <SectionLabel label="Scope & Classification" />
             </Box>
             <Grid container spacing={3}>
-              {/* Scope of Work */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Controller
-                  name="scopeOfWorkId"
-                  control={control}
-                  render={({ field }) => {
-                    const selectedScope = scopes.find((s) => s.id === field.value) ?? null;
-                    return (
-                      <Autocomplete
-                        options={scopes}
-                        loading={scopeLoading}
-                        value={selectedScope}
-                        getOptionLabel={(option) =>
-                          `${option.code} — ${option.name} (${option.departmentCategory})`
-                        }
-                        isOptionEqualToValue={(option, value) => option.id === value.id}
-                        onChange={(_, newVal) => {
-                          field.onChange(newVal?.id ?? '');
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Scope of Work"
-                            size="small"
-                            placeholder="Select scope..."
-                            helperText="Auto-fills Department Category"
-                            slotProps={{
-                              ...params.slotProps,
-                              inputLabel: { shrink: true },
-                              input: {
-                                ...params.slotProps.input,
-                                endAdornment: (
-                                  <>
-                                    {scopeLoading ? (
-                                      <CircularProgress color="inherit" size={14} />
-                                    ) : null}
-                                    {params.slotProps.input.endAdornment}
-                                  </>
-                                ),
-                              },
-                            }}
-                          />
-                        )}
-                      />
-                    );
-                  }}
-                />
-              </Grid>
-
               {/* Department Category */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small" error={!!errors.departmentCategory}>
@@ -409,7 +635,6 @@ export const CreateTaskPage: React.FC = () => {
                   {errors.departmentCategory && (
                     <FormHelperText>{errors.departmentCategory.message}</FormHelperText>
                   )}
-                  <FormHelperText>Auto-filled from Scope of Work</FormHelperText>
                 </FormControl>
               </Grid>
 
@@ -478,6 +703,28 @@ export const CreateTaskPage: React.FC = () => {
                   )}
                 />
               </Grid>
+
+              {/* Assigned To */}
+              <Grid size={{ xs: 12, sm: 9 }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel shrink>Assigned To</InputLabel>
+                  <Controller
+                    name="assignedEmployeeId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Assigned To" displayEmpty notched>
+                        <MenuItem value="">— Unassigned —</MenuItem>
+                        {activeEmployees.map((e) => (
+                          <MenuItem key={e.id} value={e.id}>
+                            {e.firstName} {e.lastName}
+                            {e.designationName ? ` — ${e.designationName}` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                </FormControl>
+              </Grid>
             </Grid>
 
             {/* DATES */}
@@ -485,28 +732,8 @@ export const CreateTaskPage: React.FC = () => {
               <SectionLabel label="Dates" />
             </Box>
             <Grid container spacing={3}>
-              {/* Received Date */}
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <Controller
-                  name="receivedDate"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      type="date"
-                      label="Received Date"
-                      fullWidth
-                      size="small"
-                      error={!!errors.receivedDate}
-                      helperText={errors.receivedDate?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  )}
-                />
-              </Grid>
-
               {/* Planned Start Date */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="plannedStartDate"
                   control={control}
@@ -519,14 +746,20 @@ export const CreateTaskPage: React.FC = () => {
                       size="small"
                       error={!!errors.plannedStartDate}
                       helperText={errors.plannedStartDate?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: {
+                          min: isEditMode ? undefined : today,
+                          max: projectPlannedEndDate ?? undefined,
+                        },
+                      }}
                     />
                   )}
                 />
               </Grid>
 
               {/* Planned End Date */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="plannedEndDate"
                   control={control}
@@ -538,15 +771,21 @@ export const CreateTaskPage: React.FC = () => {
                       fullWidth
                       size="small"
                       error={!!errors.plannedEndDate}
-                      helperText={errors.plannedEndDate?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                      helperText={errors.plannedEndDate?.message ?? (projectPlannedEndDate ? `Max: ${projectPlannedEndDate}` : undefined)}
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: {
+                          min: isEditMode ? undefined : (plannedStartDate || today),
+                          max: projectPlannedEndDate ?? undefined,
+                        },
+                      }}
                     />
                   )}
                 />
               </Grid>
 
               {/* Planned Delivery Date */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="plannedDeliveryDate"
                   control={control}
@@ -559,11 +798,32 @@ export const CreateTaskPage: React.FC = () => {
                       size="small"
                       error={!!errors.plannedDeliveryDate}
                       helperText={errors.plannedDeliveryDate?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
+                      slotProps={{
+                        inputLabel: { shrink: true },
+                        htmlInput: {
+                          min: isEditMode ? undefined : today,
+                          max: projectPlannedEndDate ?? undefined,
+                        },
+                      }}
                     />
                   )}
                 />
               </Grid>
+
+              {/* Live Capacity Info Text */}
+              {plannedStartDate && plannedEndDate && (
+                <Grid size={{ xs: 12 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: isCapacityExceeded ? 'error.main' : 'success.main',
+                    }}
+                  >
+                    Available Capacity: {availableCapacity} Hours | Estimated Effort: {estimatedHours || 0} Hours
+                  </Typography>
+                </Grid>
+              )}
             </Grid>
 
             {/* REMARKS */}
@@ -602,9 +862,9 @@ export const CreateTaskPage: React.FC = () => {
             variant="contained"
             color="primary"
             startIcon={isSubmitting ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isCapacityExceeded}
           >
-            {isSubmitting ? 'Creating...' : 'Create Task'}
+            {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Task')}
           </Button>
           <Button variant="outlined" color="secondary" onClick={() => navigate('/tasks')} disabled={isSubmitting}>
             Cancel

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../utils/api';
+import { useAuthStore } from '../../../store/useAuthStore';
 import type { DashboardStats, PlanVsActualData, UtilizationData, DepartmentLoad, OverdueTask, ClientPerfData, ScopeDist, CalendarEvent, PlanVsActualProject, EmployeeUtil } from '../types';
 
 interface ApiResponse<T> {
@@ -29,7 +30,7 @@ const mapStats = (d: any): DashboardStats => ({
 
 const mapPlanVsActualProject = (p: any): PlanVsActualProject => ({
   id: p.id,
-  projectCode: p.project_code,
+  partNumber: p.part_number,
   name: p.name,
   clientName: p.client_name,
   status: p.status,
@@ -135,27 +136,48 @@ const mapCalendarEvent = (e: any): CalendarEvent => ({
   } : undefined,
 });
 
-export const useGetDashboardStats = () =>
-  useQuery({
+const useCanViewAnalytics = () =>
+  useAuthStore((s) => {
+    const isSuperAdmin = s.roleCodes.some((c) =>
+      ['ADMIN', 'CEO', 'CHIEF_EXECUTIVE_OFFICER', 'ADMINISTRATOR'].includes(c)
+    );
+    if (isSuperAdmin) return true;
+    const perm = s.permissions.find((p) => p.module_name.toLowerCase() === 'analytics');
+    return perm?.can_view ?? false;
+  });
+
+export const useGetDashboardStats = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'stats'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/dashboard');
       return mapStats(res.data.data);
     },
   });
+};
 
-export const useGetPlanVsActual = () =>
-  useQuery({
+export const useGetPlanVsActual = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'plan-vs-actual'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/plan-vs-actual');
       return mapPlanVsActual(res.data.data);
     },
   });
+};
 
-export const useGetUtilization = (fromDate?: string, toDate?: string) =>
-  useQuery({
+export const useGetUtilization = (fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'utilization', fromDate, toDate],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (fromDate) params.from_date = fromDate;
@@ -164,10 +186,14 @@ export const useGetUtilization = (fromDate?: string, toDate?: string) =>
       return mapUtilization(res.data.data);
     },
   });
+};
 
-export const useGetDepartmentLoad = () =>
-  useQuery({
+export const useGetDepartmentLoad = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'department-load'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/department-load');
       const raw = res.data.data;
@@ -175,10 +201,14 @@ export const useGetDepartmentLoad = () =>
       return (Array.isArray(items) ? items : []).map(mapDepartmentLoad) as DepartmentLoad[];
     },
   });
+};
 
-export const useGetOverdueTasks = () =>
-  useQuery({
+export const useGetOverdueTasks = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'overdue-tasks'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/overdue-tasks');
       const raw = res.data.data;
@@ -186,10 +216,14 @@ export const useGetOverdueTasks = () =>
       return (Array.isArray(items) ? items : []).map(mapOverdueTask) as OverdueTask[];
     },
   });
+};
 
-export const useGetUpcomingDeadlines = (days: number = 14) =>
-  useQuery({
+export const useGetUpcomingDeadlines = (days: number = 14) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'upcoming-deadlines', days],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/upcoming-deadlines', { params: { days } });
       const raw = res.data.data;
@@ -197,19 +231,27 @@ export const useGetUpcomingDeadlines = (days: number = 14) =>
       return (Array.isArray(items) ? items : []).map(mapOverdueTask) as OverdueTask[];
     },
   });
+};
 
-export const useGetClientPerformance = () =>
-  useQuery({
+export const useGetClientPerformance = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'client-performance'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/client-performance');
       return mapClientPerfData(res.data.data);
     },
   });
+};
 
-export const useGetScopeDistribution = () =>
-  useQuery({
+export const useGetScopeDistribution = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'scope-distribution'],
+    enabled,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/scope-distribution');
       const raw = res.data.data;
@@ -217,10 +259,14 @@ export const useGetScopeDistribution = () =>
       return (Array.isArray(items) ? items : []).map(mapScopeDist) as ScopeDist[];
     },
   });
+};
 
-export const useGetCalendarEvents = (fromDate: string, toDate: string) =>
-  useQuery({
+export const useGetCalendarEvents = (fromDate: string, toDate: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
     queryKey: ['dashboard', 'calendar-events', fromDate, toDate],
+    enabled: enabled && !!fromDate && !!toDate,
+    retry: false,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/analytics/calendar-events', { params: { from_date: fromDate, to_date: toDate } });
       const raw = res.data.data;
@@ -228,3 +274,4 @@ export const useGetCalendarEvents = (fromDate: string, toDate: string) =>
       return (Array.isArray(items) ? items : []).map(mapCalendarEvent) as CalendarEvent[];
     },
   });
+};

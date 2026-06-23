@@ -8,7 +8,6 @@ import {
   CircularProgress,
   FormControl,
   Grid,
-  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -20,25 +19,19 @@ import {
   TablePagination,
   TableRow,
   TextField,
-  Tooltip,
   Typography,
   Alert,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import SendIcon from '@mui/icons-material/Send';
+import EditCalendarIcon from '@mui/icons-material/EditCalendar';
+
 import { parseError } from '../../../utils/api';
-import {
-  useGetTimeEntries,
-  useDeleteTimeEntry,
-  useSubmitTimeEntry,
-} from '../services/timesheetService';
-import type { TimeEntry } from '../types';
+import { useGetMySessions } from '../services/workSessionService';
+import { useGetTasks } from '../../tasks/services/taskService';
+import { useGetProjects } from '../../projects/services/projectService';
 
 // ==========================================
 // HELPERS
 // ==========================================
-
 const getMonday = (date: Date): Date => {
   const d = new Date(date);
   const day = d.getDay();
@@ -59,55 +52,24 @@ const getWeekRange = () => {
   return { start: formatDateISO(monday), end: formatDateISO(sunday) };
 };
 
-const STATUS_META: Record<
-  TimeEntry['status'],
-  { label: string; color: 'default' | 'primary' | 'success' | 'error' }
-> = {
-  DRAFT: { label: 'Draft', color: 'default' },
-  SUBMITTED: { label: 'Submitted', color: 'primary' },
-  APPROVED: { label: 'Approved', color: 'success' },
-  REJECTED: { label: 'Rejected', color: 'error' },
+const STATUS_META: Record<string, { label: string; color: 'default' | 'primary' | 'success' | 'warning' | 'error' }> = {
+  RUNNING: { label: 'Running', color: 'success' },
+  PAUSED: { label: 'Paused', color: 'warning' },
+  COMPLETED: { label: 'Completed', color: 'primary' },
+  CANCELLED: { label: 'Cancelled', color: 'default' },
+  ABANDONED: { label: 'Abandoned', color: 'error' },
 };
 
 const TYPE_META: Record<string, string> = {
-  REGULAR: 'Regular',
-  OVERTIME: 'Overtime',
-  CORRECTION: 'Correction',
+  REGULAR: 'Regular Work',
+  REWORK: 'Rework Cycle',
 };
-
-// ==========================================
-// USER HELPERS
-// ==========================================
-
-const getCurrentUser = () => {
-  try {
-    const profile = localStorage.getItem('cognitive_profile');
-    if (profile) return JSON.parse(profile);
-  } catch {
-    // ignore
-  }
-  return null;
-};
-
-const isAdmin = (profile: any): boolean => {
-  if (!profile) return false;
-  const adminRoles = ['Administrator', 'CEO', 'ADMIN', 'Chief Executive Officer', 'Manager'];
-  const roles: string[] = profile.roles || [];
-  return roles.some((r) => adminRoles.includes(r));
-};
-
-// ==========================================
-// COMPONENT
-// ==========================================
 
 export const TimesheetListPage: React.FC = () => {
   const navigate = useNavigate();
-  const profile = getCurrentUser();
-  const userIsAdmin = isAdmin(profile);
-  const currentEmployeeId: string | undefined = profile?.id || profile?.employee_id;
-
   const weekRange = useMemo(() => getWeekRange(), []);
 
+  // Filter States
   const [dateFrom, setDateFrom] = useState(weekRange.start);
   const [dateTo, setDateTo] = useState(weekRange.end);
   const [projectFilter, setProjectFilter] = useState('');
@@ -115,56 +77,52 @@ export const TimesheetListPage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Queries
+  const { data: tasksData } = useGetTasks({ limit: 300 });
+  const { data: projectsData } = useGetProjects({ limit: 100 });
+
+  const tasksMap = useMemo(() => {
+    const map = new Map<string, any>();
+    tasksData?.tasks?.forEach((t) => map.set(t.id, t));
+    return map;
+  }, [tasksData]);
+
+  const projectsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    projectsData?.projects?.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [projectsData]);
+
   const queryParams = useMemo(
     () => ({
-      skip: page * rowsPerPage,
-      limit: rowsPerPage,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-      employeeId: userIsAdmin ? undefined : currentEmployeeId,
-      projectId: projectFilter || undefined,
       status: statusFilter || undefined,
+      skip: page * rowsPerPage,
+      limit: rowsPerPage,
     }),
-    [page, rowsPerPage, dateFrom, dateTo, userIsAdmin, currentEmployeeId, projectFilter, statusFilter]
+    [page, rowsPerPage, dateFrom, dateTo, statusFilter]
   );
 
-  const { data, isLoading, isError, error, refetch } = useGetTimeEntries(queryParams);
-  const deleteMutation = useDeleteTimeEntry();
-  const submitMutation = useSubmitTimeEntry();
-
-  const entries = data?.entries ?? [];
+  const { data, isLoading, isError, error, refetch } = useGetMySessions(queryParams);
+  const rawSessions = data?.sessions ?? [];
   const totalCount = data?.total ?? 0;
 
-  // Derive unique project names for filter dropdown
+  // Filter sessions by project client-side since API filters sessions mainly by user, dates and status
+  const sessions = useMemo(() => {
+    if (!projectFilter) return rawSessions;
+    return rawSessions.filter((s) => s.projectId === projectFilter);
+  }, [rawSessions, projectFilter]);
+
+  // Project select options derived from projects loaded
   const projectOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    entries.forEach((e) => {
-      if (e.projectId && e.projectName) map.set(e.projectId, e.projectName);
-    });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [entries]);
+    return projectsData?.projects ?? [];
+  }, [projectsData]);
 
-  const totalHours = useMemo(
-    () => entries.reduce((sum, e) => sum + (e.hoursSpent ?? 0), 0),
-    [entries]
-  );
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this time entry?')) return;
-    try {
-      await deleteMutation.mutateAsync(id);
-    } catch (err) {
-      alert('Failed to delete: ' + parseError(err));
-    }
-  };
-
-  const handleSubmit = async (id: string) => {
-    try {
-      await submitMutation.mutateAsync(id);
-    } catch (err) {
-      alert('Failed to submit: ' + parseError(err));
-    }
-  };
+  const totalHours = useMemo(() => {
+    const mins = sessions.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
+    return mins / 60.0;
+  }, [sessions]);
 
   const handleResetFilters = () => {
     const wr = getWeekRange();
@@ -175,24 +133,40 @@ export const TimesheetListPage: React.FC = () => {
     setPage(0);
   };
 
+  const fmtTime = (isoString?: string) => {
+    if (!isoString) return '—';
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const fmtDuration = (mins: number) => {
+    const hrs = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${hrs}h ${m > 0 ? m + 'm' : ''}`.trim() || '0m';
+  };
+
   return (
     <Box sx={{ width: '100%' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          Timesheets
-        </Typography>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            Session History
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Review your tracked engineering work sessions and request corrections.
+          </Typography>
+        </Box>
         <Button
-          variant="contained"
+          variant="outlined"
           color="primary"
-          startIcon={<AddIcon />}
+          startIcon={<EditCalendarIcon />}
           onClick={() => navigate('/timesheets/create')}
         >
-          Log Time
+          Manual Correction
         </Button>
       </Box>
 
-      {/* Filter Toolbar */}
+      {/* Filters */}
       <Card sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} sx={{ alignItems: 'center' }}>
           {/* Date From */}
@@ -250,7 +224,7 @@ export const TimesheetListPage: React.FC = () => {
           </Grid>
 
           {/* Status Filter */}
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl size="small" fullWidth>
               <InputLabel>Status</InputLabel>
               <Select
@@ -262,17 +236,18 @@ export const TimesheetListPage: React.FC = () => {
                 }}
               >
                 <MenuItem value="">All Statuses</MenuItem>
-                <MenuItem value="DRAFT">Draft</MenuItem>
-                <MenuItem value="SUBMITTED">Submitted</MenuItem>
-                <MenuItem value="APPROVED">Approved</MenuItem>
-                <MenuItem value="REJECTED">Rejected</MenuItem>
+                <MenuItem value="RUNNING">Running</MenuItem>
+                <MenuItem value="PAUSED">Paused</MenuItem>
+                <MenuItem value="COMPLETED">Completed</MenuItem>
+                <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                <MenuItem value="ABANDONED">Abandoned</MenuItem>
               </Select>
             </FormControl>
           </Grid>
 
           {/* Reset */}
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <Button variant="outlined" size="small" onClick={handleResetFilters} fullWidth>
+            <Button variant="outlined" size="small" onClick={handleResetFilters} fullWidth sx={{ height: 38 }}>
               This Week
             </Button>
           </Grid>
@@ -293,87 +268,70 @@ export const TimesheetListPage: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
-                <TableCell>Task Code</TableCell>
-                <TableCell>Task Title</TableCell>
+                <TableCell>Task</TableCell>
                 <TableCell>Project</TableCell>
-                {userIsAdmin && <TableCell>Employee</TableCell>}
-                <TableCell>Type</TableCell>
-                <TableCell align="right">Hours</TableCell>
-                <TableCell align="center">Billable</TableCell>
+                <TableCell>Start Time</TableCell>
+                <TableCell>End Time</TableCell>
+                <TableCell>Duration</TableCell>
+                <TableCell>Session Type</TableCell>
                 <TableCell align="center">Status</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell>Remarks</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={userIsAdmin ? 10 : 9} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                     <CircularProgress size={32} />
                   </TableCell>
                 </TableRow>
-              ) : entries.length === 0 ? (
+              ) : sessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={userIsAdmin ? 10 : 9} align="center">
+                  <TableCell colSpan={9} align="center">
                     <Typography variant="body2" color="textSecondary" sx={{ py: 3 }}>
-                      No time entries found for the selected period.
+                      No work sessions found for this period.
                     </Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                entries.map((entry) => {
-                  const statusMeta = STATUS_META[entry.status] ?? { label: entry.status, color: 'default' as const };
-                  const isDraft = entry.status === 'DRAFT';
+                sessions.map((session) => {
+                  const statusMeta = STATUS_META[session.status] ?? { label: session.status, color: 'default' };
+                  const taskObj = tasksMap.get(session.taskId);
+                  const projectObj = projectsMap.get(session.projectId);
+
                   return (
-                    <TableRow key={entry.id} hover>
-                      <TableCell>
+                    <TableRow key={session.id} hover>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {entry.date}
+                          {formatDateISO(new Date(session.startTime))}
                         </Typography>
                       </TableCell>
-                      <TableCell>
-                        {entry.taskCode ? (
-                          <Chip
-                            label={entry.taskCode}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                            sx={{ fontWeight: 600, fontSize: '0.75rem' }}
-                          />
-                        ) : (
-                          <Typography variant="caption" color="textSecondary">
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 200 }}>
-                        <Typography variant="body2" noWrap>
-                          {entry.taskTitle || '—'}
+                      <TableCell sx={{ maxWidth: 220 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }} color="primary">
+                          {taskObj?.taskCode || '—'}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" noWrap>
+                          {taskObj?.title || '—'}
                         </Typography>
                       </TableCell>
                       <TableCell sx={{ maxWidth: 160 }}>
                         <Typography variant="body2" noWrap>
-                          {entry.projectName || '—'}
+                          {projectObj?.name || '—'}
                         </Typography>
                       </TableCell>
-                      {userIsAdmin && (
-                        <TableCell>
-                          <Typography variant="body2">{entry.employeeName || entry.employeeCode || '—'}</Typography>
-                        </TableCell>
-                      )}
+                      <TableCell>{fmtTime(session.startTime)}</TableCell>
+                      <TableCell>{fmtTime(session.endTime)}</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>
+                        {fmtDuration(session.durationMinutes)}
+                      </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="textSecondary">
-                          {TYPE_META[entry.entryType] ?? entry.entryType}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.dark' }}>
-                          {entry.hoursSpent.toFixed(2)}h
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Typography variant="body2" color={entry.isBillable ? 'success.main' : 'textSecondary'}>
-                          {entry.isBillable ? 'Yes' : 'No'}
-                        </Typography>
+                        <Chip
+                          label={TYPE_META[session.sessionType] || session.sessionType}
+                          size="small"
+                          color={session.sessionType === 'REWORK' ? 'warning' : 'default'}
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', height: 18 }}
+                        />
                       </TableCell>
                       <TableCell align="center">
                         <Chip
@@ -383,40 +341,10 @@ export const TimesheetListPage: React.FC = () => {
                           sx={{ fontWeight: 600, minWidth: 80 }}
                         />
                       </TableCell>
-                      <TableCell align="right">
-                        {isDraft && (
-                          <>
-                            <Tooltip title="Submit for approval">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  color="primary"
-                                  onClick={() => handleSubmit(entry.id)}
-                                  disabled={submitMutation.isPending}
-                                >
-                                  <SendIcon fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title="Delete entry">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => handleDelete(entry.id)}
-                                  disabled={deleteMutation.isPending}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-                          </>
-                        )}
-                        {entry.status === 'REJECTED' && (
-                          <Tooltip title={entry.rejectionReason || 'Rejected'}>
-                            <Chip label="Reason" size="small" variant="outlined" color="error" sx={{ cursor: 'pointer' }} />
-                          </Tooltip>
-                        )}
+                      <TableCell sx={{ maxWidth: 200, fontSize: '0.8rem' }}>
+                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
+                          {session.remarks || session.pauseReason || '—'}
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   );
@@ -426,8 +354,8 @@ export const TimesheetListPage: React.FC = () => {
           </Table>
         </TableContainer>
 
-        {/* Total Hours Row */}
-        {!isLoading && entries.length > 0 && (
+        {/* Total Row */}
+        {!isLoading && sessions.length > 0 && (
           <Box
             sx={{
               px: 3,
@@ -436,14 +364,14 @@ export const TimesheetListPage: React.FC = () => {
               justifyContent: 'flex-end',
               borderTop: '1px solid',
               borderColor: 'divider',
-              bgcolor: 'grey.50',
+              bgcolor: 'background.default',
             }}
           >
             <Typography variant="body2" color="textSecondary" sx={{ mr: 1 }}>
-              Total hours (this page):
+              Total Productive Time:
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.dark' }}>
-              {totalHours.toFixed(2)}h
+              {totalHours.toFixed(1)} hrs
             </Typography>
           </Box>
         )}

@@ -18,9 +18,11 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import PersonIcon from '@mui/icons-material/Person';
 import api from '../../../utils/api';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const authLogin = useAuthStore((s) => s.login);
 
   // Inputs
   const [username, setUsername] = useState('');
@@ -54,7 +56,11 @@ export const LoginPage: React.FC = () => {
         // Fetch full profile (me) to cache roles & permissions
         const meResponse = await api.get('/auth/me');
         if (meResponse.data?.success) {
-          localStorage.setItem('cognitive_profile', JSON.stringify(meResponse.data.data));
+          const profile = meResponse.data.data;
+          localStorage.setItem('cognitive_profile', JSON.stringify(profile));
+
+          // Hydrate the centralized auth store
+          authLogin(data.access_token, data.employee, profile);
         }
 
         // Navigate to default dashboard

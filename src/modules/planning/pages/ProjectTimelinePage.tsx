@@ -27,12 +27,10 @@ import {
   Stack,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useGetProject } from '../../projects/services/projectService';
-import { useGetGanttData, useScheduleProject, useGetProjectDependencies, useCreateDependency, useDeleteDependency } from '../services/planningService';
+import { useGetGanttData, useGetProjectDependencies, useCreateDependency, useDeleteDependency } from '../services/planningService';
 
 const statusBarColor: Record<string, string> = {
   NOT_STARTED: '#9e9e9e',
@@ -57,7 +55,6 @@ const ProjectTimelinePage: React.FC = () => {
   const { data: project, isLoading: projectLoading, isError: projectError } = useGetProject(id ?? '');
   const { data: ganttData, isLoading: ganttLoading, isError: ganttError } = useGetGanttData(id ?? '');
   const { data: dependencies, isLoading: depsLoading } = useGetProjectDependencies(id ?? '');
-  const scheduleMutation = useScheduleProject();
   const createDepMutation = useCreateDependency();
   const deleteDepMutation = useDeleteDependency();
 
@@ -108,11 +105,6 @@ const ProjectTimelinePage: React.FC = () => {
     return { weeks: weeksArr, taskRows: taskRowsArr };
   }, [tasks]);
 
-  const handleSchedule = () => {
-    if (!id) return;
-    scheduleMutation.mutate(id);
-  };
-
   const handleAddDependency = () => {
     if (!depTaskId || !depDependsOnTaskId) return;
     createDepMutation.mutate(
@@ -161,21 +153,7 @@ const ProjectTimelinePage: React.FC = () => {
         <Typography variant="h5" sx={{ fontWeight: 700, flexGrow: 1 }}>
           {project.name} — Timeline
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AutoFixHighIcon />}
-          onClick={handleSchedule}
-          disabled={scheduleMutation.isPending}
-        >
-          {scheduleMutation.isPending ? 'Scheduling...' : 'Auto Schedule'}
-        </Button>
       </Box>
-
-      {scheduleMutation.isError && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Failed to auto-schedule. Please try again.
-        </Alert>
-      )}
 
       {ganttError && (
         <Alert severity="error" sx={{ mb: 2 }}>

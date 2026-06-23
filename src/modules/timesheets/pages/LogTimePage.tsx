@@ -39,7 +39,7 @@ const schema = z.object({
   taskId: z.string().min(1, 'Task is required'),
   date: z.string().min(1, 'Date is required'),
   hoursSpent: z
-    .number({ invalid_type_error: 'Enter a valid number' })
+    .number({ message: 'Enter a valid number' })
     .min(0.25, 'Minimum 0.25 hours')
     .max(24, 'Maximum 24 hours'),
   description: z.string().optional(),
@@ -401,17 +401,17 @@ export const LogTimePage: React.FC = () => {
                     Task Info
                   </Typography>
                   {selectedTask.scopeName && (
-                    <Typography variant="caption" display="block" color="textSecondary">
+                    <Typography variant="caption" sx={{ display: 'block' }} color="textSecondary">
                       Scope: {selectedTask.scopeName}
                     </Typography>
                   )}
                   {selectedTask.description && (
-                    <Typography variant="caption" display="block" color="textSecondary" sx={{ mt: 0.25 }}>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 0.25 }} color="textSecondary">
                       {selectedTask.description}
                     </Typography>
                   )}
                   {selectedTask.estimatedHours > 0 && (
-                    <Typography variant="caption" display="block" color="textSecondary" sx={{ mt: 0.25 }}>
+                    <Typography variant="caption" sx={{ display: 'block', mt: 0.25 }} color="textSecondary">
                       Estimated: {selectedTask.estimatedHours}h · Actual so far: {selectedTask.actualHours}h
                     </Typography>
                   )}

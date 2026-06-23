@@ -60,9 +60,10 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // Clients — creation is via modal on the list page; /clients/create redirects back to /clients
+      // Clients
       {
         path: 'clients',
+        element: <ProtectedRoute module="Clients" action="view" />,
         children: [
           {
             path: '',
@@ -84,7 +85,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'create',
-            element: lazyLoad(() => import('../modules/projects/pages/CreateProjectPage'), 'form'),
+            element: (
+              <ProtectedRoute module="Projects" action="create">
+                {lazyLoad(() => import('../modules/projects/pages/CreateProjectPage'), 'form')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: ':id',
@@ -102,6 +107,14 @@ export const router = createBrowserRouter([
           },
           {
             path: 'create',
+            element: (
+              <ProtectedRoute module="Tasks" action="create">
+                {lazyLoad(() => import('../modules/tasks/pages/CreateTaskPage'), 'form')}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ':id/edit',
             element: lazyLoad(() => import('../modules/tasks/pages/CreateTaskPage'), 'form'),
           },
         ],
@@ -129,6 +142,14 @@ export const router = createBrowserRouter([
             element: lazyLoad(() => import('../modules/timesheets/pages/TimesheetListPage'), 'table'),
           },
           {
+            path: 'active',
+            element: lazyLoad(() => import('../modules/timesheets/pages/WorkCenterPage'), 'dashboard'),
+          },
+          {
+            path: 'weekly',
+            element: lazyLoad(() => import('../modules/timesheets/pages/WeeklyTimesheetPage'), 'table'),
+          },
+          {
             path: 'create',
             element: lazyLoad(() => import('../modules/timesheets/pages/LogTimePage'), 'form'),
           },
@@ -149,6 +170,7 @@ export const router = createBrowserRouter([
       // HR
       {
         path: 'hr',
+        element: <ProtectedRoute module="HR" action="view" />,
         children: [
           {
             path: '',
@@ -203,7 +225,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'reports',
-        element: lazyLoad(() => import('../modules/reports/pages/ReportsPage'), 'dashboard'),
+        element: (
+          <ProtectedRoute module="Reports" action="view">
+            {lazyLoad(() => import('../modules/reports/pages/ReportsPage'), 'dashboard')}
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'calendar',
@@ -212,7 +238,11 @@ export const router = createBrowserRouter([
       // Settings
       {
         path: 'settings',
-        element: lazyLoad(() => import('../modules/settings/pages/SettingsPage'), 'form'),
+        element: (
+          <ProtectedRoute module="Settings" action="view">
+            {lazyLoad(() => import('../modules/settings/pages/SettingsPage'), 'form')}
+          </ProtectedRoute>
+        ),
       },
       {
         path: '*',

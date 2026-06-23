@@ -50,10 +50,14 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
+import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 
 import { useAppStore } from '../store/useAppStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useGetActiveBreak } from '../modules/timesheets/services/workSessionService';
+import { Alert } from '@mui/material';
 
 const drawerWidth = 260;
 const collapsedDrawerWidth = 70;
@@ -124,6 +128,8 @@ export const MainLayout: React.FC = () => {
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const settings = useAppStore((state) => state.settings);
 
+  const { data: activeBreak } = useGetActiveBreak();
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
     Dashboard: true,
@@ -136,56 +142,32 @@ export const MainLayout: React.FC = () => {
   const [quickAddAnchor, setQuickAddAnchor] = useState<null | HTMLElement>(null);
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
 
-  const [currentUser, setCurrentUser] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
-  const [profile, setProfile] = useState<{
-    roles: string[];
-    permissions: {
-      module_name: string;
-      can_view: boolean;
-      can_create: boolean;
-      can_edit: boolean;
-      can_delete: boolean;
-      can_approve: boolean;
-      can_export: boolean;
-    }[];
-  } | null>(null);
+  // ── Auth Store ──────────────────────────────────────────────────────────────
+  const authUser = useAuthStore((s) => s.user);
+  const authRoles = useAuthStore((s) => s.roles);
+  const authPermissions = useAuthStore((s) => s.permissions);
+  const authIsSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const authHasPermission = useAuthStore((s) => s.hasPermission);
+  const authLogout = useAuthStore((s) => s.logout);
+  const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  // Hydrate auth store on mount if needed
   useEffect(() => {
-    const userStr = localStorage.getItem('cognitive_user');
-    if (userStr) {
-      try {
-        setCurrentUser(JSON.parse(userStr));
-      } catch (e) {
-        console.error(e);
-      }
+    if (!isAuthenticated && localStorage.getItem('cognitive_token')) {
+      hydrateFromStorage();
     }
-  }, []);
-
-  useEffect(() => {
-    const profStr = localStorage.getItem('cognitive_profile');
-    if (profStr) {
-      try {
-        setProfile(JSON.parse(profStr));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
+  }, [isAuthenticated, hydrateFromStorage]);
 
   const hasPermission = (itemName: string): boolean => {
-    if (!profile) return true;
+    if (!isAuthenticated) return true;
 
-    if (
-      profile.roles.includes('Administrator') ||
-      profile.roles.includes('CEO') ||
-      profile.roles.includes('ADMIN') ||
-      profile.roles.includes('Chief Executive Officer')
-    ) {
+    if (authIsSuperAdmin()) {
       return true;
     }
 
@@ -200,10 +182,7 @@ export const MainLayout: React.FC = () => {
     const targetModule = permissionMap[itemName];
     if (!targetModule) return true;
 
-    const userPerm = profile.permissions.find(
-      (p) => p.module_name.toLowerCase() === targetModule.toLowerCase()
-    );
-    return userPerm ? userPerm.can_view : false;
+    return authHasPermission(targetModule, 'view');
   };
 
   const handleDrawerToggle = () => {
@@ -262,11 +241,11 @@ export const MainLayout: React.FC = () => {
       name: 'Timesheets',
       icon: <ScheduleOutlinedIcon />,
       children: [
-        { name: 'Log Time', path: '/timesheets/create', icon: <ScheduleOutlinedIcon fontSize="small" /> },
-        { name: 'My Timesheets', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
+        { name: 'Work Center', path: '/timesheets/active', icon: <AssignmentOutlinedIcon fontSize="small" /> },
+        { name: 'Weekly Timesheet', path: '/timesheets/weekly', icon: <CalendarViewWeekOutlinedIcon fontSize="small" /> },
+        { name: 'Session History', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
         { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlinedIcon fontSize="small" /> },
         { name: 'My Leaves', path: '/timesheets/leave', icon: <EventBusyOutlinedIcon fontSize="small" /> },
-        { name: 'Leave Approval', path: '/timesheets/leave-approval', icon: <AdminPanelSettingsOutlinedIcon fontSize="small" />, adminOnly: true },
       ],
     },
     {
@@ -489,13 +468,10 @@ export const MainLayout: React.FC = () => {
                       {item.children
                         .filter((child) => {
                           if (!child.adminOnly) return true;
-                          if (!profile) return true;
+                          if (!isAuthenticated) return true;
                           return (
-                            profile.roles.includes('Administrator') ||
-                            profile.roles.includes('CEO') ||
-                            profile.roles.includes('ADMIN') ||
-                            profile.roles.includes('Chief Executive Officer') ||
-                            profile.roles.includes('Manager')
+                            authIsSuperAdmin() ||
+                            authRoles.includes('Manager')
                           );
                         })
                         .map((child) => {
@@ -608,6 +584,7 @@ export const MainLayout: React.FC = () => {
       return second === 'create' ? 'Add Task' : 'Tasks';
     }
     if (first === 'timesheets') {
+      if (second === 'weekly') return 'Weekly Timesheet';
       if (second === 'create') return 'Log Time';
       if (second === 'leave') return 'My Leaves';
       if (second === 'leave-approval') return 'Leave Approval';
@@ -799,6 +776,7 @@ export const MainLayout: React.FC = () => {
                     setQuickAddAnchor(null);
                     navigate('/clients');
                   }}
+                  sx={{ display: authHasPermission('Clients', 'create') ? 'flex' : 'none' }}
                 >
                   Add Client
                 </MenuItem>
@@ -807,6 +785,7 @@ export const MainLayout: React.FC = () => {
                     setQuickAddAnchor(null);
                     navigate('/projects/create');
                   }}
+                  sx={{ display: authHasPermission('Projects', 'create') ? 'flex' : 'none' }}
                 >
                   Add Project
                 </MenuItem>
@@ -815,6 +794,7 @@ export const MainLayout: React.FC = () => {
                     setQuickAddAnchor(null);
                     navigate('/tasks/create');
                   }}
+                  sx={{ display: authHasPermission('Tasks', 'create') ? 'flex' : 'none' }}
                 >
                   Add Task
                 </MenuItem>
@@ -835,15 +815,15 @@ export const MainLayout: React.FC = () => {
               >
                 <Avatar
                   alt={
-                    currentUser
-                      ? `${currentUser.first_name} ${currentUser.last_name}`
+                    authUser
+                      ? `${authUser.firstName} ${authUser.lastName}`
                       : settings.profileSettings.name
                   }
                   src={settings.profileSettings.avatar}
                   sx={{ width: 32, height: 32 }}
                 >
-                  {currentUser
-                    ? `${currentUser.first_name.charAt(0)}${currentUser.last_name.charAt(0)}`
+                  {authUser
+                    ? `${authUser.firstName.charAt(0)}${authUser.lastName.charAt(0)}`
                     : ''}
                 </Avatar>
               </IconButton>
@@ -857,12 +837,12 @@ export const MainLayout: React.FC = () => {
               >
                 <Box sx={{ px: 2, py: 1 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                    {currentUser
-                      ? `${currentUser.first_name} ${currentUser.last_name}`
+                    {authUser
+                      ? `${authUser.firstName} ${authUser.lastName}`
                       : settings.profileSettings.name}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {currentUser ? currentUser.email : settings.profileSettings.email}
+                    {authUser ? authUser.email : settings.profileSettings.email}
                   </Typography>
                 </Box>
                 <Divider />
@@ -886,9 +866,7 @@ export const MainLayout: React.FC = () => {
                 <MenuItem
                   onClick={() => {
                     setProfileAnchor(null);
-                    localStorage.removeItem('cognitive_token');
-                    localStorage.removeItem('cognitive_user');
-                    localStorage.removeItem('cognitive_profile');
+                    authLogout();
                     navigate('/login');
                   }}
                 >
@@ -909,6 +887,11 @@ export const MainLayout: React.FC = () => {
             overflow: 'auto',
           }}
         >
+          {activeBreak && (
+            <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: 700, borderRadius: 1 }}>
+              You are currently on break. Your running task session has been auto-paused.
+            </Alert>
+          )}
           <Outlet />
         </Box>
       </Box>

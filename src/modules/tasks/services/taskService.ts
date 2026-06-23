@@ -46,6 +46,9 @@ const mapBackendTaskToFrontend = (t: any): Task => ({
   isActive: t.is_active ?? true,
   assignments: Array.isArray(t.assignments) ? t.assignments.map(mapBackendAssignmentToFrontend) : [],
   assigneeCount: t.assignee_count ?? (Array.isArray(t.assignments) ? t.assignments.length : 0),
+  reworkCount: t.rework_count ?? 0,
+  totalReworkHours: t.total_rework_hours ?? 0,
+  originalEstimatedHours: t.original_estimated_hours || undefined,
   createdAt: t.created_at || undefined,
 });
 
@@ -69,9 +72,9 @@ const mapTaskCreateToBackend = (data: TaskCreate) => ({
   estimated_hours: data.estimatedHours ?? 0,
   planned_start_date: data.plannedStartDate || null,
   planned_end_date: data.plannedEndDate || null,
-  received_date: data.receivedDate || null,
   planned_delivery_date: data.plannedDeliveryDate || null,
   remarks: data.remarks || null,
+  assigned_employee_id: data.assignedEmployeeId || null,
 });
 
 // ==========================================
@@ -133,6 +136,22 @@ export const useGetTask = (id: string) => {
 };
 
 // ==========================================
+// 2b. GET PROJECT DETAILS BY PART NUMBER
+// ==========================================
+
+export const useGetProjectDetailsByPart = (partNumber: string) => {
+  return useQuery<any>({
+    queryKey: ['project-details-by-part', partNumber],
+    queryFn: async () => {
+      const response = await api.get(`/parts/${partNumber}/project-details`);
+      return response.data?.data || response.data;
+    },
+    enabled: !!partNumber,
+    retry: false,
+  });
+};
+
+// ==========================================
 // 3. GET TASKS BY PROJECT
 // ==========================================
 
@@ -144,6 +163,17 @@ export const useGetTasksByProject = (projectId: string) => {
       const data = response.data?.data || response.data || {};
       const rawTasks = data.tasks || data.items || [];
       return rawTasks.map(mapBackendTaskToFrontend);
+    },
+    enabled: !!projectId,
+  });
+};
+
+export const useGetNextTaskCode = (projectId: string) => {
+  return useQuery<{ next_code: string; part_number: string; suffix: string; existing_count: number }>({
+    queryKey: ['tasks', 'next-code', projectId],
+    queryFn: async () => {
+      const response = await api.get(`/tasks/next-code/${projectId}`);
+      return response.data?.data || response.data;
     },
     enabled: !!projectId,
   });
@@ -209,6 +239,7 @@ export const useUpdateTask = () => {
       if (data.receivedDate !== undefined) payload.received_date = data.receivedDate || null;
       if (data.plannedDeliveryDate !== undefined) payload.planned_delivery_date = data.plannedDeliveryDate || null;
       if (data.remarks !== undefined) payload.remarks = data.remarks || null;
+      if (data.assignedEmployeeId !== undefined) payload.assigned_employee_id = data.assignedEmployeeId || null;
 
       const response = await api.put(`/tasks/${id}`, payload);
       const raw = response.data?.data?.task || response.data?.data || response.data;

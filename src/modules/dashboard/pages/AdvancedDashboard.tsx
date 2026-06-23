@@ -1,21 +1,81 @@
 import React from 'react';
-import { Grid, Card, CardContent, Typography, Box, Divider, Table, TableBody, TableCell, TableHead, TableRow, Chip, CircularProgress, Alert } from '@mui/material';
+import { Grid, Card, CardContent, Typography, Box, Divider, Table, TableBody, TableCell, TableHead, TableRow, Chip, CircularProgress } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import FolderIcon from '@mui/icons-material/Folder';
 import QueryBuilderIcon from '@mui/icons-material/QueryBuilder';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import { useNavigate } from 'react-router';
 import { useGetDashboardStats, useGetPlanVsActual, useGetUtilization, useGetOverdueTasks, useGetScopeDistribution } from '../services/dashboardService';
+import { useAuthStore } from '../../../store/useAuthStore';
 import { EmptyState } from '../../../components/EmptyState';
 
 const PIE_COLORS = ['#206bc4', '#2fb344', '#f59f00', '#d63939', '#4299e1', '#ae3ec9', '#17a2b8', '#6c757d'];
 
+const EmployeeHome: React.FC = () => {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  return (
+    <Box>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+        Welcome back, {user?.firstName || 'there'}!
+      </Typography>
+      <Typography variant="body2" color="textSecondary" sx={{ mb: 4 }}>
+        Here's your workspace. Use the navigation on the left to access your tasks and timesheets.
+      </Typography>
+      <Grid container spacing={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Card sx={{ cursor: 'pointer', '&:hover': { boxShadow: 4 } }} onClick={() => navigate('/tasks')}>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 3 }}>
+              <Box sx={{ bgcolor: 'primary.light', p: 1.5, borderRadius: 2 }}>
+                <AssignmentIcon color="primary" />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>My Tasks</Typography>
+                <Typography variant="body2" color="textSecondary">View and update your assigned tasks</Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Card sx={{ cursor: 'pointer', '&:hover': { boxShadow: 4 } }} onClick={() => navigate('/timesheets')}>
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 3 }}>
+              <Box sx={{ bgcolor: 'success.light', p: 1.5, borderRadius: 2 }}>
+                <AccessTimeIcon color="success" />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700}>My Timesheets</Typography>
+                <Typography variant="body2" color="textSecondary">Log time entries against your tasks</Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
 export const AdvancedDashboard: React.FC = () => {
+  const canViewAnalytics = useAuthStore((s) => {
+    const isSuperAdmin = s.roleCodes.some((c) =>
+      ['ADMIN', 'CEO', 'CHIEF_EXECUTIVE_OFFICER', 'ADMINISTRATOR'].includes(c)
+    );
+    if (isSuperAdmin) return true;
+    const perm = s.permissions.find((p) => p.module_name.toLowerCase() === 'analytics');
+    return perm?.can_view ?? false;
+  });
+
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: planVsActual, isLoading: planLoading } = useGetPlanVsActual();
   const { data: utilData, isLoading: utilLoading } = useGetUtilization();
   const { data: overdueTasks = [], isLoading: overdueLoading } = useGetOverdueTasks();
   const { data: scopeData = [] } = useGetScopeDistribution();
+
+  if (!canViewAnalytics) {
+    return <EmployeeHome />;
+  }
 
   const isLoading = statsLoading || planLoading || utilLoading || overdueLoading;
 
@@ -58,7 +118,7 @@ export const AdvancedDashboard: React.FC = () => {
     .slice(0, 5);
 
   const projectHours = planVsActual?.projects.map((p) => ({
-    name: p.projectCode,
+    name: p.partNumber,
     estimated: p.estimatedHours,
     actual: p.actualHours,
   })) ?? [];

@@ -19,6 +19,9 @@ import {
   DialogContent,
   DialogActions,
   Grid,
+  Autocomplete,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -35,26 +38,149 @@ import {
   useUpdateClient,
   useDeleteClient,
 } from '../services/clientService';
-import type { Client, ClientCreate } from '../types';
+import type { Client, ClientCreate, ClientUpdate } from '../types';
 import { parseError } from '../../../utils/api';
+import { COUNTRIES } from '../../../utils/countries';
 
 // ==========================================
-// FORM SCHEMA
+// HELPERS
+// ==========================================
+
+const UNIQUE_DIAL_CODES = Array.from(new Set(COUNTRIES.map((c) => c.dialCode))).sort((a, b) => {
+  const numA = parseInt(a.replace(/[^\d-]/g, '')) || 0;
+  const numB = parseInt(b.replace(/[^\d-]/g, '')) || 0;
+  return numA - numB;
+});
+
+const parsePhoneField = (fullPhone?: string, defaultDialCode = '+91') => {
+  if (!fullPhone) return { dialCode: defaultDialCode, number: '' };
+  const parts = fullPhone.trim().split(' ');
+  if (parts.length > 1) {
+    return { dialCode: parts[0], number: parts.slice(1).join(' ') };
+  }
+  if (fullPhone.startsWith('+')) {
+    const sortedCountries = [...COUNTRIES].sort((a, b) => b.dialCode.length - a.dialCode.length);
+    for (const c of sortedCountries) {
+      if (fullPhone.startsWith(c.dialCode)) {
+        return { dialCode: c.dialCode, number: fullPhone.substring(c.dialCode.length).trim() };
+      }
+    }
+  }
+  return { dialCode: defaultDialCode, number: fullPhone };
+};
+
+// ==========================================
+// FORM SCHEMA & INTERFACES
 // ==========================================
 
 const clientSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  clientCode: z.string().optional(),
+  name: z.string().min(1, 'Client Name is required'),
+  clientCode: z.string().min(1, 'Client Code is required.'),
   industry: z.string().optional(),
-  contactPerson: z.string().optional(),
-  contactEmail: z.string().email('Enter a valid email').or(z.literal('')).optional(),
-  contactPhone: z.string().optional(),
-  country: z.string().optional(),
-  address: z.string().optional(),
+  country: z.string().min(1, 'Please select a country.'),
+  contactPerson: z.string().min(1, 'Contact Person is required.'),
+  contactEmail: z
+    .string()
+    .min(1, 'Email is required.')
+    .email('Please enter a valid email address.'),
+  contactPhone: z.string().min(1, 'Primary contact number is required.'),
+  countryCode: z.string().min(1, 'Country code is required.'),
+  alternatePhone: z.string().optional(),
+  alternateCountryCode: z.string().optional(),
+  address: z.string().min(1, 'Address is required.'),
   notes: z.string().optional(),
+  status: z.string().default('Active'),
+  deactivationReason: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Validate primary phone: numeric only and country-specific length
+  if (!data.contactPhone || data.contactPhone.trim() === '') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Primary contact number is required.',
+      path: ['contactPhone'],
+    });
+  } else {
+    const primaryPhoneDigits = data.contactPhone.replace(/\D/g, '');
+    if (data.contactPhone !== primaryPhoneDigits) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Phone number must contain numeric characters only.',
+        path: ['contactPhone'],
+      });
+    } else if (data.country) {
+      const countryObj = COUNTRIES.find((c) => c.name === data.country);
+      if (countryObj) {
+        if (!countryObj.phoneLengths.includes(primaryPhoneDigits.length)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Phone number for ${data.country} must be ${countryObj.phoneLengths.join(' or ')} digits long.`,
+            path: ['contactPhone'],
+          });
+        }
+      }
+    }
+  }
+
+  // Validate alternate phone if provided
+  if (data.alternatePhone && data.alternatePhone.trim() !== '') {
+    const altPhoneDigits = data.alternatePhone.replace(/\D/g, '');
+    if (data.alternatePhone !== altPhoneDigits) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Phone number must contain numeric characters only.',
+        path: ['alternatePhone'],
+      });
+    } else {
+      let altCountryName = data.country;
+      if (data.alternateCountryCode) {
+        const altCountryObj = COUNTRIES.find((c) => c.dialCode === data.alternateCountryCode);
+        if (altCountryObj) {
+          altCountryName = altCountryObj.name;
+        }
+      }
+      if (altCountryName) {
+        const altCountryObj = COUNTRIES.find((c) => c.name === altCountryName);
+        if (altCountryObj) {
+          if (!altCountryObj.phoneLengths.includes(altPhoneDigits.length)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `Alternate phone number for ${altCountryName} must be ${altCountryObj.phoneLengths.join(' or ')} digits long.`,
+              path: ['alternatePhone'],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Validate deactivation reason if inactive
+  if (data.status === 'Inactive') {
+    if (!data.deactivationReason || data.deactivationReason.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Deactivation reason is required.',
+        path: ['deactivationReason'],
+      });
+    }
+  }
 });
 
-type ClientFormValues = z.infer<typeof clientSchema>;
+interface ClientFormValues {
+  name: string;
+  clientCode: string;
+  industry: string;
+  country: string;
+  contactPerson: string;
+  contactEmail: string;
+  contactPhone: string;
+  countryCode: string;
+  alternatePhone: string;
+  alternateCountryCode: string;
+  address: string;
+  notes: string;
+  status: string;
+  deactivationReason: string;
+}
 
 const FORM_ID = 'client-form';
 
@@ -63,17 +189,21 @@ const FORM_ID = 'client-form';
 // ==========================================
 
 interface ClientFormProps {
+  isEdit?: boolean;
   defaultValues?: Partial<ClientFormValues>;
   onSubmit: (data: ClientFormValues) => void;
 }
 
-const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit }) => {
+const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, onSubmit }) => {
   const {
     control,
     handleSubmit,
+    setValue,
+    getValues,
+    watch,
     formState: { errors },
   } = useForm<ClientFormValues>({
-    resolver: zodResolver(clientSchema),
+    resolver: zodResolver(clientSchema) as any,
     defaultValues: {
       name: '',
       clientCode: '',
@@ -81,18 +211,100 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
       contactPerson: '',
       contactEmail: '',
       contactPhone: '',
+      countryCode: '+91',
+      alternatePhone: '',
+      alternateCountryCode: '+91',
       country: '',
       address: '',
       notes: '',
+      status: 'Active',
+      deactivationReason: '',
       ...defaultValues,
     },
   });
 
+  const watchedCountry = watch('country');
+
+  // Automatically update primary and alternate country codes when country changes
+  useEffect(() => {
+    if (watchedCountry) {
+      const countryObj = COUNTRIES.find((c) => c.name === watchedCountry);
+      if (countryObj) {
+        setValue('countryCode', countryObj.dialCode);
+        const currentAlt = getValues('alternateCountryCode');
+        if (!currentAlt || currentAlt === '+91') {
+          setValue('alternateCountryCode', countryObj.dialCode);
+        }
+      }
+    }
+  }, [watchedCountry, setValue, getValues]);
+
+  // Dialog states for status changes
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
+  const [tempReason, setTempReason] = useState('');
+  const [reasonError, setReasonError] = useState('');
+
+  // Get current status to show/hide/revert switch
+  const statusValue = watch('status');
+
   return (
     <form id={FORM_ID} onSubmit={handleSubmit(onSubmit)} noValidate>
+      {isEdit && (
+        <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={statusValue === 'Active'}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    if (!checked) {
+                      setTempReason('');
+                      setReasonError('');
+                      setDeactivateOpen(true);
+                    } else {
+                      setReactivateOpen(true);
+                    }
+                  }}
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Status: {statusValue}
+                </Typography>
+              }
+            />
+            {statusValue === 'Inactive' && getValues('deactivationReason') ? (
+              <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'error.main', fontWeight: 500 }}>
+                Deactivation Reason: {getValues('deactivationReason')}
+              </Typography>
+            ) : null}
+          </Stack>
+        </Box>
+      )}
+
       <Grid container spacing={2}>
-        {/* Name */}
-        <Grid size={{ xs: 12, sm: 8 }}>
+        {/* Row 1: Client Code* and Client Name* */}
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <Controller
+            name="clientCode"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Client Code *"
+                fullWidth
+                size="small"
+                error={!!errors.clientCode}
+                helperText={errors.clientCode?.message}
+                slotProps={{ inputLabel: { shrink: true } }}
+                disabled={isEdit}
+              />
+            )}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="name"
             control={control}
@@ -110,25 +322,7 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
           />
         </Grid>
 
-        {/* Client Code */}
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Controller
-            name="clientCode"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Client Code"
-                fullWidth
-                size="small"
-                placeholder="Auto-generated if blank"
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            )}
-          />
-        </Grid>
-
-        {/* Industry */}
+        {/* Row 2: Industry and Country* (Dropdown) */}
         <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="industry"
@@ -144,25 +338,33 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
             )}
           />
         </Grid>
-
-        {/* Country */}
         <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="country"
             control={control}
             render={({ field }) => (
-              <TextField
-                {...field}
-                label="Country"
-                fullWidth
-                size="small"
-                slotProps={{ inputLabel: { shrink: true } }}
+              <Autocomplete
+                options={COUNTRIES.map((c) => c.name)}
+                value={field.value || null}
+                onChange={(_, newValue) => {
+                  field.onChange(newValue || '');
+                }}
+                openOnFocus
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Country *"
+                    size="small"
+                    error={!!errors.country}
+                    helperText={errors.country?.message}
+                  />
+                )}
               />
             )}
           />
         </Grid>
 
-        {/* Contact Person */}
+        {/* Row 3: Contact Person* and Contact Email* */}
         <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="contactPerson"
@@ -170,16 +372,16 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Contact Person"
+                label="Contact Person *"
                 fullWidth
                 size="small"
+                error={!!errors.contactPerson}
+                helperText={errors.contactPerson?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
           />
         </Grid>
-
-        {/* Contact Email */}
         <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="contactEmail"
@@ -187,7 +389,7 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Contact Email"
+                label="Contact Email *"
                 type="email"
                 fullWidth
                 size="small"
@@ -199,24 +401,91 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
           />
         </Grid>
 
-        {/* Contact Phone */}
-        <Grid size={{ xs: 12, sm: 6 }}>
+        {/* Row 4: Country Code* and Primary Phone* */}
+        <Grid size={{ xs: 4, sm: 3 }}>
+          <Controller
+            name="countryCode"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                label="Code *"
+                fullWidth
+                size="small"
+                error={!!errors.countryCode}
+                helperText={errors.countryCode?.message}
+                slotProps={{ inputLabel: { shrink: true } }}
+              >
+                {UNIQUE_DIAL_CODES.map((code) => (
+                  <MenuItem key={code} value={code}>
+                    {code}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          />
+        </Grid>
+        <Grid size={{ xs: 8, sm: 9 }}>
           <Controller
             name="contactPhone"
             control={control}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Contact Phone"
+                label="Primary Phone *"
                 fullWidth
                 size="small"
+                error={!!errors.contactPhone}
+                helperText={errors.contactPhone?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
           />
         </Grid>
 
-        {/* Address */}
+        {/* Row 5: Alternate Country Code and Alternate Phone (Optional) */}
+        <Grid size={{ xs: 4, sm: 3 }}>
+          <Controller
+            name="alternateCountryCode"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                select
+                label="Alt Code"
+                fullWidth
+                size="small"
+                slotProps={{ inputLabel: { shrink: true } }}
+              >
+                {UNIQUE_DIAL_CODES.map((code) => (
+                  <MenuItem key={code} value={code}>
+                    {code}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          />
+        </Grid>
+        <Grid size={{ xs: 8, sm: 9 }}>
+          <Controller
+            name="alternatePhone"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Alternate Phone (Optional)"
+                fullWidth
+                size="small"
+                error={!!errors.alternatePhone}
+                helperText={errors.alternatePhone?.message}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            )}
+          />
+        </Grid>
+
+        {/* Row 6: Address* */}
         <Grid size={{ xs: 12 }}>
           <Controller
             name="address"
@@ -224,18 +493,20 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Address"
+                label="Address *"
                 fullWidth
                 size="small"
                 multiline
                 rows={2}
+                error={!!errors.address}
+                helperText={errors.address?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
           />
         </Grid>
 
-        {/* Notes */}
+        {/* Row 7: Notes */}
         <Grid size={{ xs: 12 }}>
           <Controller
             name="notes"
@@ -254,6 +525,79 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ defaultValues, onSubmit 
           />
         </Grid>
       </Grid>
+
+      {/* Deactivate Reason Dialog */}
+      <Dialog open={deactivateOpen} onClose={() => setDeactivateOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Deactivate Client</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Please provide a reason for deactivating this client.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Reason *"
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            value={tempReason}
+            onChange={(e) => {
+              setTempReason(e.target.value);
+              if (e.target.value.trim()) setReasonError('');
+            }}
+            error={!!reasonError}
+            helperText={reasonError}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => setDeactivateOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={() => {
+              if (!tempReason.trim()) {
+                setReasonError('Deactivation reason is required.');
+                return;
+              }
+              setValue('status', 'Inactive');
+              setValue('deactivationReason', tempReason);
+              setDeactivateOpen(false);
+            }}
+          >
+            Deactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reactivate Confirmation Dialog */}
+      <Dialog open={reactivateOpen} onClose={() => setReactivateOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Reactivate Client</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to reactivate this client?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => setReactivateOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            onClick={() => {
+              setValue('status', 'Active');
+              setValue('deactivationReason', '');
+              setReactivateOpen(false);
+            }}
+          >
+            Reactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
     </form>
   );
 };
@@ -337,21 +681,34 @@ export const ClientListPage: React.FC = () => {
   };
 
   const handleFormSubmit = (values: ClientFormValues) => {
+    const contactPhoneFormatted = `${values.countryCode} ${values.contactPhone}`;
+    const alternatePhoneFormatted =
+      values.alternatePhone && values.alternatePhone.trim() !== ''
+        ? `${values.alternateCountryCode || values.countryCode} ${values.alternatePhone}`
+        : undefined;
+
     const payload: ClientCreate = {
       name: values.name,
-      clientCode: values.clientCode || undefined,
+      clientCode: values.clientCode,
       industry: values.industry || undefined,
-      contactPerson: values.contactPerson || undefined,
-      contactEmail: values.contactEmail || undefined,
-      contactPhone: values.contactPhone || undefined,
-      country: values.country || undefined,
-      address: values.address || undefined,
+      contactPerson: values.contactPerson,
+      contactEmail: values.contactEmail,
+      contactPhone: contactPhoneFormatted,
+      alternatePhone: alternatePhoneFormatted,
+      country: values.country,
+      address: values.address,
       notes: values.notes || undefined,
     };
 
     if (editingClient) {
+      const updatePayload: ClientUpdate = {
+        ...payload,
+        status: values.status,
+        deactivationReason: values.status === 'Inactive' ? values.deactivationReason : undefined,
+        isActive: values.status === 'Active',
+      };
       updateClient.mutate(
-        { id: editingClient.id, data: payload },
+        { id: editingClient.id, data: updatePayload },
         {
           onSuccess: () => {
             showSnack('Client updated successfully.');
@@ -401,7 +758,7 @@ export const ClientListPage: React.FC = () => {
       id: 'name',
       label: 'Name',
       render: (row) => (
-        <Stack direction="row" alignItems="center" spacing={1}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Box
             sx={{
               width: 32,
@@ -478,21 +835,41 @@ export const ClientListPage: React.FC = () => {
       ),
     },
     {
-      id: 'isActive',
+      id: 'status',
       label: 'Status',
-      render: (row) =>
-        row.isActive ? (
-          <Chip label="Active" size="small" color="success" sx={{ fontWeight: 600 }} />
-        ) : (
-          <Chip label="Inactive" size="small" sx={{ fontWeight: 600, bgcolor: 'grey.200', color: 'grey.700' }} />
-        ),
+      render: (row) => {
+        const isClientActive = row.status === 'Active';
+        if (isClientActive) {
+          return <Chip label="Active" size="small" color="success" sx={{ fontWeight: 600 }} />;
+        }
+
+        const tooltipTitle = row.deactivationReason
+          ? `Deactivated by: ${row.deactivatedBy || 'N/A'}\nDate: ${row.deactivatedAt ? new Date(row.deactivatedAt).toLocaleString() : 'N/A'}\nReason: ${row.deactivationReason}`
+          : 'Inactive';
+
+        return (
+          <Chip
+            label="Inactive"
+            size="small"
+            title={tooltipTitle}
+            sx={{
+              fontWeight: 600,
+              bgcolor: 'error.lighter',
+              color: 'error.main',
+              border: '1px solid',
+              borderColor: 'error.light',
+              cursor: 'help',
+            }}
+          />
+        );
+      },
     },
     {
       id: 'actions',
       label: 'Actions',
       align: 'right',
       render: (row) => (
-        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           <IconButton
             size="small"
             sx={{ color: 'text.secondary' }}
@@ -598,20 +975,45 @@ export const ClientListPage: React.FC = () => {
       >
         <ClientFormContent
           key={editingClient?.id ?? 'new'}
+          isEdit={!!editingClient}
           defaultValues={
             editingClient
-              ? {
-                  name: editingClient.name,
-                  clientCode: editingClient.clientCode,
-                  industry: editingClient.industry ?? '',
-                  contactPerson: editingClient.contactPerson ?? '',
-                  contactEmail: editingClient.contactEmail ?? '',
-                  contactPhone: editingClient.contactPhone ?? '',
-                  country: editingClient.country ?? '',
-                  address: editingClient.address ?? '',
-                  notes: editingClient.notes ?? '',
+              ? (() => {
+                  const primaryPhoneData = parsePhoneField(editingClient.contactPhone, '+91');
+                  const alternatePhoneData = parsePhoneField(editingClient.alternatePhone, '+91');
+                  return {
+                    name: editingClient.name,
+                    clientCode: editingClient.clientCode,
+                    industry: editingClient.industry ?? '',
+                    contactPerson: editingClient.contactPerson ?? '',
+                    contactEmail: editingClient.contactEmail ?? '',
+                    contactPhone: primaryPhoneData.number,
+                    countryCode: primaryPhoneData.dialCode,
+                    alternatePhone: alternatePhoneData.number,
+                    alternateCountryCode: alternatePhoneData.dialCode,
+                    country: editingClient.country ?? '',
+                    address: editingClient.address ?? '',
+                    notes: editingClient.notes ?? '',
+                    status: editingClient.status || (editingClient.isActive ? 'Active' : 'Inactive'),
+                    deactivationReason: editingClient.deactivationReason ?? '',
+                  };
+                })()
+              : {
+                  name: '',
+                  clientCode: '',
+                  industry: '',
+                  contactPerson: '',
+                  contactEmail: '',
+                  contactPhone: '',
+                  countryCode: '+91',
+                  alternatePhone: '',
+                  alternateCountryCode: '+91',
+                  country: '',
+                  address: '',
+                  notes: '',
+                  status: 'Active',
+                  deactivationReason: '',
                 }
-              : undefined
           }
           onSubmit={handleFormSubmit}
         />

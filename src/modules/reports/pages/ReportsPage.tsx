@@ -118,7 +118,7 @@ export const ReportsPage: React.FC = () => {
               <ResponsiveContainer>
                 <BarChart data={filteredProjects} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="projectCode" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="partNumber" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <Legend />
@@ -130,7 +130,7 @@ export const ReportsPage: React.FC = () => {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Project Code</TableCell>
+                  <TableCell>Part Number</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Client</TableCell>
                   <TableCell>Status</TableCell>
@@ -142,7 +142,7 @@ export const ReportsPage: React.FC = () => {
               <TableBody>
                 {filteredProjects.map((p) => (
                   <TableRow key={p.id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{p.projectCode}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>{p.partNumber}</TableCell>
                     <TableCell>{p.name}</TableCell>
                     <TableCell>{p.clientName || '-'}</TableCell>
                     <TableCell><Chip label={p.status} size="small" /></TableCell>

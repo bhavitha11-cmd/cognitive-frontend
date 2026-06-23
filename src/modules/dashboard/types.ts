@@ -19,7 +19,7 @@ export interface DashboardStats {
 
 export interface PlanVsActualProject {
   id: string
-  projectCode: string
+  partNumber: string
   name: string
   clientName?: string
   status: string

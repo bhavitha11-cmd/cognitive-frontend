@@ -127,7 +127,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
       }}
     >
       <CardContent sx={{ pb: '16px !important' }}>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" mb={1}>
+        <Stack direction="row" sx={{ mb: 1, alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {name}
@@ -169,7 +169,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
           </Box>
         </Box>
 
-        <Stack direction="row" justifyContent="space-between">
+        <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
           <Typography variant="caption" color="text.secondary">
             Used: <strong>{used}</strong>
           </Typography>
@@ -574,7 +574,7 @@ export const LeaveRequestPage: React.FC = () => {
                   return (
                     <TableRow key={req.id} hover>
                       <TableCell>
-                        <Stack direction="row" alignItems="center" spacing={1}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                           {lt && (
                             <Box
                               sx={{

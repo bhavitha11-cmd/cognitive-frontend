@@ -18,7 +18,6 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -31,6 +30,11 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 
 import { api, parseError } from '../../../utils/api';
+import {
+  useGetActiveBreak,
+  useStartBreak,
+  useEndBreak
+} from '../services/workSessionService';
 
 // ==========================================
 // TYPES
@@ -264,6 +268,41 @@ export const AttendancePage: React.FC = () => {
     onError: (err) => showSnack(parseError(err), 'error'),
   });
 
+  // --- Break hook calls ---
+  const { data: activeBreak } = useGetActiveBreak();
+  const startBreak = useStartBreak();
+  const endBreak = useEndBreak();
+
+  const handleStartBreak = () => {
+    startBreak.mutate(undefined, {
+      onSuccess: () => {
+        const channel = new BroadcastChannel('cognitive-timesheets');
+        channel.postMessage({ type: 'SESSION_SYNC' });
+        channel.close();
+        queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
+        queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['breaks'] });
+        showSnack('Break started successfully.');
+      },
+      onError: (err) => showSnack(parseError(err), 'error'),
+    });
+  };
+
+  const handleEndBreak = () => {
+    endBreak.mutate(undefined, {
+      onSuccess: () => {
+        const channel = new BroadcastChannel('cognitive-timesheets');
+        channel.postMessage({ type: 'SESSION_SYNC' });
+        channel.close();
+        queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
+        queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['breaks'] });
+        showSnack('Break ended successfully.');
+      },
+      onError: (err) => showSnack(parseError(err), 'error'),
+    });
+  };
+
   // --- Summary ---
   const summary = useMemo<AttendanceSummary>(() => {
     const s: AttendanceSummary = { present: 0, absent: 0, late: 0, onLeave: 0, total: records.length };
@@ -277,8 +316,14 @@ export const AttendancePage: React.FC = () => {
   }, [records]);
 
   const isToday = selectedDate === today;
+  const isClockedIn = !!myAttendance?.clockIn;
+  const isClockedOut = !!myAttendance?.clockOut;
+  const isOnBreak = !!activeBreak;
+
   const canClockIn = isToday && !myLoading && !myAttendance?.clockIn;
-  const canClockOut = isToday && !myLoading && !!myAttendance?.clockIn && !myAttendance?.clockOut;
+  const canClockOut = isToday && !myLoading && !!myAttendance?.clockIn && !myAttendance?.clockOut && !isOnBreak;
+  const canStartBreak = isToday && !myLoading && isClockedIn && !isClockedOut && !isOnBreak;
+  const canEndBreak = isToday && !myLoading && isOnBreak;
 
   return (
     <Box>
@@ -369,6 +414,26 @@ export const AttendancePage: React.FC = () => {
                       {clockIn.isPending ? 'Clocking In…' : 'Clock In'}
                     </Button>
                   )}
+                  {canStartBreak && (
+                    <Button
+                      variant="contained"
+                      color="warning"
+                      onClick={handleStartBreak}
+                      disabled={startBreak.isPending}
+                    >
+                      {startBreak.isPending ? 'Starting Break…' : 'Start Break'}
+                    </Button>
+                  )}
+                  {canEndBreak && (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      onClick={handleEndBreak}
+                      disabled={endBreak.isPending}
+                    >
+                      {endBreak.isPending ? 'Ending Break…' : 'End Break'}
+                    </Button>
+                  )}
                   {canClockOut && (
                     <Button
                       variant="contained"
@@ -403,7 +468,7 @@ export const AttendancePage: React.FC = () => {
 
       {/* Date Picker */}
       <Card sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
           <TextField
             label="Date"
             type="date"

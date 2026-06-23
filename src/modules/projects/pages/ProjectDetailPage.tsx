@@ -14,11 +14,11 @@ import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import { useGetProject } from '../services/projectService';
 
 const statusColor: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-  DRAFT: 'default',
-  ACTIVE: 'info',
-  ON_HOLD: 'warning',
-  COMPLETED: 'success',
-  CANCELLED: 'error',
+  'Yet To Start': 'default',
+  'In Progress': 'info',
+  'On Hold': 'warning',
+  'Completed': 'success',
+  'Cancelled': 'error',
 };
 
 const priorityColor: Record<string, 'default' | 'info' | 'warning' | 'error' | 'success'> = {
@@ -78,7 +78,7 @@ const ProjectDetailPage: React.FC = () => {
             {project.name}
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            {project.projectCode}
+            {project.partNumber}
           </Typography>
         </Box>
         <Chip
@@ -117,10 +117,10 @@ const ProjectDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Billing Type
+            Part Name
           </Typography>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            {project.billingType}
+            {project.partName || '—'}
           </Typography>
         </Paper>
 

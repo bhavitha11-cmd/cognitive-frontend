@@ -359,7 +359,7 @@ export interface EmployeeListParams {
   accountStatus?: string;
 }
 
-export const useGetEmployees = (params?: EmployeeListParams) => {
+export const useGetEmployees = (params?: EmployeeListParams, options?: { enabled?: boolean }) => {
   return useQuery<Employee[]>({
     queryKey: ['employees', params],
     queryFn: async () => {
@@ -375,6 +375,7 @@ export const useGetEmployees = (params?: EmployeeListParams) => {
       useHRStore.getState().setEmployees(mapped);
       return mapped;
     },
+    ...options,
   });
 };
 

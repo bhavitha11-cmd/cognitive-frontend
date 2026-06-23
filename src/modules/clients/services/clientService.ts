@@ -14,21 +14,27 @@ const mapBackendClientToFrontend = (c: any): Client => ({
   contactPerson: c.contact_person || undefined,
   contactEmail: c.contact_email || undefined,
   contactPhone: c.contact_phone || undefined,
+  alternatePhone: c.alternate_phone || undefined,
   country: c.country || undefined,
   address: c.address || undefined,
   notes: c.notes || undefined,
   isActive: c.is_active ?? true,
+  status: c.status || 'Active',
+  deactivationReason: c.deactivation_reason || undefined,
+  deactivatedAt: c.deactivated_at || undefined,
+  deactivatedBy: c.deactivated_by || undefined,
   projectCount: c.project_count ?? 0,
   createdAt: c.created_at || undefined,
 });
 
 const mapFrontendClientToBackend = (data: ClientCreate) => ({
-  client_code: data.clientCode || undefined,
+  client_code: data.clientCode,
   name: data.name,
   industry: data.industry || null,
   contact_person: data.contactPerson || null,
   contact_email: data.contactEmail || null,
   contact_phone: data.contactPhone || null,
+  alternate_phone: data.alternatePhone || null,
   country: data.country || null,
   address: data.address || null,
   notes: data.notes || null,
@@ -111,9 +117,13 @@ export const useUpdateClient = () => {
       if (data.contactPerson !== undefined) payload.contact_person = data.contactPerson || null;
       if (data.contactEmail !== undefined) payload.contact_email = data.contactEmail || null;
       if (data.contactPhone !== undefined) payload.contact_phone = data.contactPhone || null;
+      if (data.alternatePhone !== undefined) payload.alternate_phone = data.alternatePhone || null;
       if (data.country !== undefined) payload.country = data.country || null;
       if (data.address !== undefined) payload.address = data.address || null;
       if (data.notes !== undefined) payload.notes = data.notes || null;
+      if (data.isActive !== undefined) payload.is_active = data.isActive;
+      if (data.status !== undefined) payload.status = data.status;
+      if (data.deactivationReason !== undefined) payload.deactivation_reason = data.deactivationReason || null;
 
       const response = await api.put(`/clients/${id}`, payload);
       const raw = response.data?.data?.client || response.data?.data || response.data;

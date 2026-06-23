@@ -9,7 +9,7 @@ export interface Task {
   scopeOfWorkId?: string;
   scopeName?: string;
   departmentCategory?: 'CAD' | 'CAM' | 'GEN' | 'SALES' | 'ADMIN' | 'MKRT' | 'SUPRT';
-  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED' | 'REOPENED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   estimatedHours: number;
   actualHours: number;
@@ -25,6 +25,9 @@ export interface Task {
   isActive: boolean;
   assignments: TaskAssignment[];
   assigneeCount: number;
+  reworkCount?: number;
+  totalReworkHours?: number;
+  originalEstimatedHours?: number;
   createdAt?: string;
 }
 
@@ -64,4 +67,5 @@ export interface TaskCreate {
   receivedDate?: string;
   plannedDeliveryDate?: string;
   remarks?: string;
+  assignedEmployeeId?: string;
 }

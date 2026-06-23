@@ -1,15 +1,15 @@
 export interface Project {
   id: string;
-  projectCode: string;
+  partNumber: string;
   name: string;
+  partName: string;
   description?: string;
   clientId: string;
   clientName?: string;
   projectManagerId?: string;
   projectManagerName?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+  status: 'Yet To Start' | 'In Progress' | 'Completed' | 'Cancelled' | 'On Hold';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  billingType: 'FIXED' | 'TIME_AND_MATERIAL' | 'RETAINER' | 'INTERNAL';
   isBillable: boolean;
   plannedStartDate?: string;
   plannedEndDate?: string;
@@ -20,6 +20,7 @@ export interface Project {
   invoiceStatus: 'PENDING' | 'INVOICED' | 'PARTIALLY_INVOICED' | 'NOT_APPLICABLE';
   tokForm?: string;
   feedbackStatus: 'PENDING' | 'RECEIVED' | 'POSITIVE' | 'NEGATIVE' | 'NA';
+  statusReason?: string;
   isActive: boolean;
   taskCount: number;
   completedTaskCount: number;
@@ -28,14 +29,14 @@ export interface Project {
 }
 
 export interface ProjectCreate {
-  projectCode: string;
+  partNumber: string;
   name: string;
+  partName: string;
   description?: string;
   clientId: string;
   projectManagerId?: string;
   status?: string;
   priority?: string;
-  billingType?: string;
   isBillable?: boolean;
   plannedStartDate?: string;
   plannedEndDate?: string;
@@ -44,6 +45,7 @@ export interface ProjectCreate {
   invoiceStatus?: string;
   tokForm?: string;
   feedbackStatus?: string;
+  statusReason?: string;
 }
 
 export interface ProjectUpdate extends Partial<ProjectCreate> {}

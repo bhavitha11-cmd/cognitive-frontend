@@ -26,10 +26,11 @@ import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
-import { useCreateProject } from '../services/projectService';
+import { useCreateProject, useGetHolidays } from '../services/projectService';
 import { useGetClients } from '../../clients/services/clientService';
 import { useGetEmployees } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
+import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
 
 // ==========================================
 // FORM SCHEMA
@@ -37,14 +38,14 @@ import { parseError } from '../../../utils/api';
 
 const schema = z
   .object({
-    projectCode: z.string().min(2, 'Project Code is required (min 2 chars)'),
+    partNumber: z.string().min(1, 'Part Number is required.'),
     name: z.string().min(3, 'Package Name must be at least 3 characters'),
+    partName: z.string().min(1, 'Part Name is required.'),
     description: z.string().optional(),
     clientId: z.string().min(1, 'Client is required'),
     projectManagerId: z.string().optional(),
     status: z.string().min(1),
     priority: z.string().min(1),
-    billingType: z.string().min(1),
     isBillable: z.boolean(),
     plannedStartDate: z.string().optional(),
     plannedEndDate: z.string().optional(),
@@ -76,6 +77,7 @@ export const CreateProjectPage: React.FC = () => {
   const createProject = useCreateProject();
   const { data: clientsData } = useGetClients({ limit: 200 });
   const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const { data: holidays = [] } = useGetHolidays();
 
   const clients = clientsData?.clients || [];
   const managers = employees || [];
@@ -83,18 +85,22 @@ export const CreateProjectPage: React.FC = () => {
   const {
     control,
     handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting },
-  } = useForm<FormInputs>({
+  } = useForm<any>({
     resolver: zodResolver(schema),
     defaultValues: {
-      projectCode: '',
+      partNumber: '',
       name: '',
+      partName: '',
       description: '',
       clientId: '',
       projectManagerId: '',
-      status: 'DRAFT',
+      status: 'Yet To Start',
       priority: 'MEDIUM',
-      billingType: 'FIXED',
       isBillable: true,
       plannedStartDate: '',
       plannedEndDate: '',
@@ -106,17 +112,66 @@ export const CreateProjectPage: React.FC = () => {
     },
   });
 
+  const plannedStartDate = watch('plannedStartDate');
+  const plannedEndDate = watch('plannedEndDate');
+  const estimatedHours = watch('estimatedHours');
+
+  // Auto-calculate Planned End Date when Start Date or Estimated Hours change
+  React.useEffect(() => {
+    if (plannedStartDate && estimatedHours > 0) {
+      const computedEndDate = calculateEndDate(plannedStartDate, estimatedHours, holidays);
+      setValue('plannedEndDate', computedEndDate, { shouldValidate: true });
+    }
+  }, [plannedStartDate, estimatedHours, holidays, setValue]);
+
+  // Calculate available capacity dynamically in real time
+  const availableCapacity = React.useMemo(() => {
+    if (plannedStartDate && plannedEndDate) {
+      return calculateWorkingHours(plannedStartDate, plannedEndDate, holidays);
+    }
+    return 0;
+  }, [plannedStartDate, plannedEndDate, holidays]);
+
+  const isCapacityExceeded = estimatedHours > availableCapacity;
+
+  // Real-time capacity error handling
+  React.useEffect(() => {
+    if (plannedStartDate && plannedEndDate && estimatedHours > 0) {
+      if (isCapacityExceeded) {
+        setError('estimatedHours', {
+          type: 'manual',
+          message: 'Estimated hours exceed available working hours between selected dates.',
+        });
+      } else {
+        clearErrors('estimatedHours');
+      }
+    } else {
+      clearErrors('estimatedHours');
+    }
+  }, [isCapacityExceeded, plannedStartDate, plannedEndDate, estimatedHours, setError, clearErrors]);
+
   const onSubmit = async (data: FormInputs) => {
+    if (data.plannedStartDate && data.plannedEndDate) {
+      const capacity = calculateWorkingHours(data.plannedStartDate, data.plannedEndDate, holidays);
+      if (data.estimatedHours > capacity) {
+        setError('estimatedHours', {
+          type: 'manual',
+          message: 'Estimated hours exceed available working hours between selected dates.',
+        });
+        return;
+      }
+    }
+
     try {
       await createProject.mutateAsync({
-        projectCode: data.projectCode.trim().toUpperCase(),
+        partNumber: data.partNumber.trim().toUpperCase(),
         name: data.name.trim(),
+        partName: data.partName.trim(),
         description: data.description?.trim() || undefined,
         clientId: data.clientId,
         projectManagerId: data.projectManagerId || undefined,
         status: data.status,
         priority: data.priority,
-        billingType: data.billingType,
         isBillable: data.isBillable,
         plannedStartDate: data.plannedStartDate || undefined,
         plannedEndDate: data.plannedEndDate || undefined,
@@ -175,20 +230,20 @@ export const CreateProjectPage: React.FC = () => {
           <Divider sx={{ mt: 1.5 }} />
           <CardContent>
             <Grid container spacing={3}>
-              {/* Project Code */}
+              {/* Part Number */}
               <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
-                  name="projectCode"
+                  name="partNumber"
                   control={control}
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Project Code *"
+                      label="Part Number *"
                       placeholder="e.g. 2025-001"
                       fullWidth
                       size="small"
-                      error={!!errors.projectCode}
-                      helperText={errors.projectCode?.message || 'Auto-uppercased on save'}
+                      error={!!errors.partNumber}
+                      helperText={errors.partNumber?.message || 'Auto-uppercased on save'}
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
                   )}
@@ -196,7 +251,7 @@ export const CreateProjectPage: React.FC = () => {
               </Grid>
 
               {/* Package Name */}
-              <Grid size={{ xs: 12, sm: 8 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="name"
                   control={control}
@@ -209,6 +264,26 @@ export const CreateProjectPage: React.FC = () => {
                       size="small"
                       error={!!errors.name}
                       helperText={errors.name?.message}
+                      slotProps={{ inputLabel: { shrink: true } }}
+                    />
+                  )}
+                />
+              </Grid>
+
+              {/* Part Name */}
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Controller
+                  name="partName"
+                  control={control}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      label="Part Name *"
+                      placeholder="e.g. BRACKET"
+                      fullWidth
+                      size="small"
+                      error={!!errors.partName}
+                      helperText={errors.partName?.message}
                       slotProps={{ inputLabel: { shrink: true } }}
                     />
                   )}
@@ -302,7 +377,7 @@ export const CreateProjectPage: React.FC = () => {
           <CardContent>
             <Grid container spacing={3}>
               {/* Status */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                     Status
@@ -312,11 +387,11 @@ export const CreateProjectPage: React.FC = () => {
                     control={control}
                     render={({ field }) => (
                       <Select {...field}>
-                        <MenuItem value="DRAFT">Draft</MenuItem>
-                        <MenuItem value="ACTIVE">Active</MenuItem>
-                        <MenuItem value="ON_HOLD">On Hold</MenuItem>
-                        <MenuItem value="COMPLETED">Completed</MenuItem>
-                        <MenuItem value="CANCELLED">Cancelled</MenuItem>
+                        <MenuItem value="Yet To Start">Yet To Start</MenuItem>
+                        <MenuItem value="In Progress">In Progress</MenuItem>
+                        <MenuItem value="On Hold">On Hold</MenuItem>
+                        <MenuItem value="Completed">Completed</MenuItem>
+                        <MenuItem value="Cancelled">Cancelled</MenuItem>
                       </Select>
                     )}
                   />
@@ -324,7 +399,7 @@ export const CreateProjectPage: React.FC = () => {
               </Grid>
 
               {/* Priority */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                     Priority
@@ -338,27 +413,6 @@ export const CreateProjectPage: React.FC = () => {
                         <MenuItem value="MEDIUM">Medium</MenuItem>
                         <MenuItem value="HIGH">High</MenuItem>
                         <MenuItem value="CRITICAL">Critical</MenuItem>
-                      </Select>
-                    )}
-                  />
-                </FormControl>
-              </Grid>
-
-              {/* Billing Type */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                    Billing Type
-                  </Typography>
-                  <Controller
-                    name="billingType"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field}>
-                        <MenuItem value="FIXED">Fixed Price</MenuItem>
-                        <MenuItem value="TIME_AND_MATERIAL">Time &amp; Material</MenuItem>
-                        <MenuItem value="RETAINER">Retainer</MenuItem>
-                        <MenuItem value="INTERNAL">Internal</MenuItem>
                       </Select>
                     )}
                   />
@@ -404,6 +458,21 @@ export const CreateProjectPage: React.FC = () => {
                   )}
                 />
               </Grid>
+
+              {/* Live Capacity Info Text */}
+              {plannedStartDate && plannedEndDate && (
+                <Grid size={{ xs: 12 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: isCapacityExceeded ? 'error.main' : 'success.main',
+                    }}
+                  >
+                    Available Capacity: {availableCapacity} Hours | Estimated Effort: {estimatedHours} Hours
+                  </Typography>
+                </Grid>
+              )}
             </Grid>
           </CardContent>
         </Card>
@@ -494,7 +563,7 @@ export const CreateProjectPage: React.FC = () => {
               </Grid>
 
               {/* Invoice Status */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                     Invoice Status
@@ -515,7 +584,7 @@ export const CreateProjectPage: React.FC = () => {
               </Grid>
 
               {/* TOK Form */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Controller
                   name="tokForm"
                   control={control}
@@ -530,28 +599,6 @@ export const CreateProjectPage: React.FC = () => {
                     />
                   )}
                 />
-              </Grid>
-
-              {/* Feedback Status */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small">
-                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                    Feedback Status
-                  </Typography>
-                  <Controller
-                    name="feedbackStatus"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field}>
-                        <MenuItem value="PENDING">Pending</MenuItem>
-                        <MenuItem value="RECEIVED">Received</MenuItem>
-                        <MenuItem value="POSITIVE">Positive</MenuItem>
-                        <MenuItem value="NEGATIVE">Negative</MenuItem>
-                        <MenuItem value="NA">N/A</MenuItem>
-                      </Select>
-                    )}
-                  />
-                </FormControl>
               </Grid>
             </Grid>
           </CardContent>
@@ -573,7 +620,7 @@ export const CreateProjectPage: React.FC = () => {
             variant="contained"
             color="primary"
             startIcon={<SaveIcon />}
-            disabled={isSubmitting || createProject.isPending}
+            disabled={isSubmitting || createProject.isPending || isCapacityExceeded}
           >
             {createProject.isPending ? 'Creating...' : 'Create Project'}
           </Button>
