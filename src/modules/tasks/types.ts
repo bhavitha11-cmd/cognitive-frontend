@@ -61,7 +61,7 @@ export interface TaskCreate {
   title: string;
   description?: string;
   scopeOfWorkId?: string;
-  teamId: string;
+  teamId?: string;
   departmentCategory?: string;
   status?: string;
   priority?: string;

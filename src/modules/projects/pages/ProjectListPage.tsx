@@ -48,7 +48,6 @@ import { SearchFilters } from '../../../components/SearchFilters';
 import {
   useGetProjects,
   useUpdateProjectStatus,
-  useDeleteProject,
   useUpdateProject,
   useGetHolidays,
 } from '../services/projectService';
@@ -906,6 +905,15 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
   );
 };
 
+const formatDate = (date?: string) => {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
 // ==========================================
 // MAIN PAGE
 // ==========================================
@@ -933,7 +941,7 @@ export const ProjectListPage: React.FC = () => {
   const { data: clientsData } = useGetClients({ limit: 200 });
 
   const updateStatus = useUpdateProjectStatus();
-  const deleteProject = useDeleteProject();
+
 
   const projects = projectsData?.projects || [];
   const totalCount = projectsData?.total ?? 0;
@@ -1050,7 +1058,7 @@ export const ProjectListPage: React.FC = () => {
       <Card>
         {projectsLoading && <LinearProgress />}
         <TableContainer component={Paper} elevation={0}>
-          <Table sx={{ minWidth: 1100 }} size="small">
+          <Table sx={{ minWidth: 1400 }} size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.50' }}>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Part Number</TableCell>
@@ -1062,7 +1070,10 @@ export const ProjectListPage: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hrs</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hrs</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Tasks</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Delivery</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -1190,7 +1201,14 @@ export const ProjectListPage: React.FC = () => {
                       </Box>
                     </TableCell>
 
-                    {/* Delivery date */}
+                     {/* Planned Start Date */}
+                    <TableCell>
+                      <Typography variant="body2">
+                        {formatDate(project.plannedStartDate)}
+                      </Typography>
+                    </TableCell>
+
+                    {/* Planned End Date */}
                     <TableCell>
                       {project.plannedEndDate ? (
                         <Typography
@@ -1210,17 +1228,27 @@ export const ProjectListPage: React.FC = () => {
                                 : 400,
                           }}
                         >
-                          {new Date(project.plannedEndDate).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+                          {formatDate(project.plannedEndDate)}
                         </Typography>
                       ) : (
                         <Typography variant="body2" color="text.secondary">
                           —
                         </Typography>
                       )}
+                    </TableCell>
+
+                    {/* Actual Start Date */}
+                    <TableCell>
+                      <Typography variant="body2">
+                        {formatDate(project.actualStartDate)}
+                      </Typography>
+                    </TableCell>
+
+                    {/* Actual End Date */}
+                    <TableCell>
+                      <Typography variant="body2">
+                        {formatDate(project.actualEndDate)}
+                      </Typography>
                     </TableCell>
 
                     {/* Actions */}
@@ -1239,7 +1267,7 @@ export const ProjectListPage: React.FC = () => {
 
               {!projectsLoading && projects.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={14} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
                       No projects found. Create your first project to get started.
                     </Typography>

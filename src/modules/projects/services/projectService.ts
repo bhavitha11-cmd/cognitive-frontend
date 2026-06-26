@@ -99,7 +99,7 @@ export const useGetProjectStats = (id: string) => {
     queryKey: ['projects', id, 'stats'],
     queryFn: async () => {
       const response = await api.get(`/projects/${id}/stats`);
-      return response.data?.data || response.data;
+      return response.data?.data?.stats || response.data?.data || response.data;
     },
     enabled: !!id,
   });

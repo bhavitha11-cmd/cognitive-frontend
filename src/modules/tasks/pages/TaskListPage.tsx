@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box,
@@ -24,7 +24,6 @@ import {
   Alert,
   CircularProgress,
   Divider,
-  Stack,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -38,7 +37,6 @@ import type { Column } from '../../../components/DataTable';
 import {
   useGetTasks,
   useDeleteTask,
-  useUpdateTaskStatus,
 } from '../services/taskService';
 import type { Task } from '../types';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -355,10 +353,7 @@ export const TaskListPage: React.FC = () => {
   const tasks = data?.tasks ?? [];
   const totalCount = data?.total ?? 0;
 
-  const handleRowClick = useCallback((task: Task) => {
-    setSelectedTask(task);
-    setDetailOpen(true);
-  }, []);
+
 
   const handleDeleteConfirm = async () => {
     if (!deleteTask) return;

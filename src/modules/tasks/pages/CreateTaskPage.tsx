@@ -27,15 +27,13 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 
 import {
   useCreateTask,
-  useGetScopeOfWork,
   useGetProjectDetailsByPart,
-  useGetTasksByProject,
   useGetNextTaskCode,
   useGetTask,
   useUpdateTask,
 } from '../services/taskService';
-import { useGetProjects, useGetHolidays, useGetProject } from '../../projects/services/projectService';
-import { useGetEmployees, useGetTeams } from '../../hr/services/hrService';
+import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
+import { useGetEmployees } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
@@ -51,10 +49,8 @@ const taskFormSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   scopeOfWorkId: z.string().optional(),
-  teamId: z.string().min(1, 'Team selection is required.'),
-  departmentCategory: z
-    .enum(['CAD', 'CAM', 'GEN', 'SALES', 'ADMIN', 'MKRT', 'SUPRT', ''])
-    .optional(),
+  teamId: z.string().optional(),
+  departmentCategory: z.string().min(1, 'Department Category is required'),
   status: z
     .enum(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED', 'REOPENED']),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
@@ -140,8 +136,7 @@ export const CreateTaskPage: React.FC = () => {
   // Fetch project details reactively
   const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);
 
-  // Scope-of-work options (unfiltered — we'll filter in display)
-  const { data: scopeData } = useGetScopeOfWork();
+
 
   const createMutation = useCreateTask();
   const updateMutation = useUpdateTask();
@@ -163,8 +158,8 @@ export const CreateTaskPage: React.FC = () => {
       title: '',
       description: '',
       scopeOfWorkId: '',
-      teamId: '',
-      departmentCategory: '',
+      teamId: undefined,
+      departmentCategory: '' as any,
       status: 'NOT_STARTED',
       priority: 'MEDIUM',
       estimatedHours: undefined,
@@ -182,25 +177,8 @@ export const CreateTaskPage: React.FC = () => {
   const today = React.useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const watchedProjectId = watch('projectId');
-  const watchedTeamId = watch('teamId');
 
-  // Fetch project details reactively to get departmentId
-  const { data: activeProject } = useGetProject(watchedProjectId);
 
-  // Fetch filtered teams list reactively
-  const { data: teams = [], isLoading: teamsLoading } = useGetTeams(activeProject?.departmentId);
-
-  // Reset/clear teamId if project/department changes and selected team is not in new department's teams
-  useEffect(() => {
-    if (watchedTeamId && teams.length > 0) {
-      const teamExists = teams.some((t) => t.id === watchedTeamId);
-      if (!teamExists) {
-        setValue('teamId', '', { shouldValidate: true });
-      }
-    } else if (watchedTeamId && !teamsLoading && teams.length === 0) {
-      setValue('teamId', '', { shouldValidate: true });
-    }
-  }, [teams, teamsLoading, watchedTeamId, setValue]);
 
   const plannedStartDate = watch('plannedStartDate');
   const plannedEndDate = watch('plannedEndDate');
@@ -369,7 +347,7 @@ export const CreateTaskPage: React.FC = () => {
         title: data.title,
         description: data.description || undefined,
         scopeOfWorkId: data.scopeOfWorkId || undefined,
-        teamId: data.teamId,
+        teamId: data.teamId || undefined,
         departmentCategory: data.departmentCategory || undefined,
         status: data.status,
         priority: data.priority,
@@ -636,50 +614,15 @@ export const CreateTaskPage: React.FC = () => {
               <SectionLabel label="Scope & Classification" />
             </Box>
             <Grid container spacing={3}>
-              {/* Alert if project is selected but no teams are found for its department */}
-              {watchedProjectId && teams.length === 0 && !teamsLoading && (
-                <Grid size={{ xs: 12 }}>
-                  <Alert severity="warning">
-                    No teams are defined for the project's department ({activeProject?.departmentName || 'Unknown'}). Please configure teams in HR first.
-                  </Alert>
-                </Grid>
-              )}
-
-              {/* Team selection */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small" error={!!errors.teamId}>
-                  <InputLabel shrink>Team *</InputLabel>
-                  <Controller
-                    name="teamId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} label="Team *" displayEmpty notched disabled={!watchedProjectId}>
-                        <MenuItem value="" disabled>
-                          {watchedProjectId ? '-- Select Team --' : '-- Select Part Number First --'}
-                        </MenuItem>
-                        {teams.map((t) => (
-                          <MenuItem key={t.id} value={t.id}>
-                            {t.team_name} {t.team_code ? `(${t.team_code})` : ''}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  <FormHelperText>
-                    {errors.teamId?.message || (watchedProjectId && teams.length === 0 && !teamsLoading ? "No teams found in project's department." : "")}
-                  </FormHelperText>
-                </FormControl>
-              </Grid>
-
               {/* Department Category */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small" error={!!errors.departmentCategory}>
-                  <InputLabel shrink>Department Category</InputLabel>
+                  <InputLabel shrink>Department Category *</InputLabel>
                   <Controller
                     name="departmentCategory"
                     control={control}
                     render={({ field }) => (
-                      <Select {...field} label="Department Category" displayEmpty notched>
+                      <Select {...field} label="Department Category *" displayEmpty notched>
                         <MenuItem value="">— Select Department —</MenuItem>
                         {DEPT_OPTIONS.map((d) => (
                           <MenuItem key={d.value} value={d.value}>

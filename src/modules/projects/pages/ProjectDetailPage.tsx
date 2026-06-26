@@ -79,13 +79,47 @@ const ProjectDetailPage: React.FC = () => {
         >
           Gantt Timeline
         </Button>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            {project.name}
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            {project.partNumber}
-          </Typography>
+        <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              {project.name}
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              {project.partNumber}
+            </Typography>
+          </Box>
+
+          {/* Department-wise Hours Breakdown (Horizontal Widgets Row) */}
+          {stats?.department_stats && stats.department_stats.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: 3, borderLeft: '1px solid', borderColor: 'divider' }}>
+              {stats.department_stats.map((dept: any) => (
+                <Box
+                  key={dept.department_category}
+                  sx={{
+                    bgcolor: 'grey.50',
+                    border: '1px solid',
+                    borderColor: 'grey.200',
+                    borderRadius: '6px',
+                    px: 1.5,
+                    py: 0.5,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minWidth: 90,
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: 0.5 }}>
+                    {dept.department_category}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.72rem', mt: 0.25 }}>
+                    {dept.planned_hours}h <span style={{ fontWeight: 400 }}>plan</span>
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.72rem' }}>
+                    {dept.actual_hours}h <span style={{ fontWeight: 400 }}>actual</span>
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
         <Chip
           label={project.status}
