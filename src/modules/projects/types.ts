@@ -8,6 +8,9 @@ export interface Project {
   clientName?: string;
   projectManagerId?: string;
   projectManagerName?: string;
+  departmentId: string;
+  departmentName?: string;
+  departmentCode?: string;
   status: 'Yet To Start' | 'In Progress' | 'Completed' | 'Cancelled' | 'On Hold';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   isBillable: boolean;
@@ -35,6 +38,7 @@ export interface ProjectCreate {
   description?: string;
   clientId: string;
   projectManagerId?: string;
+  departmentId: string;
   status?: string;
   priority?: string;
   isBillable?: boolean;

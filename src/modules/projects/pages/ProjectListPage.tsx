@@ -41,7 +41,6 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 
@@ -54,7 +53,7 @@ import {
   useGetHolidays,
 } from '../services/projectService';
 import { useGetClients } from '../../clients/services/clientService';
-import { useGetEmployees } from '../../hr/services/hrService';
+import { useGetEmployees, useGetDepartments } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
 import type { Project } from '../types';
@@ -278,6 +277,7 @@ const editProjectSchema = z
     description: z.string().optional(),
     clientId: z.string().min(1, 'Client is required'),
     projectManagerId: z.string().optional(),
+    departmentId: z.string().min(1, 'Department is required.'),
     status: z.string().min(1),
     originalStatus: z.string().optional(),
     statusReason: z.string().optional(),
@@ -322,6 +322,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
   const updateProject = useUpdateProject();
   const { data: clientsData } = useGetClients({ limit: 200 });
   const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const { data: departments = [] } = useGetDepartments();
   const { data: holidays = [] } = useGetHolidays();
 
   const clients = clientsData?.clients || [];
@@ -336,8 +337,8 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
     clearErrors,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<any>({
-    resolver: zodResolver(editProjectSchema),
+  } = useForm<EditProjectFormInputs>({
+    resolver: zodResolver(editProjectSchema) as any,
   });
 
   React.useEffect(() => {
@@ -349,6 +350,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
         description: project.description || '',
         clientId: project.clientId || '',
         projectManagerId: project.projectManagerId || '',
+        departmentId: project.departmentId || '',
         status: project.status || 'Yet To Start',
         originalStatus: project.status || 'Yet To Start',
         statusReason: project.statusReason || '',
@@ -357,7 +359,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
         plannedStartDate: project.plannedStartDate ? project.plannedStartDate.split('T')[0] : '',
         plannedEndDate: project.plannedEndDate ? project.plannedEndDate.split('T')[0] : '',
         estimatedHours: project.estimatedHours ?? 0,
-        contractHours: project.contractHours ?? '',
+        contractHours: project.contractHours ?? undefined,
         invoiceStatus: project.invoiceStatus || 'PENDING',
         tokForm: project.tokForm || '',
         feedbackStatus: project.feedbackStatus || 'PENDING',
@@ -430,6 +432,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
           description: data.description?.trim() || undefined,
           clientId: data.clientId,
           projectManagerId: data.projectManagerId || undefined,
+          departmentId: data.departmentId,
           status: data.status,
           statusReason: data.statusReason || undefined,
           priority: data.priority,
@@ -448,6 +451,8 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
       // error displayed via updateProject.error
     }
   };
+
+  const isDeptDisabled = !!project && (project.taskCount ?? 0) > 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -524,8 +529,36 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
               />
             </Grid>
 
+            {/* Department */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <FormControl fullWidth size="small" error={!!errors.departmentId} disabled={isDeptDisabled}>
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
+                  Department *
+                </Typography>
+                <Controller
+                  name="departmentId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select {...field} displayEmpty>
+                      <MenuItem value="" disabled>
+                        -- Select Department --
+                      </MenuItem>
+                      {departments.map((d: any) => (
+                        <MenuItem key={d.id} value={d.id}>
+                          {d.name} {d.code ? `(${d.code})` : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+                <FormHelperText>
+                  {errors.departmentId?.message || (isDeptDisabled ? "Locked: Project has active tasks" : "")}
+                </FormHelperText>
+              </FormControl>
+            </Grid>
+
             {/* Client */}
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth size="small" error={!!errors.clientId}>
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Client *
@@ -552,7 +585,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
             </Grid>
 
             {/* Project Manager */}
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth size="small">
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Project Manager
@@ -929,14 +962,6 @@ export const ProjectListPage: React.FC = () => {
     setStatusReasonInput('');
   }, [statusChangeRequest, statusReasonInput, updateStatus]);
 
-  const handleDelete = useCallback(
-    (id: string) => {
-      if (window.confirm('Are you sure you want to delete this project?')) {
-        deleteProject.mutate(id);
-      }
-    },
-    [deleteProject]
-  );
 
   const handleRowClick = (id: string) => {
     navigate(`/projects/${id}`);

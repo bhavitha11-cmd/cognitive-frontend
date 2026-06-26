@@ -235,6 +235,20 @@ export const router = createBrowserRouter([
         path: 'calendar',
         element: lazyLoad(() => import('../modules/calendar/pages/CalendarPage'), 'dashboard'),
       },
+      // Master Data
+      {
+        path: 'master-data',
+        children: [
+          {
+            path: '',
+            element: <Navigate to="/master-data/task-templates" replace />,
+          },
+          {
+            path: 'task-templates',
+            element: lazyLoad(() => import('../modules/master-data/pages/TaskTemplateListPage'), 'table'),
+          },
+        ],
+      },
       // Settings
       {
         path: 'settings',

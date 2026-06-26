@@ -29,6 +29,9 @@ const mapBackendTaskToFrontend = (t: any): Task => ({
   parentTaskId: t.parent_task_id || undefined,
   scopeOfWorkId: t.scope_of_work_id || undefined,
   scopeName: t.scope_name || undefined,
+  teamId: t.team_id,
+  teamName: t.team_name || undefined,
+  teamCode: t.team_code || undefined,
   departmentCategory: t.department_category || undefined,
   status: t.status || 'NOT_STARTED',
   priority: t.priority || 'MEDIUM',
@@ -66,6 +69,7 @@ const mapTaskCreateToBackend = (data: TaskCreate) => ({
   title: data.title,
   description: data.description || null,
   scope_of_work_id: data.scopeOfWorkId || null,
+  team_id: data.teamId,
   department_category: data.departmentCategory || null,
   status: data.status || 'NOT_STARTED',
   priority: data.priority || 'MEDIUM',
@@ -230,6 +234,7 @@ export const useUpdateTask = () => {
       if (data.title !== undefined) payload.title = data.title;
       if (data.description !== undefined) payload.description = data.description || null;
       if (data.scopeOfWorkId !== undefined) payload.scope_of_work_id = data.scopeOfWorkId || null;
+      if (data.teamId !== undefined) payload.team_id = data.teamId;
       if (data.departmentCategory !== undefined) payload.department_category = data.departmentCategory || null;
       if (data.status !== undefined) payload.status = data.status;
       if (data.priority !== undefined) payload.priority = data.priority;

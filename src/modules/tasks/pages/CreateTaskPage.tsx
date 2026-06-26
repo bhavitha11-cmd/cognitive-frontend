@@ -20,7 +20,6 @@ import {
   Autocomplete,
   InputLabel,
   Divider,
-  Stack,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
@@ -35,11 +34,12 @@ import {
   useGetTask,
   useUpdateTask,
 } from '../services/taskService';
-import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
-import { useGetEmployees } from '../../hr/services/hrService';
+import { useGetProjects, useGetHolidays, useGetProject } from '../../projects/services/projectService';
+import { useGetEmployees, useGetTeams } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
+import { TaskTitleDropdown } from '../../master-data/components/TaskTitleDropdown';
 
 // ==========================================
 // SCHEMA
@@ -51,6 +51,7 @@ const taskFormSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   scopeOfWorkId: z.string().optional(),
+  teamId: z.string().min(1, 'Team selection is required.'),
   departmentCategory: z
     .enum(['CAD', 'CAM', 'GEN', 'SALES', 'ADMIN', 'MKRT', 'SUPRT', ''])
     .optional(),
@@ -140,8 +141,7 @@ export const CreateTaskPage: React.FC = () => {
   const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);
 
   // Scope-of-work options (unfiltered — we'll filter in display)
-  const { data: scopeData, isLoading: scopeLoading } = useGetScopeOfWork();
-  const scopes = scopeData ?? [];
+  const { data: scopeData } = useGetScopeOfWork();
 
   const createMutation = useCreateTask();
   const updateMutation = useUpdateTask();
@@ -163,6 +163,7 @@ export const CreateTaskPage: React.FC = () => {
       title: '',
       description: '',
       scopeOfWorkId: '',
+      teamId: '',
       departmentCategory: '',
       status: 'NOT_STARTED',
       priority: 'MEDIUM',
@@ -181,12 +182,30 @@ export const CreateTaskPage: React.FC = () => {
   const today = React.useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const watchedProjectId = watch('projectId');
+  const watchedTeamId = watch('teamId');
+
+  // Fetch project details reactively to get departmentId
+  const { data: activeProject } = useGetProject(watchedProjectId);
+
+  // Fetch filtered teams list reactively
+  const { data: teams = [], isLoading: teamsLoading } = useGetTeams(activeProject?.departmentId);
+
+  // Reset/clear teamId if project/department changes and selected team is not in new department's teams
+  useEffect(() => {
+    if (watchedTeamId && teams.length > 0) {
+      const teamExists = teams.some((t) => t.id === watchedTeamId);
+      if (!teamExists) {
+        setValue('teamId', '', { shouldValidate: true });
+      }
+    } else if (watchedTeamId && !teamsLoading && teams.length === 0) {
+      setValue('teamId', '', { shouldValidate: true });
+    }
+  }, [teams, teamsLoading, watchedTeamId, setValue]);
+
   const plannedStartDate = watch('plannedStartDate');
   const plannedEndDate = watch('plannedEndDate');
   const estimatedHours = watch('estimatedHours');
 
-  // Fetch tasks of selected project for auto-generating suffix code
-  const { data: existingTasks } = useGetTasksByProject(watchedProjectId);
 
   // Fetch next available task code from server (bypasses RBAC, scans ALL tasks)
   const { data: nextCodeData } = useGetNextTaskCode(watchedProjectId);
@@ -281,6 +300,7 @@ export const CreateTaskPage: React.FC = () => {
         title: taskToEdit.title,
         description: taskToEdit.description || '',
         scopeOfWorkId: taskToEdit.scopeOfWorkId || '',
+        teamId: taskToEdit.teamId || '',
         departmentCategory: taskToEdit.departmentCategory || '',
         status: taskToEdit.status,
         priority: taskToEdit.priority,
@@ -349,6 +369,7 @@ export const CreateTaskPage: React.FC = () => {
         title: data.title,
         description: data.description || undefined,
         scopeOfWorkId: data.scopeOfWorkId || undefined,
+        teamId: data.teamId,
         departmentCategory: data.departmentCategory || undefined,
         status: data.status,
         priority: data.priority,
@@ -566,21 +587,22 @@ export const CreateTaskPage: React.FC = () => {
                 </>
               )}
 
-              {/* Title */}
+              {/* Title — Searchable Task Title Library Dropdown */}
               <Grid size={{ xs: 12 }}>
                 <Controller
                   name="title"
                   control={control}
                   render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Task Title *"
-                      placeholder="e.g. 3D Model — Bracket Assembly Rev B"
-                      fullWidth
-                      size="small"
+                    <TaskTitleDropdown
+                      value={field.value}
+                      onChange={(title, description) => {
+                        field.onChange(title);
+                        if (description) {
+                          setValue('description', description, { shouldValidate: true });
+                        }
+                      }}
                       error={!!errors.title}
                       helperText={errors.title?.message}
-                      slotProps={{ inputLabel: { shrink: true } }}
                     />
                   )}
                 />
@@ -614,6 +636,41 @@ export const CreateTaskPage: React.FC = () => {
               <SectionLabel label="Scope & Classification" />
             </Box>
             <Grid container spacing={3}>
+              {/* Alert if project is selected but no teams are found for its department */}
+              {watchedProjectId && teams.length === 0 && !teamsLoading && (
+                <Grid size={{ xs: 12 }}>
+                  <Alert severity="warning">
+                    No teams are defined for the project's department ({activeProject?.departmentName || 'Unknown'}). Please configure teams in HR first.
+                  </Alert>
+                </Grid>
+              )}
+
+              {/* Team selection */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small" error={!!errors.teamId}>
+                  <InputLabel shrink>Team *</InputLabel>
+                  <Controller
+                    name="teamId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Team *" displayEmpty notched disabled={!watchedProjectId}>
+                        <MenuItem value="" disabled>
+                          {watchedProjectId ? '-- Select Team --' : '-- Select Part Number First --'}
+                        </MenuItem>
+                        {teams.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            {t.team_name} {t.team_code ? `(${t.team_code})` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  <FormHelperText>
+                    {errors.teamId?.message || (watchedProjectId && teams.length === 0 && !teamsLoading ? "No teams found in project's department." : "")}
+                  </FormHelperText>
+                </FormControl>
+              </Grid>
+
               {/* Department Category */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small" error={!!errors.departmentCategory}>
@@ -639,7 +696,7 @@ export const CreateTaskPage: React.FC = () => {
               </Grid>
 
               {/* Status */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel shrink>Status</InputLabel>
                   <Controller
@@ -659,7 +716,7 @@ export const CreateTaskPage: React.FC = () => {
               </Grid>
 
               {/* Priority */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel shrink>Priority</InputLabel>
                   <Controller
@@ -679,7 +736,7 @@ export const CreateTaskPage: React.FC = () => {
               </Grid>
 
               {/* Estimated Hours */}
-              <Grid size={{ xs: 12, sm: 3 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Controller
                   name="estimatedHours"
                   control={control}
@@ -705,7 +762,7 @@ export const CreateTaskPage: React.FC = () => {
               </Grid>
 
               {/* Assigned To */}
-              <Grid size={{ xs: 12, sm: 9 }}>
+              <Grid size={{ xs: 12, sm: 12 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel shrink>Assigned To</InputLabel>
                   <Controller

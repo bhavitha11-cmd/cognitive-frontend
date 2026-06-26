@@ -28,7 +28,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 import { useCreateProject, useGetHolidays } from '../services/projectService';
 import { useGetClients } from '../../clients/services/clientService';
-import { useGetEmployees } from '../../hr/services/hrService';
+import { useGetEmployees, useGetDepartments } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
 
@@ -44,6 +44,7 @@ const schema = z
     description: z.string().optional(),
     clientId: z.string().min(1, 'Client is required'),
     projectManagerId: z.string().optional(),
+    departmentId: z.string().min(1, 'Department is required.'),
     status: z.string().min(1),
     priority: z.string().min(1),
     isBillable: z.boolean(),
@@ -77,6 +78,7 @@ export const CreateProjectPage: React.FC = () => {
   const createProject = useCreateProject();
   const { data: clientsData } = useGetClients({ limit: 200 });
   const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const { data: departments = [] } = useGetDepartments();
   const { data: holidays = [] } = useGetHolidays();
 
   const clients = clientsData?.clients || [];
@@ -90,8 +92,8 @@ export const CreateProjectPage: React.FC = () => {
     setError,
     clearErrors,
     formState: { errors, isSubmitting },
-  } = useForm<any>({
-    resolver: zodResolver(schema),
+  } = useForm<FormInputs>({
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       partNumber: '',
       name: '',
@@ -99,6 +101,7 @@ export const CreateProjectPage: React.FC = () => {
       description: '',
       clientId: '',
       projectManagerId: '',
+      departmentId: '',
       status: 'Yet To Start',
       priority: 'MEDIUM',
       isBillable: true,
@@ -170,6 +173,7 @@ export const CreateProjectPage: React.FC = () => {
         description: data.description?.trim() || undefined,
         clientId: data.clientId,
         projectManagerId: data.projectManagerId || undefined,
+        departmentId: data.departmentId,
         status: data.status,
         priority: data.priority,
         isBillable: data.isBillable,
@@ -290,8 +294,34 @@ export const CreateProjectPage: React.FC = () => {
                 />
               </Grid>
 
+              {/* Department */}
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size="small" error={!!errors.departmentId}>
+                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
+                    Department *
+                  </Typography>
+                  <Controller
+                    name="departmentId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} displayEmpty>
+                        <MenuItem value="" disabled>
+                          -- Select Department --
+                        </MenuItem>
+                        {departments.filter((d: any) => d.status === 'Active').map((d: any) => (
+                          <MenuItem key={d.id} value={d.id}>
+                            {d.name} {d.code ? `(${d.code})` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
+                </FormControl>
+              </Grid>
+
               {/* Client */}
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth size="small" error={!!errors.clientId}>
                   <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                     Client *
@@ -318,7 +348,7 @@ export const CreateProjectPage: React.FC = () => {
               </Grid>
 
               {/* Project Manager */}
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth size="small">
                   <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                     Project Manager

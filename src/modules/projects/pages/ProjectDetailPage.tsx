@@ -8,10 +8,15 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
-import { useGetProject } from '../services/projectService';
+import { useGetProject, useGetProjectStats } from '../services/projectService';
 
 const statusColor: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   'Yet To Start': 'default',
@@ -33,8 +38,9 @@ const ProjectDetailPage: React.FC = () => {
   const navigate = useNavigate();
 
   const { data: project, isLoading, isError } = useGetProject(id ?? '');
+  const { data: stats, isLoading: statsLoading } = useGetProjectStats(id ?? '');
 
-  if (isLoading) {
+  if (isLoading || statsLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
         <CircularProgress />
@@ -126,6 +132,15 @@ const ProjectDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+            Department
+          </Typography>
+          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+            {project.departmentName ?? '—'} {project.departmentCode ? `(${project.departmentCode})` : ''}
+          </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
             Billable
           </Typography>
           <Chip
@@ -172,6 +187,22 @@ const ProjectDetailPage: React.FC = () => {
         </Paper>
       </Box>
 
+      {/* Teams Involved Summary */}
+      <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+        <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+          Teams Involved ({stats?.total_teams_involved ?? 0})
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+          {stats?.teams_involved && stats.teams_involved.length > 0 ? (
+            stats.teams_involved.map((t: string) => (
+              <Chip key={t} label={t} size="small" color="primary" variant="outlined" />
+            ))
+          ) : (
+            <Typography variant="body2" color="textSecondary">No teams involved yet.</Typography>
+          )}
+        </Box>
+      </Paper>
+
       {/* Description */}
       {project.description && (
         <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
@@ -181,6 +212,49 @@ const ProjectDetailPage: React.FC = () => {
           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
             {project.description}
           </Typography>
+        </Paper>
+      )}
+
+      {/* Team Effort Breakdown Table */}
+      {stats?.team_stats && stats.team_stats.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+            Team Effort Breakdown
+          </Typography>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Team Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Tasks</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Planned (hrs)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Actual (hrs)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Completed (hrs)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Remaining (hrs)</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Completion %</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {stats.team_stats.map((row: any) => (
+                  <TableRow key={row.team_name} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell component="th" scope="row" sx={{ fontWeight: 500 }}>
+                      {row.team_name}
+                    </TableCell>
+                    <TableCell align="right">{row.task_count}</TableCell>
+                    <TableCell align="right">{row.planned_hours}</TableCell>
+                    <TableCell align="right">{row.actual_hours}</TableCell>
+                    <TableCell align="right">{row.completed_hours}</TableCell>
+                    <TableCell align="right">{row.remaining_hours}</TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {row.completion_pct}%
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
         </Paper>
       )}
     </Box>

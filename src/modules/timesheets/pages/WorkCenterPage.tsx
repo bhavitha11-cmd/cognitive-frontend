@@ -51,6 +51,24 @@ import { useGetHolidays } from '../../projects/services/projectService';
 import { useGetTasks } from '../../tasks/services/taskService';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
+import {
+  useGetTodayProductivity,
+  useGetProductivityTimeline,
+  useGetIdleReasons,
+  useClassifyIdleSegment,
+  type KPIDetail,
+  type TimelineEvent,
+} from '../services/productivityService';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import LabelIcon from '@mui/icons-material/Label';
+import Tooltip from '@mui/material/Tooltip';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 
 // ==========================================
 // HELPERS
@@ -67,10 +85,6 @@ const fmtDuration = (totalSeconds: number) => {
   const mins = Math.floor((totalSeconds % 3600) / 60);
   const secs = totalSeconds % 60;
   return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-};
-
-const fmtHours = (minutes: number) => {
-  return (minutes / 60.0).toFixed(1);
 };
 
 export const WorkCenterPage: React.FC = () => {
@@ -147,7 +161,7 @@ export const WorkCenterPage: React.FC = () => {
   });
 
   const { data: mySessionsData } = useGetMySessions({ dateFrom: todayStr, dateTo: todayStr, limit: 100 });
-  const { data: myBreaksData } = useQuery<{ breaks: any[] }>({
+  const { data: _myBreaksData } = useQuery<{ breaks: any[] }>({
     queryKey: ['breaks', 'my', todayStr],
     queryFn: async () => {
       const res = await api.get('/breaks/my', { params: { date_from: todayStr, date_to: todayStr, limit: 100 } });
@@ -241,75 +255,57 @@ export const WorkCenterPage: React.FC = () => {
     return isSunday || inHolidaysList;
   }, [holidays, todayStr]);
 
-  // Metric Calculations
-  const metrics = useMemo(() => {
-    // Productive Hours Today
-    const completedSessionMinutes = mySessionsData?.sessions
-      ?.filter((s) => s.status === 'COMPLETED')
-      ?.reduce((sum, s) => sum + (s.durationMinutes || 0), 0) || 0;
-    const activeSessionMins = activeSession ? Math.floor(sessionSeconds / 60) : 0;
-    const productiveMins = completedSessionMinutes + activeSessionMins;
-    const productiveHours = parseFloat(fmtHours(productiveMins));
+  // ── Productivity Engine API ────────────────────────────────────────────────
+  const { data: productivityData, isLoading: productivityLoading } = useGetTodayProductivity();
+  const { data: timelineEvents = [], isLoading: timelineLoading } = useGetProductivityTimeline(
+    authUser?.employeeId,
+    todayStr
+  );
+  const { data: idleReasons = [] } = useGetIdleReasons();
+  const classifyMutation = useClassifyIdleSegment();
 
-    // Attendance Hours Today
-    let attendanceHours = 0;
-    if (attendanceData) {
-      const cin = attendanceData.clock_in || attendanceData.clockIn;
-      const cout = attendanceData.clock_out || attendanceData.clockOut;
-      if (cin) {
-        const start = new Date(cin).getTime();
-        const end = cout ? new Date(cout).getTime() : Date.now();
-        attendanceHours = parseFloat(((end - start) / (1000 * 60 * 60)).toFixed(2));
+  // Active timer for the cockpit display (live elapsed time)
+  const activeTime = activeSession ? fmtDuration(sessionSeconds) : '00:00:00';
+
+  // Task counts still needed from client-side session data
+  const completedTasksCount = useMemo(
+    () => assignedTasks.filter((t) => t.status === 'COMPLETED').length,
+    [assignedTasks]
+  );
+
+  // ── Idle Classification State ──────────────────────────────────────────────
+  const [classifyingSegmentId, setClassifyingSegmentId] = useState<string | null>(null);
+  const [classifyReasonId, setClassifyReasonId] = useState('');
+  const [classifyRemarks, setClassifyRemarks] = useState('');
+
+  const handleClassifyIdle = (segmentIdentifier: string) => {
+    setClassifyingSegmentId(segmentIdentifier);
+    setClassifyReasonId('');
+    setClassifyRemarks('');
+  };
+
+  const handleSubmitClassification = () => {
+    if (!classifyingSegmentId || !classifyReasonId) return;
+    classifyMutation.mutate(
+      {
+        date: todayStr,
+        idle_segment_identifier: classifyingSegmentId,
+        reason_id: classifyReasonId,
+        remarks: classifyRemarks || undefined,
+      },
+      {
+        onSuccess: () => {
+          setClassifyingSegmentId(null);
+          setClassifyReasonId('');
+          setClassifyRemarks('');
+          queryClient.invalidateQueries({ queryKey: ['productivity'] });
+        },
+        onError: (err) => {
+          alert('Failed to classify: ' + parseError(err));
+        },
       }
-    }
-
-    // Break Hours Today
-    const completedBreakMinutes = myBreaksData?.breaks
-      ?.filter((b) => b.breakEnd)
-      ?.reduce((sum, b) => {
-        const s = new Date(b.breakStart).getTime();
-        const e = new Date(b.breakEnd).getTime();
-        return sum + (e - s) / (1000 * 60);
-      }, 0) || 0;
-    let activeBreakMins = 0;
-    if (activeBreak) {
-      activeBreakMins = (Date.now() - new Date(activeBreak.breakStart).getTime()) / (1000 * 60);
-    }
-    const totalBreakHours = parseFloat(((completedBreakMinutes + activeBreakMins) / 60).toFixed(2));
-
-    // Idle Time: Attendance Hours - Productive Hours - Break Hours
-    const idleHours = Math.max(0, parseFloat((attendanceHours - productiveHours - totalBreakHours).toFixed(2)));
-
-    // Task Switch Count today (number of work sessions started today)
-    const taskSwitchCount = mySessionsData?.sessions?.length || 0;
-
-    // Rework Hours today
-    const reworkMinutes = mySessionsData?.sessions
-      ?.filter((s) => s.sessionType === 'REWORK')
-      ?.reduce((sum, s) => sum + (s.durationMinutes || 0), 0) || 0;
-    const activeReworkMins = activeSession && activeSession.sessionType === 'REWORK' ? activeSessionMins : 0;
-    const reworkHours = parseFloat(fmtHours(reworkMinutes + activeReworkMins));
-
-    // Tasks Completed
-    const completedTasksCount = assignedTasks.filter((t) => t.status === 'COMPLETED').length;
-
-    // Capacity remaining: 8.0 capacity today. Task Hours Logged = productiveHours. Remaining = Max(0, 8.0 - productiveHours)
-    const capacityTotal = 8.0;
-    const capacityRemaining = Math.max(0, capacityTotal - productiveHours);
-
-    return {
-      productiveHours,
-      attendanceHours,
-      breakHours: totalBreakHours,
-      idleHours,
-      activeTime: activeSession ? fmtDuration(sessionSeconds) : '00:00:00',
-      reworkHours,
-      taskSwitchCount,
-      completedTasksCount,
-      capacityTotal,
-      capacityRemaining,
-    };
-  }, [mySessionsData, myBreaksData, activeSession, sessionSeconds, attendanceData, activeBreak, assignedTasks]);
+    );
+  };
 
   // Group Assigned Tasks by Priority
   const groupedTasks = useMemo(() => {
@@ -532,60 +528,111 @@ export const WorkCenterPage: React.FC = () => {
         </IconButton>
       </Box>
 
-      {/* Metrics Dashboard Widgets (Section 0) */}
-      <Grid container spacing={2} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ bgcolor: 'info.light', border: '1px solid', borderColor: 'info.main' }}>
-            <CardContent sx={{ py: 2, px: 2.5, '&:last-child': { pb: 2 } }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'info.dark', textTransform: 'uppercase' }}>
-                Attendance Time Today
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5, color: 'text.primary' }}>
-                {metrics.attendanceHours.toFixed(1)} hrs
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ bgcolor: 'success.light', border: '1px solid', borderColor: 'success.main' }}>
-            <CardContent sx={{ py: 2, px: 2.5, '&:last-child': { pb: 2 } }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.dark', textTransform: 'uppercase' }}>
-                Productive Task Hours
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5, color: 'success.dark' }}>
-                {metrics.productiveHours.toFixed(1)} hrs
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+      {/* ── Enterprise KPI Dashboard (Section 0) ── */}
+      {productivityLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4, mb: 4 }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : productivityData ? (
+        <Box sx={{ mb: 4 }}>
+          {/* Primary KPI Row */}
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            {([
+              { key: 'presence_time', label: 'Presence Time' },
+              { key: 'organization_time', label: 'Org Time' },
+              { key: 'productive_time', label: 'Productive Time' },
+              { key: 'break_time', label: 'Break Time' },
+              { key: 'idle_time', label: 'Idle Time' },
+              { key: 'remaining_productive_time', label: 'Remaining' },
+            ] as { key: keyof typeof productivityData.kpis; label: string }[]).map(({ key, label }) => {
+              const kpi: KPIDetail = productivityData.kpis[key];
+              return (
+                <Grid size={{ xs: 6, sm: 4, md: 2 }} key={key}>
+                  <Tooltip title={kpi.tooltip} arrow>
+                    <Card
+                      sx={{
+                        border: '1.5px solid',
+                        borderColor: kpi.color,
+                        borderRadius: 2,
+                        cursor: 'default',
+                        transition: 'box-shadow 0.2s',
+                        '&:hover': { boxShadow: 4 },
+                      }}
+                    >
+                      <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}
+                        >
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="h6"
+                          sx={{ fontWeight: 800, color: kpi.color, mt: 0.25, fontFamily: 'monospace', fontSize: '1.05rem' }}
+                        >
+                          {kpi.formatted}
+                        </Typography>
+                        {kpi.trend && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                            {kpi.trend.direction === 'up' ? (
+                              <TrendingUpIcon sx={{ fontSize: 14, color: 'success.main' }} />
+                            ) : kpi.trend.direction === 'down' ? (
+                              <TrendingDownIcon sx={{ fontSize: 14, color: 'error.main' }} />
+                            ) : (
+                              <TrendingFlatIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                            )}
+                            <Typography variant="caption" sx={{ color: kpi.trend.direction === 'up' ? 'success.main' : kpi.trend.direction === 'down' ? 'error.main' : 'text.disabled', fontWeight: 600 }}>
+                              {kpi.trend.change_percentage}
+                            </Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Tooltip>
+                </Grid>
+              );
+            })}
+          </Grid>
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ bgcolor: 'warning.light', border: '1px solid', borderColor: 'warning.main' }}>
-            <CardContent sx={{ py: 2, px: 2.5, '&:last-child': { pb: 2 } }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'warning.dark', textTransform: 'uppercase' }}>
-                Break / Idle Time
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5 }}>
-                {metrics.breakHours.toFixed(1)}h break / {metrics.idleHours.toFixed(1)}h idle
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ bgcolor: 'primary.light', border: '1px solid', borderColor: 'primary.main' }}>
-            <CardContent sx={{ py: 2, px: 2.5, '&:last-child': { pb: 2 } }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.dark', textTransform: 'uppercase' }}>
-                Capacity Summary (Remaining)
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700, mt: 0.5, color: 'primary.dark' }}>
-                {metrics.capacityRemaining.toFixed(1)} hrs capacity
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+          {/* Ratio KPI Row */}
+          <Grid container spacing={2}>
+            {([
+              { key: 'productivity_percentage', label: 'Productivity %' },
+              { key: 'organization_utilization', label: 'Org Utilization %' },
+              { key: 'attendance_utilization', label: 'Attendance Util %' },
+              { key: 'break_percentage', label: 'Break %' },
+              { key: 'idle_percentage', label: 'Idle %' },
+            ] as { key: keyof typeof productivityData.kpis; label: string }[]).map(({ key, label }) => {
+              const kpi: KPIDetail = productivityData.kpis[key];
+              return (
+                <Grid size={{ xs: 6, sm: 4, md: 'auto' }} sx={{ flexGrow: 1 }} key={key}>
+                  <Tooltip title={kpi.tooltip} arrow>
+                    <Card
+                      sx={{
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 2,
+                        bgcolor: 'background.paper',
+                        cursor: 'default',
+                        '&:hover': { boxShadow: 2 },
+                      }}
+                    >
+                      <CardContent sx={{ py: 1.25, px: 2, '&:last-child': { pb: 1.25 } }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                          {label}
+                        </Typography>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: kpi.color }}>
+                          {kpi.formatted}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Tooltip>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      ) : null}
 
       {/* Main Grid: Section 1 & Section 2 */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -642,7 +689,7 @@ export const WorkCenterPage: React.FC = () => {
                     Elapsed Session Time
                   </Typography>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700, color: activeSession ? 'success.main' : 'text.secondary' }}>
-                    {metrics.activeTime}
+                    {activeTime}
                   </Typography>
                 </Box>
 
@@ -744,7 +791,7 @@ export const WorkCenterPage: React.FC = () => {
                     Active Timer
                   </Typography>
                   <Typography variant="h5" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'success.main' }}>
-                    {metrics.activeTime}
+                    {activeTime}
                   </Typography>
                 </Box>
 
@@ -786,7 +833,181 @@ export const WorkCenterPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Section 3: Assigned Tasks */}
+      {/* ── Section 3: Visual Activity Timeline ── */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+          <TimelineIcon color="primary" />
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            Activity Timeline
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+            — Dynamic daily workday reconstruction. Click 'Tag' on any idle gap to classify it.
+          </Typography>
+        </Box>
+
+        {timelineLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : timelineEvents.length === 0 ? (
+          <Alert severity="info" sx={{ mb: 0 }}>No timeline data yet. Clock in to start your workday.</Alert>
+        ) : (
+          <Card sx={{ overflow: 'hidden' }}>
+            <CardContent sx={{ p: 0 }}>
+              {timelineEvents.map((event: TimelineEvent, idx: number) => {
+                const isIdle = event.event_type === 'IDLE';
+                const isClassified = isIdle && event.metadata?.is_classified;
+                const segId = event.metadata?.idle_segment_identifier;
+                const isTagging = classifyingSegmentId === segId;
+
+                return (
+                  <Box
+                    key={`${event.time}-${idx}`}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      px: 3,
+                      py: 1.25,
+                      borderBottom: idx < timelineEvents.length - 1 ? '1px solid' : 'none',
+                      borderColor: 'divider',
+                      bgcolor: isIdle
+                        ? isClassified
+                          ? 'action.hover'
+                          : 'warning.light'
+                        : 'background.paper',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    {/* Time column */}
+                    <Box sx={{ minWidth: 72, flexShrink: 0 }}>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>
+                        {new Date(event.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Typography>
+                    </Box>
+
+                    {/* Dot indicator */}
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        mt: 0.6,
+                        mr: 2,
+                        flexShrink: 0,
+                        bgcolor: isIdle
+                          ? event.metadata?.reason_color || '#F59E0B'
+                          : event.event_type === 'CLOCK_IN' || event.event_type === 'CLOCK_OUT'
+                          ? '#3B82F6'
+                          : event.event_type.startsWith('BREAK')
+                          ? '#F59E0B'
+                          : '#10B981',
+                      }}
+                    />
+
+                    {/* Event info */}
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {event.title}
+                        </Typography>
+                        {isIdle && (
+                          <Chip
+                            label={isClassified ? event.metadata.reason_name : 'Unclassified'}
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              bgcolor: event.metadata?.reason_color || '#9CA3AF',
+                              color: '#fff',
+                            }}
+                          />
+                        )}
+                        {isIdle && event.metadata?.duration_minutes > 0 && (
+                          <Typography variant="caption" color="textSecondary">
+                            ({event.metadata.duration_minutes} min)
+                          </Typography>
+                        )}
+                      </Box>
+                      <Typography variant="caption" color="textSecondary">
+                        {event.description}
+                      </Typography>
+
+                      {/* Idle classification form */}
+                      {isIdle && isTagging && (
+                        <Box
+                          sx={{
+                            mt: 1.5,
+                            p: 2,
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'primary.main',
+                            borderRadius: 1,
+                          }}
+                        >
+                          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                            <FormControl size="small" sx={{ minWidth: 180 }}>
+                              <InputLabel>Reason</InputLabel>
+                              <Select
+                                value={classifyReasonId}
+                                label="Reason"
+                                onChange={(e) => setClassifyReasonId(e.target.value)}
+                              >
+                                {idleReasons.map((r) => (
+                                  <MenuItem key={r.id} value={r.id}>
+                                    {r.name}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            <TextField
+                              size="small"
+                              label="Remarks (optional)"
+                              value={classifyRemarks}
+                              onChange={(e) => setClassifyRemarks(e.target.value)}
+                              sx={{ minWidth: 200 }}
+                            />
+                            <Button
+                              variant="contained"
+                              size="small"
+                              disabled={!classifyReasonId || classifyMutation.isPending}
+                              onClick={handleSubmitClassification}
+                            >
+                              {classifyMutation.isPending ? 'Saving…' : 'Save'}
+                            </Button>
+                            <Button
+                              variant="text"
+                              size="small"
+                              onClick={() => setClassifyingSegmentId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </Stack>
+                        </Box>
+                      )}
+                    </Box>
+
+                    {/* Tag action */}
+                    {isIdle && !isTagging && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<LabelIcon />}
+                        onClick={() => handleClassifyIdle(segId)}
+                        sx={{ ml: 2, flexShrink: 0, height: 28, fontSize: '0.7rem' }}
+                      >
+                        Tag
+                      </Button>
+                    )}
+                  </Box>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+      </Box>
+
+      {/* Section 4: Assigned Tasks */}
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>
         My Assigned Tasks
       </Typography>

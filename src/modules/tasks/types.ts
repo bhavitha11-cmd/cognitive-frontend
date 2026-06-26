@@ -8,6 +8,9 @@ export interface Task {
   parentTaskId?: string;
   scopeOfWorkId?: string;
   scopeName?: string;
+  teamId?: string;
+  teamName?: string;
+  teamCode?: string;
   departmentCategory?: 'CAD' | 'CAM' | 'GEN' | 'SALES' | 'ADMIN' | 'MKRT' | 'SUPRT';
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED' | 'REOPENED';
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -58,6 +61,7 @@ export interface TaskCreate {
   title: string;
   description?: string;
   scopeOfWorkId?: string;
+  teamId: string;
   departmentCategory?: string;
   status?: string;
   priority?: string;

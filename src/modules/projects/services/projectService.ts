@@ -16,6 +16,9 @@ const mapBackendProjectToFrontend = (p: any): Project => ({
   clientName: p.client_name || undefined,
   projectManagerId: p.project_manager_id || undefined,
   projectManagerName: p.project_manager_name || undefined,
+  departmentId: p.department_id,
+  departmentName: p.department_name || undefined,
+  departmentCode: p.department_code || undefined,
   status: p.status,
   priority: p.priority,
   isBillable: p.is_billable ?? true,
@@ -43,6 +46,7 @@ const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
   description: data.description || null,
   client_id: data.clientId,
   project_manager_id: data.projectManagerId || null,
+  department_id: data.departmentId,
   status: data.status || 'Yet To Start',
   priority: data.priority || 'MEDIUM',
   is_billable: data.isBillable ?? true,
@@ -90,6 +94,17 @@ export const useGetProject = (id: string) => {
   });
 };
 
+export const useGetProjectStats = (id: string) => {
+  return useQuery<any>({
+    queryKey: ['projects', id, 'stats'],
+    queryFn: async () => {
+      const response = await api.get(`/projects/${id}/stats`);
+      return response.data?.data || response.data;
+    },
+    enabled: !!id,
+  });
+};
+
 export const useCreateProject = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -116,6 +131,7 @@ export const useUpdateProject = () => {
       if (data.description !== undefined) payload.description = data.description || null;
       if (data.clientId !== undefined) payload.client_id = data.clientId;
       if (data.projectManagerId !== undefined) payload.project_manager_id = data.projectManagerId || null;
+      if (data.departmentId !== undefined) payload.department_id = data.departmentId;
       if (data.status !== undefined) payload.status = data.status;
       if (data.priority !== undefined) payload.priority = data.priority;
       if (data.isBillable !== undefined) payload.is_billable = data.isBillable;

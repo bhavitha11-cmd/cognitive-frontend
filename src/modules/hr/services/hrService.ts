@@ -585,11 +585,12 @@ export const useGetReportingHistory = () => {
 // 5. TEAMS
 // ==========================================
 
-export const useGetTeams = () => {
+export const useGetTeams = (departmentId?: string) => {
   return useQuery<Team[]>({
-    queryKey: ['teams'],
+    queryKey: ['teams', departmentId],
     queryFn: async () => {
-      const response = await api.get('/teams');
+      const params = departmentId ? { department_id: departmentId } : {};
+      const response = await api.get('/teams', { params });
       return response.data?.data?.teams || [];
     },
   });

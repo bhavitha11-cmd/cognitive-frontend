@@ -53,6 +53,7 @@ import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined
 import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined';
 
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -136,6 +137,7 @@ export const MainLayout: React.FC = () => {
     HR: false,
     Work: true,
     Timesheets: false,
+    'Master Data': false,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -175,6 +177,7 @@ export const MainLayout: React.FC = () => {
       Clients: 'Clients',
       HR: 'HR',
       Work: 'Projects',
+      'Master Data': 'TaskTemplate',
       Reports: 'Reports',
       Settings: 'Settings',
     };
@@ -259,6 +262,13 @@ export const MainLayout: React.FC = () => {
       icon: <BarChartOutlinedIcon />,
     },
     {
+      name: 'Master Data',
+      icon: <LibraryBooksOutlinedIcon />,
+      children: [
+        { name: 'Task Title Library', path: '/master-data/task-templates' },
+      ],
+    },
+    {
       name: 'Settings',
       path: '/settings',
       icon: <SettingsOutlinedIcon />,
@@ -278,6 +288,16 @@ export const MainLayout: React.FC = () => {
   const isParentActive = (item: SidebarItem) => {
     if (!item.children) return false;
     return item.children.some((child) => location.pathname.startsWith(child.path));
+  };
+
+  const isChildActive = (childPath: string, children: SidebarChild[]) => {
+    if (!location.pathname.startsWith(childPath)) return false;
+    return !children.some(
+      (sibling) =>
+        sibling.path !== childPath &&
+        sibling.path.length > childPath.length &&
+        location.pathname.startsWith(sibling.path)
+    );
   };
 
   const renderSidebar = (
@@ -475,7 +495,7 @@ export const MainLayout: React.FC = () => {
                           );
                         })
                         .map((child) => {
-                          const childActive = location.pathname.startsWith(child.path);
+                          const childActive = isChildActive(child.path, item.children!);
                           return (
                             <ListItem disablePadding key={child.name} sx={{ mb: 0.5 }}>
                               <ListItemButton
@@ -594,6 +614,10 @@ export const MainLayout: React.FC = () => {
     if (first === 'calendar') return 'Calendar';
     if (first === 'settings') return 'Settings';
     if (first === 'reports') return 'Reports';
+    if (first === 'master-data') {
+      if (second === 'task-templates') return 'Task Title Library';
+      return 'Master Data';
+    }
     if (first === 'tickets') return 'Tickets';
     if (first === 'hr') {
       if (second === 'employees') {
