@@ -8,8 +8,9 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EventIcon from '@mui/icons-material/Event';
+import { useGetOverdueTasks, useGetUpcomingDeadlines } from '../../dashboard/services/dashboardService';
+import { useGetCalendarEvents } from '../../master-data/services/calendarConfigService';
 import type { EventClickArg } from '@fullcalendar/core';
-import { useGetCalendarEvents, useGetOverdueTasks, useGetUpcomingDeadlines } from '../../dashboard/services/dashboardService';
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate();

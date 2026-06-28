@@ -41,6 +41,7 @@ import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { TableSkeleton } from '../../../components/LoadingSkeleton';
 import { EmptyState } from '../../../components/EmptyState';
 import { DepartmentForm } from '../components/DepartmentForm';
+import { parseError } from '../../../utils/api';
 import type { Department } from '../types';
 
 export const DepartmentListPage: React.FC = () => {
@@ -100,7 +101,7 @@ export const DepartmentListPage: React.FC = () => {
           },
           onError: (err: any) => {
             console.error('[Frontend] Failed to update department:', err);
-            const msg = err.response?.data?.detail || err.message || 'Failed to update department.';
+            const msg = parseError(err);
             setSnackbar({
               open: true,
               message: msg,
@@ -123,7 +124,7 @@ export const DepartmentListPage: React.FC = () => {
         },
         onError: (err: any) => {
           console.error('[Frontend] Failed to create department:', err);
-          const msg = err.response?.data?.detail || err.message || 'Failed to create department.';
+          const msg = parseError(err);
           setSnackbar({
             open: true,
             message: msg,
@@ -150,7 +151,7 @@ export const DepartmentListPage: React.FC = () => {
         },
         onError: (err: any) => {
           console.error('[Frontend] Failed to toggle department status:', err);
-          const msg = err.response?.data?.detail || err.message || 'Failed to update status.';
+          const msg = parseError(err);
           setSnackbar({
             open: true,
             message: msg,
@@ -176,7 +177,7 @@ export const DepartmentListPage: React.FC = () => {
         },
         onError: (err: any) => {
           console.error('[Frontend] Failed to delete department:', err);
-          const msg = err.response?.data?.detail || err.message || 'Failed to delete department.';
+          const msg = parseError(err);
           setSnackbar({
             open: true,
             message: msg,

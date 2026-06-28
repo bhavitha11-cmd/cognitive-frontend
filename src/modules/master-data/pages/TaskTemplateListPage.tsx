@@ -37,6 +37,7 @@ import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { TableSkeleton } from '../../../components/LoadingSkeleton';
 import { EmptyState } from '../../../components/EmptyState';
 import { TaskTemplateForm, FORM_ID } from '../components/TaskTemplateForm';
+import { parseError } from '../../../utils/api';
 import type { TaskTemplate } from '../types';
 
 export const TaskTemplateListPage: React.FC = () => {
@@ -75,8 +76,14 @@ export const TaskTemplateListPage: React.FC = () => {
     severity: 'success' | 'error';
   }>({ open: false, message: '', severity: 'success' });
 
-  const showSnack = (message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
+  const showSnack = (message: any, severity: 'success' | 'error' = 'success') => {
+    let msgStr = '';
+    if (typeof message === 'string') {
+      msgStr = message;
+    } else {
+      msgStr = parseError(message);
+    }
+    setSnackbar({ open: true, message: msgStr, severity });
   };
 
   const handleOpenCreate = () => {
@@ -101,7 +108,7 @@ export const TaskTemplateListPage: React.FC = () => {
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onError: (err: any) => {
-            showSnack(err.response?.data?.detail || err.message || 'Update failed.', 'error');
+            showSnack(parseError(err), 'error');
           },
         }
       );
@@ -113,7 +120,7 @@ export const TaskTemplateListPage: React.FC = () => {
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
-          showSnack(err.response?.data?.detail || err.message || 'Creation failed.', 'error');
+          showSnack(parseError(err), 'error');
         },
       });
     }
@@ -128,7 +135,7 @@ export const TaskTemplateListPage: React.FC = () => {
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
-          showSnack(err.response?.data?.detail || err.message || 'Delete failed.', 'error');
+          showSnack(parseError(err), 'error');
         },
       });
     }
@@ -143,7 +150,7 @@ export const TaskTemplateListPage: React.FC = () => {
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
-          showSnack(err.response?.data?.detail || err.message || 'Status update failed.', 'error');
+          showSnack(parseError(err), 'error');
         },
       }
     );
@@ -161,7 +168,7 @@ export const TaskTemplateListPage: React.FC = () => {
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (err: any) => {
-          showSnack(err.response?.data?.detail || err.message || 'Bulk update failed.', 'error');
+          showSnack(parseError(err), 'error');
         },
       }
     );

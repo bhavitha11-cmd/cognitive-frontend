@@ -247,6 +247,14 @@ export const router = createBrowserRouter([
             path: 'task-templates',
             element: lazyLoad(() => import('../modules/master-data/pages/TaskTemplateListPage'), 'table'),
           },
+          {
+            path: 'calendar-config',
+            element: (
+              <ProtectedRoute module="CalendarSettings" action="edit">
+                {lazyLoad(() => import('../modules/master-data/pages/CalendarConfigPage'), 'dashboard')}
+              </ProtectedRoute>
+            ),
+          },
         ],
       },
       // Settings

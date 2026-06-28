@@ -34,3 +34,97 @@ export interface TaskTemplateListResponse {
   skip: number;
   limit: number;
 }
+
+export interface Holiday {
+  id: string;
+  name: string;
+  date: string;
+  holidayType: string;
+  description?: string;
+  isActive: boolean;
+  affectsWorkingDays: boolean;
+}
+
+export interface HolidayCreate {
+  name: string;
+  date: string;
+  holidayType: string;
+  description?: string;
+  affectsWorkingDays?: boolean;
+}
+
+export interface HolidayUpdate {
+  name?: string;
+  date?: string;
+  holidayType?: string;
+  description?: string;
+  isActive?: boolean;
+  affectsWorkingDays?: boolean;
+}
+
+export interface CompanyEvent {
+  id: string;
+  title: string;
+  description?: string;
+  eventType: string;
+  eventSubtype?: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  isAllDay: boolean;
+  color?: string;
+  textColor?: string;
+  isActive: boolean;
+  affectsWorkingDays: boolean;
+}
+
+export interface CompanyEventCreate {
+  title: string;
+  description?: string;
+  eventType?: string;
+  eventSubtype?: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  isAllDay?: boolean;
+  color?: string;
+  textColor?: string;
+  affectsWorkingDays?: boolean;
+}
+
+export interface CompanyEventUpdate {
+  title?: string;
+  description?: string;
+  eventSubtype?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  isAllDay?: boolean;
+  color?: string;
+  textColor?: string;
+  isActive?: boolean;
+  affectsWorkingDays?: boolean;
+}
+
+export interface CalendarSettings {
+  workingDays: string;
+  weekendDays: string;
+  officeStartTime: string;
+  officeEndTime: string;
+  defaultDailyHours: number;
+  workingHoursPerDay: number;
+  enableBirthdays: boolean;
+  enableCompanyEvents: boolean;
+  enableHolidays: boolean;
+  enableTaskEvents: boolean;
+  enableProjectEvents: boolean;
+  colorHoliday: string;
+  colorBirthday: string;
+  colorTask: string;
+  colorProject: string;
+  colorCompanyEvent: string;
+}
+

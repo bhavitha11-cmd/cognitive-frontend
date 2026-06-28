@@ -247,13 +247,29 @@ export const WorkCenterPage: React.FC = () => {
     });
   }, [leaveRequests]);
 
+  // Dynamic Check Working Day Query
+  const { data: workingDayData } = useQuery<any>({
+    queryKey: ['calendar-check-working-day', todayStr],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/calendar/check-working-day', { params: { date: todayStr } });
+        return res.data?.data || null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
   const isHolidayToday = useMemo(() => {
+    if (workingDayData && workingDayData.is_working_day !== undefined) {
+      return !workingDayData.is_working_day;
+    }
     const today = new Date();
     const day = today.getDay();
     const isSunday = day === 0;
     const inHolidaysList = holidays.some((h) => h === todayStr);
     return isSunday || inHolidaysList;
-  }, [holidays, todayStr]);
+  }, [workingDayData, holidays, todayStr]);
 
   // ── Productivity Engine API ────────────────────────────────────────────────
   const { data: productivityData, isLoading: productivityLoading } = useGetTodayProductivity();

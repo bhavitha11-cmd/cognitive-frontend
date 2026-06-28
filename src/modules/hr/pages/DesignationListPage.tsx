@@ -36,6 +36,7 @@ import { FormModal } from '../../../components/FormModal';
 import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { TableSkeleton } from '../../../components/LoadingSkeleton';
 import { EmptyState } from '../../../components/EmptyState';
+import { parseError } from '../../../utils/api';
 import type { Designation } from '../types';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -215,8 +216,14 @@ export const DesignationListPage: React.FC = () => {
     severity: 'success',
   });
 
-  const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
+  const showSnackbar = (message: any, severity: 'success' | 'error' = 'success') => {
+    let msgStr = '';
+    if (typeof message === 'string') {
+      msgStr = message;
+    } else {
+      msgStr = parseError(message);
+    }
+    setSnackbar({ open: true, message: msgStr, severity });
   };
 
   const handleOpenCreate = () => {
@@ -252,7 +259,7 @@ export const DesignationListPage: React.FC = () => {
           },
           onError: (err: any) => {
             console.error('[Frontend] Failed to update designation:', err);
-            showSnackbar(err?.response?.data?.detail || 'Failed to update designation', 'error');
+            showSnackbar(parseError(err), 'error');
           },
         }
       );
@@ -266,7 +273,7 @@ export const DesignationListPage: React.FC = () => {
         },
         onError: (err: any) => {
           console.error('[Frontend] Failed to create designation:', err);
-          showSnackbar(err?.response?.data?.detail || 'Failed to create designation', 'error');
+          showSnackbar(parseError(err), 'error');
         },
       });
     }
@@ -284,7 +291,7 @@ export const DesignationListPage: React.FC = () => {
       onError: (err: any) => {
         console.error('[Frontend] Failed to delete designation:', err);
         setDeletingId(null);
-        showSnackbar(err?.response?.data?.detail || 'Failed to delete designation', 'error');
+        showSnackbar(parseError(err), 'error');
       },
     });
   };

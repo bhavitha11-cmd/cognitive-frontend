@@ -266,6 +266,7 @@ export const MainLayout: React.FC = () => {
       icon: <LibraryBooksOutlinedIcon />,
       children: [
         { name: 'Task Title Library', path: '/master-data/task-templates' },
+        { name: 'Calendar Configuration', path: '/master-data/calendar-config', adminOnly: true },
       ],
     },
     {
@@ -489,6 +490,9 @@ export const MainLayout: React.FC = () => {
                         .filter((child) => {
                           if (!child.adminOnly) return true;
                           if (!isAuthenticated) return true;
+                          if (child.path === '/master-data/calendar-config') {
+                            return authHasPermission('CalendarSettings', 'edit');
+                          }
                           return (
                             authIsSuperAdmin() ||
                             authRoles.includes('Manager')

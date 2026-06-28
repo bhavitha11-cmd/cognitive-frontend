@@ -17,7 +17,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import PersonIcon from '@mui/icons-material/Person';
-import api from '../../../utils/api';
+import { api, parseError } from '../../../utils/api';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 export const LoginPage: React.FC = () => {
@@ -69,8 +69,7 @@ export const LoginPage: React.FC = () => {
         setError(message || 'Authentication failed. Please try again.');
       }
     } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Server error. Please verify the API is running.';
-      setError(msg);
+      setError(parseError(err));
     } finally {
       setLoading(false);
     }

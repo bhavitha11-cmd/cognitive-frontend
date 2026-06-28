@@ -210,7 +210,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ label, count, color, bgcolor,
 // ==========================================
 
 interface PolicySettingsPanelProps {
-  showSnack: (message: string, severity?: 'success' | 'error') => void;
+  showSnack: (message: any, severity?: 'success' | 'error') => void;
 }
 
 const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) => {
@@ -239,7 +239,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
       showSnack('Workforce policy updated successfully.', 'success');
     },
     onError: (err: any) => {
-      showSnack(err?.response?.data?.detail || 'Failed to update policy.', 'error');
+      showSnack(parseError(err), 'error');
     },
   });
 
@@ -462,8 +462,15 @@ export const AttendancePage: React.FC = () => {
     severity: 'success' | 'error';
   }>({ open: false, message: '', severity: 'success' });
 
-  const showSnack = (message: string, severity: 'success' | 'error' = 'success') =>
-    setSnackbar({ open: true, message, severity });
+  const showSnack = (message: any, severity: 'success' | 'error' = 'success') => {
+    let msgStr = '';
+    if (typeof message === 'string') {
+      msgStr = message;
+    } else {
+      msgStr = parseError(message);
+    }
+    setSnackbar({ open: true, message: msgStr, severity });
+  };
 
   const [clockInConfirmOpen, setClockInConfirmOpen] = useState(false);
   const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
