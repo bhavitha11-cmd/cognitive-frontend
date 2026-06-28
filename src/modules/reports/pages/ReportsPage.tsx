@@ -115,7 +115,7 @@ export const ReportsPage: React.FC = () => {
         {filteredProjects.length > 0 ? (
           <>
             <Box sx={{ width: '100%', height: 300, mb: 3 }}>
-              <ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={filteredProjects} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="partNumber" tick={{ fontSize: 11 }} />
@@ -212,7 +212,7 @@ export const ReportsPage: React.FC = () => {
         {filteredDeptLoad.length > 0 ? (
           <>
             <Box sx={{ width: '100%', height: 300, mb: 3 }}>
-              <ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={filteredDeptLoad} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="department" tick={{ fontSize: 11 }} />
@@ -321,7 +321,7 @@ export const ReportsPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 6 }}>
               <Box sx={{ width: '100%', height: 300 }}>
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie data={scopeSummary} cx="50%" cy="50%" outerRadius={80} dataKey="actual" label={({ name, percent }) => `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`} labelLine={false}>
                       {scopeSummary.map((_entry, index) => (

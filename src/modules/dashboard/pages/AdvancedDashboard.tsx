@@ -156,7 +156,7 @@ export const AdvancedDashboard: React.FC = () => {
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 300 }}>
               {projectHours.length > 0 ? (
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={projectHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -182,7 +182,7 @@ export const AdvancedDashboard: React.FC = () => {
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {taskStatusData.some((d) => d.value > 0) ? (
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie data={taskStatusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={3} dataKey="value">
                       {taskStatusData.map((_entry, index) => (
@@ -217,7 +217,7 @@ export const AdvancedDashboard: React.FC = () => {
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {categoryChartData.length > 0 ? (
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={categoryChartData.map((d) => ({ name: d.name, value: d.actual }))}
