@@ -1,6 +1,30 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Card, CardContent, Typography, Box, Grid, Chip, CircularProgress, Alert, Divider, List, ListItem, ListItemText, ListItemIcon } from '@mui/material';
+import {
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Grid,
+  Chip,
+  CircularProgress,
+  Alert,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField
+} from '@mui/material';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -11,6 +35,7 @@ import EventIcon from '@mui/icons-material/Event';
 import { useGetOverdueTasks, useGetUpcomingDeadlines } from '../../dashboard/services/dashboardService';
 import { useGetCalendarEvents } from '../../master-data/services/calendarConfigService';
 import type { EventClickArg } from '@fullcalendar/core';
+import { api } from '../../../utils/api';
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,10 +50,92 @@ export const CalendarPage: React.FC = () => {
   const { data: overdueTasks = [] } = useGetOverdueTasks();
   const { data: upcomingDeadlines = [] } = useGetUpcomingDeadlines(30);
 
-  const handleEventClick = (info: EventClickArg) => {
-    const taskCode = info.event.extendedProps?.task_code;
-    if (taskCode) {
-      navigate('/tasks');
+  const [selectedRisk, setSelectedRisk] = useState<{
+    id: string;
+    taskCode: string;
+    taskTitle: string;
+    employeeName: string;
+    leaveStart: string;
+    leaveEnd: string;
+    remainingHours: number;
+    riskLevel: string;
+  } | null>(null);
+
+  const [decision, setDecision] = useState<string>('PAUSE');
+  const [reason, setReason] = useState<string>('');
+  const [pauseClass, setPauseClass] = useState<string>('Leave');
+  const [reassignTo, setReassignTo] = useState<string>('');
+  const [delegateTo, setDelegateTo] = useState<string>('');
+  const [employeesList, setEmployeesList] = useState<{ id: string; name: string }[]>([]);
+
+  const handleEventClick = async (info: EventClickArg) => {
+    const eventType = info.event.extendedProps?.type;
+    
+    if (eventType === 'task_risk') {
+      const riskId = info.event.id.replace('risk-', '');
+      try {
+        const response = await api.get('/task-continuity/risks');
+        const risks = response.data?.data?.risks || [];
+        const risk = risks.find((r: any) => r.id === riskId);
+        
+        if (risk) {
+          setSelectedRisk({
+            id: risk.id,
+            taskCode: risk.task_code || 'Unknown',
+            taskTitle: risk.task_title || 'Unknown',
+            employeeName: risk.employee_name || 'Unknown',
+            leaveStart: risk.leave_start_date,
+            leaveEnd: risk.leave_end_date,
+            remainingHours: risk.remaining_hours,
+            riskLevel: risk.risk_level,
+          });
+          
+          const empRes = await api.get('/employees?limit=200');
+          const emps = empRes.data?.data?.employees || [];
+          setEmployeesList(emps.map((e: any) => ({
+            id: e.id,
+            name: `${e.first_name} ${e.last_name || ''}`.trim()
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load risk details', err);
+      }
+    } else {
+      const taskCode = info.event.extendedProps?.task_code;
+      if (taskCode) {
+        navigate('/tasks');
+      }
+    }
+  };
+
+  const handleResolveSubmit = async () => {
+    if (!selectedRisk) return;
+    
+    try {
+      const payload: any = {
+        decision: decision,
+        reason: reason || 'Resolved via calendar UI modal',
+      };
+      
+      if (decision === 'PAUSE') {
+        payload.pause_classification = pauseClass;
+      } else if (decision === 'REASSIGN' || decision === 'SPLIT') {
+        payload.reassign_to_id = reassignTo;
+      } else if (decision === 'DELEGATE') {
+        payload.delegate_id = delegateTo;
+      }
+      
+      await api.post(`/task-continuity/risks/${selectedRisk.id}/resolve`, payload);
+      
+      setSelectedRisk(null);
+      setReason('');
+      setReassignTo('');
+      setDelegateTo('');
+      
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to resolve risk', err);
+      alert('Error resolving task risk. Please check selections.');
     }
   };
 
@@ -168,6 +275,111 @@ export const CalendarPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Task Risk Resolution Dialog */}
+      <Dialog open={!!selectedRisk} onClose={() => setSelectedRisk(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          Resolve Task Overlap Conflict
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedRisk && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Alert severity={selectedRisk.riskLevel === 'HIGH' ? 'error' : 'warning'}>
+                <strong>{selectedRisk.riskLevel} RISK</strong>: {selectedRisk.employeeName} is on approved leave from {selectedRisk.leaveStart} to {selectedRisk.leaveEnd} during task dates.
+              </Alert>
+              
+              <Box>
+                <Typography variant="body2" color="textSecondary">Task details:</Typography>
+                <Typography variant="subtitle1" fontWeight={600}>{selectedRisk.taskCode}: {selectedRisk.taskTitle}</Typography>
+                <Typography variant="body2">Remaining Hours: {selectedRisk.remainingHours} hrs</Typography>
+              </Box>
+              
+              <FormControl fullWidth sx={{ mt: 1 }}>
+                <InputLabel id="decision-label">Resolution Strategy</InputLabel>
+                <Select
+                  labelId="decision-label"
+                  value={decision}
+                  label="Resolution Strategy"
+                  onChange={(e) => setDecision(e.target.value as string)}
+                >
+                  <MenuItem value="CONTINUE">Continue (Accept Risk & Proceed)</MenuItem>
+                  <MenuItem value="PAUSE">Pause (Put Task On-Hold)</MenuItem>
+                  <MenuItem value="REASSIGN">Reassign (Transfer Task to Another Engineer)</MenuItem>
+                  <MenuItem value="SPLIT">Split (Split Remaining Hours to New Task)</MenuItem>
+                  <MenuItem value="DELEGATE">Delegate (Temporarily Reassign Task)</MenuItem>
+                </Select>
+              </FormControl>
+
+              {decision === 'PAUSE' && (
+                <FormControl fullWidth>
+                  <InputLabel id="pause-class-label">Pause Reason Classification</InputLabel>
+                  <Select
+                    labelId="pause-class-label"
+                    value={pauseClass}
+                    label="Pause Reason Classification"
+                    onChange={(e) => setPauseClass(e.target.value as string)}
+                  >
+                    <MenuItem value="Leave">Leave</MenuItem>
+                    <MenuItem value="Waiting Information">Waiting Information</MenuItem>
+                    <MenuItem value="Waiting Customer">Waiting Customer</MenuItem>
+                    <MenuItem value="Waiting Review">Waiting Review</MenuItem>
+                    <MenuItem value="Blocked">Blocked</MenuItem>
+                    <MenuItem value="Dependency">Dependency</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+
+              {(decision === 'REASSIGN' || decision === 'SPLIT') && (
+                <FormControl fullWidth>
+                  <InputLabel id="reassign-label">Reassign To</InputLabel>
+                  <Select
+                    labelId="reassign-label"
+                    value={reassignTo}
+                    label="Reassign To"
+                    onChange={(e) => setReassignTo(e.target.value as string)}
+                  >
+                    {employeesList.map((emp) => (
+                      <MenuItem key={emp.id} value={emp.id}>{emp.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              {decision === 'DELEGATE' && (
+                <FormControl fullWidth>
+                  <InputLabel id="delegate-label">Delegate To</InputLabel>
+                  <Select
+                    labelId="delegate-label"
+                    value={delegateTo}
+                    label="Delegate To"
+                    onChange={(e) => setDelegateTo(e.target.value as string)}
+                  >
+                    {employeesList.map((emp) => (
+                      <MenuItem key={emp.id} value={emp.id}>{emp.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
+              <TextField
+                label="Reason / Notes"
+                multiline
+                rows={3}
+                fullWidth
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Describe why this decision is being made..."
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSelectedRisk(null)}>Cancel</Button>
+          <Button onClick={handleResolveSubmit} variant="contained" color="primary">
+            Submit Decision
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

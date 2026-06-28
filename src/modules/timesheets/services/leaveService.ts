@@ -168,9 +168,12 @@ export const useApproveLeave = () => {
       action: 'APPROVED' | 'REJECTED';
       rejectionReason?: string;
     }) => {
-      const payload: Record<string, any> = { status: action };
-      if (rejectionReason) payload.rejection_reason = rejectionReason;
-      const response = await api.patch(`/leaves/requests/${id}`, payload);
+      const payload = {
+        action: action,
+        rejection_reason: rejectionReason || null,
+        hr_notes: null,
+      };
+      const response = await api.post(`/leaves/requests/${id}/approve`, payload);
       return mapLeaveRequest(response.data?.data?.request || response.data?.data || response.data);
     },
     onSuccess: () => {

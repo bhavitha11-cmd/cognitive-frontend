@@ -62,11 +62,17 @@ import {
   useUpdateCalendarSettings,
 } from '../services/calendarConfigService';
 
-import { parseError } from '../../../utils/api';
+import { api, parseError } from '../../../utils/api';
 import type { Holiday, HolidayCreate, CompanyEvent, CompanyEventCreate, CalendarSettings } from '../types';
 
 export const CalendarConfigPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
+
+  // Emergency Holiday Workflow state
+  const [impactModalOpen, setImpactModalOpen] = useState(false);
+  const [impactHolidayId, setImpactHolidayId] = useState<string | null>(null);
+  const [impactData, setImpactData] = useState<any>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
 
   // Snackbar Alert state
   const [snackbar, setSnackbar] = useState<{
@@ -83,6 +89,66 @@ export const CalendarConfigPage: React.FC = () => {
       msgStr = parseError(message);
     }
     setSnackbar({ open: true, message: msgStr, severity });
+  };
+
+  useEffect(() => {
+    if (impactModalOpen && impactHolidayId) {
+      setImpactLoading(true);
+      api.get(`/holidays/emergency/${impactHolidayId}/impact-analysis`)
+        .then((res) => {
+          setImpactData(res.data?.data);
+          setImpactLoading(false);
+        })
+        .catch((err) => {
+          showSnack('Failed to load impact analysis: ' + parseError(err), 'error');
+          setImpactLoading(false);
+        });
+    }
+  }, [impactModalOpen, impactHolidayId]);
+
+  const handleApplyProposed = async () => {
+    if (!impactHolidayId || !impactData) return;
+    
+    try {
+      const projectUpdates = (impactData.affected_projects || []).map((p: any) => ({
+        project_id: p.project_id,
+        planned_start_date: p.proposed_start_date,
+        planned_end_date: p.proposed_end_date,
+      }));
+      
+      const taskUpdates = (impactData.affected_tasks || []).map((t: any) => ({
+        task_id: t.task_id,
+        planned_start_date: t.proposed_start_date,
+        planned_end_date: t.proposed_end_date,
+      }));
+      
+      const payload = {
+        project_updates: projectUpdates,
+        task_updates: taskUpdates,
+      };
+      
+      await api.post(`/holidays/emergency/${impactHolidayId}/apply`, payload);
+      showSnack('Emergency holiday schedules applied successfully!');
+      setImpactModalOpen(false);
+      setImpactHolidayId(null);
+      setImpactData(null);
+    } catch (err) {
+      showSnack('Failed to apply schedules: ' + parseError(err), 'error');
+    }
+  };
+
+  const handleKeepSchedulesUnchanged = async () => {
+    if (!impactHolidayId) return;
+    
+    try {
+      await api.post(`/holidays/emergency/${impactHolidayId}/reject`);
+      showSnack('Proposed shifts rejected. Task schedules remain unchanged.');
+      setImpactModalOpen(false);
+      setImpactHolidayId(null);
+      setImpactData(null);
+    } catch (err) {
+      showSnack('Failed to reject shifts: ' + parseError(err), 'error');
+    }
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -173,9 +239,15 @@ export const CalendarConfigPage: React.FC = () => {
       createHolidayMut.mutate(
         holidayForm as HolidayCreate,
         {
-          onSuccess: () => {
+          onSuccess: (response: any) => {
             setHolidayModalOpen(false);
-            showSnack('Holiday created successfully. Overlapping project/task deadlines recalculated.');
+            const holiday = response?.data?.holiday || response?.holiday || response;
+            if (holidayForm.holidayType === 'EMERGENCY' && holiday?.id) {
+              setImpactHolidayId(holiday.id);
+              setImpactModalOpen(true);
+            } else {
+              showSnack('Holiday created successfully. Overlapping project/task deadlines recalculated.');
+            }
           },
           onError: (err: any) => {
             showSnack(parseError(err), 'error');
@@ -588,6 +660,7 @@ export const CalendarConfigPage: React.FC = () => {
                       <MenuItem value="PUBLIC">Public Holiday</MenuItem>
                       <MenuItem value="OPTIONAL">Optional / Restricted</MenuItem>
                       <MenuItem value="COMPANY_SPECIFIC">Company Specific Holiday</MenuItem>
+                      <MenuItem value="EMERGENCY">Emergency Holiday</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -1201,6 +1274,105 @@ export const CalendarConfigPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Emergency Holiday Impact Dialog */}
+      <Dialog open={impactModalOpen} onClose={() => setImpactModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          Emergency Holiday Schedule Impact Analysis
+        </DialogTitle>
+        <DialogContent dividers sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+          {impactLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : impactData ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Typography variant="body1">
+                Emergency Holiday <strong>{impactData.holiday_name}</strong> on <strong>{impactData.holiday_date}</strong> has been saved. 
+                Please review the proposed date shifts below:
+              </Typography>
+
+              {/* Projects */}
+              <Typography variant="subtitle1" fontWeight={700} color="primary">Affected Projects ({impactData.affected_projects?.length || 0})</Typography>
+              {impactData.affected_projects && impactData.affected_projects.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Project Name</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Current End</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Proposed End</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Risk</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Affected Tasks</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {impactData.affected_projects.map((p: any) => (
+                        <TableRow key={p.project_id}>
+                          <TableCell sx={{ fontWeight: 500 }}>{p.project_name}</TableCell>
+                          <TableCell>{p.current_end_date}</TableCell>
+                          <TableCell sx={{ color: 'warning.main', fontWeight: 600 }}>{p.proposed_end_date}</TableCell>
+                          <TableCell>
+                            <Chip label={p.delivery_risk} size="small" color={p.delivery_risk === 'HIGH' ? 'error' : 'warning'} />
+                          </TableCell>
+                          <TableCell>{p.affected_tasks_count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="textSecondary">No projects affected.</Typography>
+              )}
+
+              {/* Tasks */}
+              <Typography variant="subtitle1" fontWeight={700} color="primary">Affected Tasks ({impactData.affected_tasks?.length || 0})</Typography>
+              {impactData.affected_tasks && impactData.affected_tasks.length > 0 ? (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Task Title</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Assignee</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Current Schedule</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Proposed Schedule</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Dependency Info</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {impactData.affected_tasks.map((t: any) => (
+                        <TableRow key={t.task_id}>
+                          <TableCell sx={{ fontWeight: 500 }}>{t.task_name}</TableCell>
+                          <TableCell>{t.assigned_employee_name || 'Unassigned'}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8125rem' }}>{t.current_start_date} to {t.current_end_date}</TableCell>
+                          <TableCell sx={{ fontSize: '0.8125rem', color: 'warning.main', fontWeight: 600 }}>{t.proposed_start_date} to {t.proposed_end_date}</TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{t.dependency_info || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="textSecondary">No tasks affected.</Typography>
+              )}
+            </Box>
+          ) : (
+            <Typography variant="body2">No impact analysis data found.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, justifyContent: 'space-between' }}>
+          <Button onClick={handleKeepSchedulesUnchanged} variant="outlined" color="error">
+            Keep Existing Schedule Unchanged
+          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={() => setImpactModalOpen(false)}>Close Review</Button>
+            <Button onClick={handleApplyProposed} variant="contained" color="success">
+              Apply Proposed Shift Changes
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar alerts */}
       <Snackbar

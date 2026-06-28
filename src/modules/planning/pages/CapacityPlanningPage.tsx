@@ -158,7 +158,7 @@ const CapacityPlanningPage: React.FC = () => {
             <Typography variant="h6" sx={{ mb: 2 }}>
               {capacity.employeeName} — Weekly Capacity
             </Typography>
-            <ResponsiveContainer width="100%" height={320} minWidth={0}>
+            <ResponsiveContainer width="100%" height={320} minWidth={0} minHeight={0}>
               <ComposedChart data={chartData}>
                 <XAxis dataKey="week" />
                 <YAxis />

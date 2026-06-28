@@ -249,6 +249,7 @@ export const MainLayout: React.FC = () => {
         { name: 'Session History', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
         { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlinedIcon fontSize="small" /> },
         { name: 'My Leaves', path: '/timesheets/leave', icon: <EventBusyOutlinedIcon fontSize="small" /> },
+        { name: 'Leave Approval', path: '/timesheets/leave-approval', icon: <CheckCircleOutlinedIcon fontSize="small" />, adminOnly: true },
       ],
     },
     {
