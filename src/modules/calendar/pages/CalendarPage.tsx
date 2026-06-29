@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Card,
@@ -235,7 +235,7 @@ export const CalendarPage: React.FC = () => {
                     <ListItemText
                       primary={task.taskCode}
                       secondary={`${task.daysOverdue}d overdue`}
-                      slotProps={{ primary: { variant: 'body2', fontWeight: 600, color: 'error' }, secondary: { variant: 'caption', color: 'error' } }}
+                      slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 600 }, color: 'error' }, secondary: { variant: 'caption', color: 'error' } }}
                     />
                   </ListItem>
                 ))
@@ -262,7 +262,7 @@ export const CalendarPage: React.FC = () => {
                     <ListItemText
                       primary={task.taskCode}
                       secondary={task.plannedDeliveryDate ? new Date(task.plannedDeliveryDate).toLocaleDateString() : ''}
-                      slotProps={{ primary: { variant: 'body2', fontWeight: 500 }, secondary: { variant: 'caption' } }}
+                      slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 500 } }, secondary: { variant: 'caption' } }}
                     />
                   </ListItem>
                 ))

@@ -23,8 +23,7 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Line, ComposedChart } from 'recharts';
+import { Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Line, ComposedChart } from 'recharts';
 import { useGetEmployees } from '../../hr/services/hrService';
 import { useGetEmployeeCapacity, useGetEmployeeSchedules, useUpdateSchedule } from '../services/planningService';
 import type { EmployeeSchedule } from '../types';
@@ -60,7 +59,7 @@ const CapacityPlanningPage: React.FC = () => {
     loaded ? fromDate : '',
     loaded ? toDate : '',
   );
-  const { data: schedules, isLoading: schedLoading } = useGetEmployeeSchedules(
+  const { data: schedules, isLoading: _schedLoading } = useGetEmployeeSchedules(
     loaded ? employeeId : '',
     loaded ? fromDate : '',
     loaded ? toDate : '',
@@ -125,14 +124,14 @@ const CapacityPlanningPage: React.FC = () => {
             type="date"
             value={fromDate}
             onChange={(e) => setFromDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
             label="To Date"
             type="date"
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
           />
           <Button variant="contained" onClick={handleLoad} disabled={!employeeId || !fromDate || !toDate}>
             Load
@@ -241,7 +240,7 @@ const CapacityPlanningPage: React.FC = () => {
                 label="Available Hours"
                 value={editHours}
                 onChange={(e) => setEditHours(Number(e.target.value))}
-                inputProps={{ min: 0, max: 168 }}
+                slotProps={{ htmlInput: { min: 0, max: 168 } }}
               />
             </Box>
           )}

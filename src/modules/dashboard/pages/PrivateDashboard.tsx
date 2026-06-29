@@ -192,7 +192,7 @@ export const PrivateDashboard: React.FC = () => {
                         </TableCell>
                         <TableCell>{task.plannedDeliveryDate ? new Date(task.plannedDeliveryDate).toLocaleDateString() : '-'}</TableCell>
                         <TableCell>
-                          <Typography color="error" fontWeight={600}>{task.daysOverdue}d</Typography>
+                          <Typography color="error" sx={{ fontWeight: 600 }}>{task.daysOverdue}d</Typography>
                         </TableCell>
                       </TableRow>
                     ))}

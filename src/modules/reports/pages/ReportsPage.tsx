@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Grid, Card, CardContent, Typography, Box, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, Chip, Button, CircularProgress, Alert, TextField, MenuItem, Divider } from '@mui/material';
+import { Grid, Card, CardContent, Typography, Box, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, Chip, Button, CircularProgress, TextField, MenuItem } from '@mui/material';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import { useGetPlanVsActual, useGetUtilization, useGetDepartmentLoad, useGetClientPerformance, useGetScopeDistribution } from '../../dashboard/services/dashboardService';
@@ -54,10 +54,6 @@ export const ReportsPage: React.FC = () => {
     return deptLoad.filter((d) => d.department === deptFilter);
   }, [deptLoad, deptFilter]);
 
-  const uniqueCats = useMemo(() => {
-    const cats = new Set(scopeData.map((s) => s.departmentCategory || 'Uncategorized'));
-    return Array.from(cats);
-  }, [scopeData]);
 
   const scopeSummary = useMemo(() => {
     const map = new Map<string, { estimated: number; actual: number }>();
@@ -163,8 +159,8 @@ export const ReportsPage: React.FC = () => {
 
       <TabPanel value={tabValue} index={1}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField label="From Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <TextField label="To Date" type="date" size="small" InputLabelProps={{ shrink: true }} value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <TextField label="From Date" type="date" size="small" slotProps={{ inputLabel: { shrink: true } }} value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <TextField label="To Date" type="date" size="small" slotProps={{ inputLabel: { shrink: true } }} value={toDate} onChange={(e) => setToDate(e.target.value)} />
           <ExportButton />
         </Box>
         {utilization && utilization.employees.length > 0 ? (

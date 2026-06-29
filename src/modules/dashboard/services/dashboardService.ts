@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../utils/api';
 import { useAuthStore } from '../../../store/useAuthStore';
-import type { DashboardStats, PlanVsActualData, UtilizationData, DepartmentLoad, OverdueTask, ClientPerfData, ScopeDist, CalendarEvent, PlanVsActualProject, EmployeeUtil } from '../types';
+import type {
+  DashboardStats, PlanVsActualData, UtilizationData, DepartmentLoad, OverdueTask, ClientPerfData, ScopeDist,
+  CalendarEvent, PlanVsActualProject, EmployeeUtil, ExecutiveSummary, ExecutiveCharts, ExecutiveAlerts,
+  ExecutiveRecentActivities, ProjectSummary, ProjectCharts, TeamLeadSummary, TeamLeadCharts, TeamMemberAttendance,
+  EmployeeSummary, EmployeeCharts, EmployeePerformanceRow
+} from '../types';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -275,3 +280,253 @@ export const useGetCalendarEvents = (fromDate: string, toDate: string) => {
     },
   });
 };
+
+// --- New Executive Dashboard Hooks ---
+export const useGetExecutiveSummary = (fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'summary', fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveSummary>>('/dashboard-analytics/executive/summary', { params });
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetExecutiveCharts = (fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'charts', fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveCharts>>('/dashboard-analytics/executive/charts', { params });
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetExecutiveAlerts = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'alerts'],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<ExecutiveAlerts>>('/dashboard-analytics/executive/alerts');
+      return res.data.data.alerts;
+    },
+  });
+};
+
+export const useGetExecutiveRecentProjects = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'recent-projects'],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<any>>('/dashboard-analytics/executive/recent-projects');
+      return res.data.data.projects;
+    },
+  });
+};
+
+export const useGetExecutiveRecentActivities = () => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'recent-activities'],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<ExecutiveRecentActivities>>('/dashboard-analytics/executive/recent-activities');
+      return res.data.data.activities;
+    },
+  });
+};
+
+// --- New Project Dashboard Hooks ---
+export const useGetProjectSummary = (projectId?: string) => {
+  return useQuery({
+    queryKey: ['dashboard', 'project', 'summary', projectId],
+    enabled: !!projectId,
+    staleTime: 15000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<ProjectSummary>>(`/dashboard-analytics/project/${projectId}/summary`);
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetProjectCharts = (projectId?: string) => {
+  return useQuery({
+    queryKey: ['dashboard', 'project', 'charts', projectId],
+    enabled: !!projectId,
+    staleTime: 15000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<ProjectCharts>>(`/dashboard-analytics/project/${projectId}/charts`);
+      return res.data.data;
+    },
+  });
+};
+
+// --- New Team Leader Dashboard Hooks ---
+export const useGetTeamLeadSummary = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'team-lead', 'summary'],
+    staleTime: 15000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<TeamLeadSummary>>('/dashboard-analytics/team-leader/summary');
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetTeamLeadCharts = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'team-lead', 'charts'],
+    staleTime: 15000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<TeamLeadCharts>>('/dashboard-analytics/team-leader/charts');
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetTeamLeadAttendance = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'team-lead', 'attendance'],
+    staleTime: 0,
+    gcTime: 0,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<any>>('/dashboard-analytics/team-leader/attendance');
+      return res.data.data.attendance as TeamMemberAttendance[];
+    },
+  });
+};
+
+// --- New Employee Dashboard Hooks ---
+export const useGetEmployeeSummary = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'employee', 'summary'],
+    staleTime: 5000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<EmployeeSummary>>('/dashboard-analytics/employee/summary');
+      return res.data.data;
+    },
+  });
+};
+
+export const useGetEmployeeCharts = () => {
+  return useQuery({
+    queryKey: ['dashboard', 'employee', 'charts'],
+    staleTime: 5000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<EmployeeCharts>>('/dashboard-analytics/employee/charts');
+      return res.data.data;
+    },
+  });
+};
+
+// --- New Employee Performance Dashboard Hooks ---
+export const useGetPerformanceRankings = (departmentId?: string, teamId?: string, fromDate?: string, toDate?: string) => {
+  return useQuery({
+    queryKey: ['dashboard', 'performance', 'rankings', departmentId, teamId, fromDate, toDate],
+    staleTime: 60000,
+    gcTime: 300000,
+    retry: 1,
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (departmentId) params.department_id = departmentId;
+      if (teamId) params.team_id = teamId;
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<any>>('/dashboard-analytics/performance/rankings', { params });
+      return res.data.data.rankings as EmployeePerformanceRow[];
+    },
+  });
+};
+

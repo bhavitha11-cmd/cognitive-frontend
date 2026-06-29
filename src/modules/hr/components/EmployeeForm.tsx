@@ -94,7 +94,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       mobile: initialValues?.mobile || '',
       phone: initialValues?.phone || '',
       alternatePhone: initialValues?.alternatePhone || '',
-      gender: initialValues?.gender || 'MALE',
+      gender: (initialValues?.gender === 'Others' ? 'OTHER' : initialValues?.gender) as any || 'MALE',
       dateOfBirth: initialValues?.dateOfBirth || '',
       profilePhoto: initialValues?.profilePhoto || '',
       departmentId: initialValues?.departmentId || '',
@@ -102,7 +102,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       roleIds: initialValues?.roleIds || [],
       reportingManagerId: initialValues?.reportingManagerId || '',
       dateOfJoining: initialValues?.dateOfJoining || '',
-      employmentType: initialValues?.employmentType || 'FULL_TIME',
+      employmentType: (initialValues?.employmentType === 'Full-Time' ? 'FULL_TIME' : initialValues?.employmentType) as any || 'FULL_TIME',
       status: initialValues?.status || 'ACTIVE',
       username: initialValues?.username || '',
       password: '',
@@ -122,7 +122,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
   const { data: teams = [] } = useGetTeams();
 
   return (
-    <form id={formId} onSubmit={handleSubmit(onSubmit)}>
+    <form id={formId} onSubmit={handleSubmit(onSubmit as any)}>
       <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 2 }}>
         Personal Information
       </Typography>

@@ -48,7 +48,6 @@ import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined';
 import ListAltOutlinedIcon from '@mui/icons-material/ListAltOutlined';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
-import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
 import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOutlined';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
@@ -147,7 +146,6 @@ export const MainLayout: React.FC = () => {
   // ── Auth Store ──────────────────────────────────────────────────────────────
   const authUser = useAuthStore((s) => s.user);
   const authRoles = useAuthStore((s) => s.roles);
-  const authPermissions = useAuthStore((s) => s.permissions);
   const authIsSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
   const authHasPermission = useAuthStore((s) => s.hasPermission);
   const authLogout = useAuthStore((s) => s.logout);
@@ -208,6 +206,10 @@ export const MainLayout: React.FC = () => {
       children: [
         { name: 'Private Dashboard', path: '/dashboard/private' },
         { name: 'Advanced Dashboard', path: '/dashboard/advanced' },
+        { name: 'Executive Dashboard', path: '/dashboard/executive' },
+        { name: 'Team Lead Dashboard', path: '/dashboard/team-leader' },
+        { name: 'My Dashboard', path: '/dashboard/employee' },
+        { name: 'Employee Performance', path: '/dashboard/employee-performance' },
       ],
     },
     {
@@ -597,7 +599,13 @@ export const MainLayout: React.FC = () => {
     const second = paths[1];
 
     if (first === 'dashboard') {
-      return second === 'advanced' ? 'Advanced Dashboard' : 'Private Dashboard';
+      if (second === 'advanced') return 'Advanced Dashboard';
+      if (second === 'executive') return 'Executive Dashboard';
+      if (second === 'project') return 'Project Dashboard';
+      if (second === 'team-leader') return 'Team Leader Dashboard';
+      if (second === 'employee') return 'Employee Dashboard';
+      if (second === 'employee-performance') return 'Employee Performance Dashboard';
+      return 'Private Dashboard';
     }
     if (first === 'clients') return 'Clients';
     if (first === 'projects') {

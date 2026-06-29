@@ -33,7 +33,7 @@ const EmployeeHome: React.FC = () => {
                 <AssignmentIcon color="primary" />
               </Box>
               <Box>
-                <Typography variant="subtitle1" fontWeight={700}>My Tasks</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>My Tasks</Typography>
                 <Typography variant="body2" color="textSecondary">View and update your assigned tasks</Typography>
               </Box>
             </CardContent>
@@ -46,7 +46,7 @@ const EmployeeHome: React.FC = () => {
                 <AccessTimeIcon color="success" />
               </Box>
               <Box>
-                <Typography variant="subtitle1" fontWeight={700}>My Timesheets</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>My Timesheets</Typography>
                 <Typography variant="body2" color="textSecondary">Log time entries against your tasks</Typography>
               </Box>
             </CardContent>
@@ -318,7 +318,7 @@ export const AdvancedDashboard: React.FC = () => {
                           <Chip label={task.priority} size="small" color={task.priority === 'URGENT' || task.priority === 'HIGH' ? 'error' : 'warning'} />
                         </TableCell>
                         <TableCell>
-                          <Typography color="error" fontWeight={600}>{task.daysOverdue}d</Typography>
+                          <Typography color="error" sx={{ fontWeight: 600 }}>{task.daysOverdue}d</Typography>
                         </TableCell>
                         <TableCell>{task.assigneeName || '-'}</TableCell>
                       </TableRow>

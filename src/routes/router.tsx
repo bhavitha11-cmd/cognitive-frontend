@@ -58,6 +58,26 @@ export const router = createBrowserRouter([
             path: 'advanced',
             element: lazyLoad(() => import('../modules/dashboard/pages/AdvancedDashboard'), 'dashboard'),
           },
+          {
+            path: 'executive',
+            element: lazyLoad(() => import('../modules/dashboard/pages/ExecutiveDashboard'), 'dashboard'),
+          },
+          {
+            path: 'project/:id',
+            element: lazyLoad(() => import('../modules/dashboard/pages/ProjectDashboard'), 'dashboard'),
+          },
+          {
+            path: 'team-leader',
+            element: lazyLoad(() => import('../modules/dashboard/pages/TeamLeaderDashboard'), 'dashboard'),
+          },
+          {
+            path: 'employee',
+            element: lazyLoad(() => import('../modules/dashboard/pages/EmployeeDashboard'), 'dashboard'),
+          },
+          {
+            path: 'employee-performance',
+            element: lazyLoad(() => import('../modules/dashboard/pages/EmployeePerformanceDashboard'), 'dashboard'),
+          },
         ],
       },
       // Clients

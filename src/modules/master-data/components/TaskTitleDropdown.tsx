@@ -26,7 +26,7 @@ export const TaskTitleDropdown: React.FC<TaskTitleDropdownProps> = ({
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const loadedRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<any>(null);
   const requestIdRef = useRef(0);
 
   const fetchAll = useCallback(() => {

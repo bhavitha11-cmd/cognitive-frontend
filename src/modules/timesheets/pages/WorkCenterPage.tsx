@@ -283,11 +283,6 @@ export const WorkCenterPage: React.FC = () => {
   // Active timer for the cockpit display (live elapsed time)
   const activeTime = activeSession ? fmtDuration(sessionSeconds) : '00:00:00';
 
-  // Task counts still needed from client-side session data
-  const completedTasksCount = useMemo(
-    () => assignedTasks.filter((t) => t.status === 'COMPLETED').length,
-    [assignedTasks]
-  );
 
   // ── Idle Classification State ──────────────────────────────────────────────
   const [classifyingSegmentId, setClassifyingSegmentId] = useState<string | null>(null);

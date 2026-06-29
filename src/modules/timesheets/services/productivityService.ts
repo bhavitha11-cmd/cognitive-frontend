@@ -166,7 +166,7 @@ export function useClassifyIdleSegment() {
       const res = await api.post('/analytics/productivity/idle-classifications', payload);
       return res.data.data.classification as IdleClassification;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (_data, _variables) => {
       // Invalidate timeline so idle item shows updated classification
       queryClient.invalidateQueries({ queryKey: ['productivity', 'timeline'] });
     },
