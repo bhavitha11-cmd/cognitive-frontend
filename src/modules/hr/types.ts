@@ -5,12 +5,28 @@ export type EmployeeStatus =
   | 'PROBATION'
   | 'NOTICE_PERIOD'
   | 'ON_LEAVE'
+  | 'INACTIVE'
   | 'SUSPENDED'
   | 'RESIGNED'
   | 'TERMINATED';
 
-export type EmploymentType = 'Full-Time' | 'Part-Time' | 'Contract' | 'Intern';
-export type GenderType = 'Male' | 'Female' | 'Others';
+export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+export type GenderType = 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY';
+
+// Display label helpers
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  FULL_TIME: 'Full Time',
+  PART_TIME: 'Part Time',
+  CONTRACT: 'Contract',
+  INTERN: 'Intern',
+};
+
+export const GENDER_LABELS: Record<GenderType, string> = {
+  MALE: 'Male',
+  FEMALE: 'Female',
+  OTHER: 'Other',
+  PREFER_NOT_TO_SAY: 'Prefer Not to Say',
+};
 
 export interface RolePermission {
   module_name: string;

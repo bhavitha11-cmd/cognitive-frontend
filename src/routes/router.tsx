@@ -115,6 +115,10 @@ export const router = createBrowserRouter([
             path: ':id',
             element: lazyLoad(() => import('../modules/projects/pages/ProjectDetailPage'), 'dashboard'),
           },
+          {
+            path: 'reviews/:id',
+            element: lazyLoad(() => import('../modules/projects/pages/ScheduleReviewPage'), 'form'),
+          },
         ],
       },
       // Tasks

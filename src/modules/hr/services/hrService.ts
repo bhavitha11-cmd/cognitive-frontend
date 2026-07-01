@@ -359,8 +359,25 @@ export interface EmployeeListParams {
   accountStatus?: string;
 }
 
+export const useGetEmployee = (id?: string) => {
+  return useQuery<Employee>({
+    queryKey: ['employees', id],
+    queryFn: async () => {
+      const response = await api.get(`/employees/${id}`);
+      const raw = response.data?.data?.employee || response.data?.data || response.data;
+      return mapBackendEmployeeToFrontend(raw);
+    },
+    enabled: !!id,
+  });
+};
+
+export interface EmployeeListResult {
+  employees: Employee[];
+  total: number;
+}
+
 export const useGetEmployees = (params?: EmployeeListParams, options?: { enabled?: boolean }) => {
-  return useQuery<Employee[]>({
+  return useQuery<EmployeeListResult>({
     queryKey: ['employees', params],
     queryFn: async () => {
       const queryParams: Record<string, any> = {};
@@ -370,10 +387,11 @@ export const useGetEmployees = (params?: EmployeeListParams, options?: { enabled
       if (params?.departmentId) queryParams.department_id = params.departmentId;
       if (params?.accountStatus) queryParams.account_status = params.accountStatus;
       const response = await api.get('/employees', { params: queryParams });
-      const items = response.data?.data?.employees || [];
+      const data = response.data?.data || {};
+      const items = data.employees || [];
       const mapped = items.map(mapBackendEmployeeToFrontend);
       useHRStore.getState().setEmployees(mapped);
-      return mapped;
+      return { employees: mapped, total: data.total ?? mapped.length };
     },
     ...options,
   });
@@ -563,21 +581,25 @@ export const useTransferDepartments = () => {
   });
 };
 
-export const useGetRoleHistory = () => {
-  return useMutation({
-    mutationFn: async (employeeId: string) => {
+export const useGetRoleHistory = (employeeId?: string) => {
+  return useQuery({
+    queryKey: ['employees', employeeId, 'role-history'],
+    queryFn: async () => {
       const response = await api.get(`/employees/${employeeId}/role-history`);
       return response.data?.data?.history || [];
     },
+    enabled: !!employeeId,
   });
 };
 
-export const useGetReportingHistory = () => {
-  return useMutation({
-    mutationFn: async (employeeId: string) => {
+export const useGetReportingHistory = (employeeId?: string) => {
+  return useQuery({
+    queryKey: ['employees', employeeId, 'reporting-history'],
+    queryFn: async () => {
       const response = await api.get(`/employees/${employeeId}/reporting-history`);
       return response.data?.data?.history || [];
     },
+    enabled: !!employeeId,
   });
 };
 
@@ -696,11 +718,13 @@ export const useGetRoleTree = () => {
 // 7. AUDIT LOGS
 // ==========================================
 
-export const useGetAuditLogs = () => {
-  return useMutation({
-    mutationFn: async (params?: { entity_type?: string; entity_id?: string; action?: string; page?: number; size?: number }) => {
-      const response = await api.get('/audit-logs', { params });
-      return response.data?.data;
+export const useGetAuditLogs = (filters?: { entity_type?: string; entity_id?: string; action?: string; page?: number; size?: number }) => {
+  return useQuery({
+    queryKey: ['audit-logs', filters],
+    queryFn: async () => {
+      const response = await api.get('/audit-logs', { params: filters });
+      return response.data?.data || { logs: [], total: 0 };
     },
+    enabled: true,
   });
 };

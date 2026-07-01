@@ -14,11 +14,22 @@ export const AuditLogPage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  const auditMut = useGetAuditLogs();
+  // Active filters that drive the query
+  const [activeFilters, setActiveFilters] = useState<{
+    entity_type?: string;
+    entity_id?: string;
+    action?: string;
+    page?: number;
+    size?: number;
+  }>({});
+
+  const { data, isLoading, refetch } = useGetAuditLogs(
+    Object.keys(activeFilters).length > 0 ? activeFilters : undefined
+  );
 
   const handleSearch = () => {
     setPage(0);
-    auditMut.mutate({
+    setActiveFilters({
       entity_type: entityType || undefined,
       entity_id: entityId || undefined,
       action: action || undefined,
@@ -27,8 +38,8 @@ export const AuditLogPage: React.FC = () => {
     });
   };
 
-  const logs = auditMut.data?.logs || [];
-  const totalCount = auditMut.data?.total || 0;
+  const logs = data?.logs || [];
+  const totalCount = data?.total || 0;
 
   const getActionColor = (act: string) => {
     const a = act.toLowerCase();
@@ -48,7 +59,7 @@ export const AuditLogPage: React.FC = () => {
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={handleSearch}
+          onClick={() => refetch()}
           size="small"
         >
           Refresh
@@ -85,7 +96,7 @@ export const AuditLogPage: React.FC = () => {
       </Card>
 
       <Card>
-        {auditMut.isPending ? (
+        {isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
             <CircularProgress />
           </Box>
@@ -123,7 +134,7 @@ export const AuditLogPage: React.FC = () => {
                           <Chip
                             label={log.action}
                             size="small"
-                            color={getActionColor(log.action)}
+                            color={getActionColor(log.action) as any}
                             sx={{ fontWeight: 600, fontSize: '0.75rem' }}
                           />
                         </TableCell>
@@ -158,26 +169,14 @@ export const AuditLogPage: React.FC = () => {
               page={page}
               onPageChange={(_, newPage) => {
                 setPage(newPage);
-                auditMut.mutate({
-                  entity_type: entityType || undefined,
-                  entity_id: entityId || undefined,
-                  action: action || undefined,
-                  page: newPage + 1,
-                  size: rowsPerPage,
-                });
+                setActiveFilters((prev) => ({ ...prev, page: newPage + 1 }));
               }}
               rowsPerPage={rowsPerPage}
               onRowsPerPageChange={(e) => {
                 const newSize = parseInt(e.target.value, 10);
                 setRowsPerPage(newSize);
                 setPage(0);
-                auditMut.mutate({
-                  entity_type: entityType || undefined,
-                  entity_id: entityId || undefined,
-                  action: action || undefined,
-                  page: 1,
-                  size: newSize,
-                });
+                setActiveFilters((prev) => ({ ...prev, page: 1, size: newSize }));
               }}
               rowsPerPageOptions={[10, 25, 50]}
             />

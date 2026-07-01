@@ -7,7 +7,6 @@ import {
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -16,6 +15,7 @@ import {
 } from 'recharts';
 
 import { useGetEmployeeSummary, useGetEmployeeCharts } from '../services/dashboardService';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 import WidgetErrorBoundary from '../components/WidgetErrorBoundary';
 import { CardSkeleton } from '../components/DashboardSkeletons';
@@ -23,19 +23,18 @@ import { CardSkeleton } from '../components/DashboardSkeletons';
 export const EmployeeDashboard: React.FC = () => {
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetEmployeeSummary();
   const { data: charts, refetch: refetchCharts } = useGetEmployeeCharts();
+  const { user } = useAuthStore();
 
   // 1. KPI Metrics
   const productivityVal = summary?.personalProductivityPercentage ?? 0.0;
   const thisMonthHoursVal = summary?.monthlyHours ?? 0.0;
-  const complianceVal = 0.0;
-  
+
   const kpis = [
     { title: 'OVERALL PERFORMANCE SCORE', value: `${productivityVal.toFixed(0)} / 100`, desc: productivityVal >= 80 ? 'Very Good' : 'Performance Rate', color: '#206bc4', icon: <EmojiEventsIcon sx={{ color: '#ffffff' }} /> },
     { title: 'PLANNED HOURS', value: '0.00', desc: 'This Month', color: '#4299e1', icon: <AccessTimeIcon sx={{ color: '#ffffff' }} /> },
     { title: 'ACTUAL HOURS', value: `${thisMonthHoursVal.toFixed(2)}`, desc: 'This Month', color: '#2fb344', icon: <AccessTimeIcon sx={{ color: '#ffffff' }} /> },
     { title: 'PLANNED VS ACTUAL', value: '0.00%', desc: 'Efficiency', color: '#f59f00', icon: <TrendingUpIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'TASKS COMPLETED', value: `${summary?.completedTasksCount ?? 0} / ${summary?.todayTasksCount ?? 0}`, desc: 'This Month', color: '#16a34a', icon: <AccessTimeIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'TIMESHEET COMPLIANCE', value: `${complianceVal.toFixed(0)}%`, desc: 'On Time', color: '#00bcd4', icon: <CheckCircleIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'TASKS COMPLETED', value: `${summary?.completedTasksCount ?? 0}`, desc: 'Today', color: '#16a34a', icon: <AccessTimeIcon sx={{ color: '#ffffff' }} /> },
     { title: 'QUALITY SCORE', value: '0 / 100', desc: 'Pending Audit', color: '#ae3ec9', icon: <EmojiEventsIcon sx={{ color: '#ffffff' }} /> },
   ];
 
@@ -56,19 +55,17 @@ export const EmployeeDashboard: React.FC = () => {
     efficiency: (d.hoursLogged / 8) * 100
   }));
 
-  // 4. Skills Radar Chart
-  const skillData = ((charts as any)?.skillsMatrix ?? []).map((s: any) => ({
-    subject: s.skillName,
-    A: s.proficiencyPercentage,
-    fullMark: 100
+  // 4. Timesheet Status Summary (replaces unavailable skillsMatrix)
+  const timesheetStatusData = (charts?.timesheetStatusSummary ?? []).map((s) => ({
+    subject: s.status,
+    A: s.count,
+    fullMark: Math.max(...(charts?.timesheetStatusSummary ?? []).map((x) => x.count), 1)
   }));
 
-  // 5. Performance parameter details
-  const parameters = ((charts as any)?.performanceByParameter ?? []).map((p: any) => ({
-    name: p.parameterName,
-    weightage: `${(p.weightagePercentage * 100).toFixed(0)}%`,
-    score: `${p.scoreAchieved.toFixed(0)} / 100`,
-    val: p.scoreAchieved
+  // 5. Performance by parameters — not available in EmployeeCharts; show timesheet status table
+  const timesheetStatusRows = (charts?.timesheetStatusSummary ?? []).map((s) => ({
+    name: s.status,
+    score: String(s.count)
   }));
 
   const handleRefreshData = () => {
@@ -148,15 +145,17 @@ export const EmployeeDashboard: React.FC = () => {
                 sx={{ width: 80, height: 80, border: '2px solid #206bc4' }}
               />
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 850 }}>Arun Kumar R</Typography>
-                <Typography variant="body2" sx={{ color: '#94a3b8', fontWeight: 600 }}>Manufacturing Engineer</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 850 }}>
+                  {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Employee'}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#94a3b8', fontWeight: 600 }}>N/A</Typography>
               </Box>
             </Box>
             <Grid container spacing={1} sx={{ mt: 1.5 }}>
               {[
-                { label: 'Employee ID', val: 'CET-EMP-012' },
-                { label: 'Department', val: 'CNC Programming' },
-                { label: 'Team Leader', val: 'Gowtham S' },
+                { label: 'Employee ID', val: user?.employeeCode || 'N/A' },
+                { label: 'Email', val: user?.email || 'N/A' },
+                { label: 'Team Leader', val: 'N/A' },
                 { label: 'Status', val: 'Active' }
               ].map((row: any, idx: number) => (
                 <React.Fragment key={idx}>
@@ -257,22 +256,22 @@ export const EmployeeDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Skill set Radar */}
+        {/* Timesheet Status Radar */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <WidgetErrorBoundary title="Skills Radar chart" onRetry={refetchCharts}>
+          <WidgetErrorBoundary title="Timesheet Status chart" onRetry={refetchCharts}>
             <Card sx={{ p: 2.5, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', minHeight: 330, display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>SKILL SET PROFICIENCY</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>TIMESHEET STATUS OVERVIEW</Typography>
               <Divider sx={{ borderColor: '#1d243a', mb: 2 }} />
-              {skillData.length === 0 ? (
-                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No skill matrices logged in DB</Box>
+              {timesheetStatusData.length === 0 ? (
+                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No timesheet data in DB</Box>
               ) : (
                 <Box sx={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ResponsiveContainer width="99%" height={220} minHeight={200}>
-                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={skillData}>
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={timesheetStatusData}>
                       <PolarGrid stroke="#1d243a" />
                       <PolarAngleAxis dataKey="subject" stroke="#94a3b8" fontSize={9} />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#1d243a" tick={false} />
-                      <Radar name="Proficiency" dataKey="A" stroke="#206bc4" fill="#206bc4" fillOpacity={0.5} />
+                      <PolarRadiusAxis angle={30} stroke="#1d243a" tick={false} />
+                      <Radar name="Count" dataKey="A" stroke="#206bc4" fill="#206bc4" fillOpacity={0.5} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </Box>
@@ -281,28 +280,28 @@ export const EmployeeDashboard: React.FC = () => {
           </WidgetErrorBoundary>
         </Grid>
 
-        {/* Performance by Parameters */}
+        {/* Timesheet Status Breakdown */}
         <Grid size={{ xs: 12, md: 3 }}>
-          <WidgetErrorBoundary title="Performance Parameters tracker" onRetry={refetchCharts}>
+          <WidgetErrorBoundary title="Timesheet Status Breakdown" onRetry={refetchCharts}>
             <Card sx={{ p: 2.5, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', minHeight: 330 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>PERFORMANCE BY PARAMETERS</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>TIMESHEET STATUS BREAKDOWN</Typography>
               <Divider sx={{ borderColor: '#1d243a', mb: 1.5 }} />
-              {parameters.length === 0 ? (
-                <Box sx={{ p: 3, textAlign: 'center', color: '#94a3b8' }}>No performance scores logged in DB</Box>
+              {timesheetStatusRows.length === 0 ? (
+                <Box sx={{ p: 3, textAlign: 'center', color: '#94a3b8' }}>No timesheet entries in DB</Box>
               ) : (
                 <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none' }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ borderBottom: '2px solid #1d243a' }}>
-                        <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Parameter</TableCell>
-                        <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Score</TableCell>
+                        <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Status</TableCell>
+                        <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Count</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {parameters.map((p: any, idx: number) => (
+                      {timesheetStatusRows.map((row, idx: number) => (
                         <TableRow key={idx} sx={{ borderBottom: '1px solid #1d243a', '&:hover': { bgcolor: '#172033' } }}>
-                          <TableCell sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.name}</TableCell>
-                          <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem', fontWeight: 600 }}>{p.score}</TableCell>
+                          <TableCell sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{row.name}</TableCell>
+                          <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem', fontWeight: 600 }}>{row.score}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -8,7 +8,7 @@ import QueryBuilderIcon from '@mui/icons-material/QueryBuilder';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router';
-import { useGetDashboardStats, useGetPlanVsActual, useGetUtilization, useGetOverdueTasks, useGetScopeDistribution } from '../services/dashboardService';
+import { useGetDashboardStats, useGetPlanVsActual, useGetUtilization, useGetOverdueTasks, useGetScopeDistribution, useCanViewAnalytics } from '../services/dashboardService';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { EmptyState } from '../../../components/EmptyState';
 
@@ -58,14 +58,7 @@ const EmployeeHome: React.FC = () => {
 };
 
 export const AdvancedDashboard: React.FC = () => {
-  const canViewAnalytics = useAuthStore((s) => {
-    const isSuperAdmin = s.roleCodes.some((c) =>
-      ['ADMIN', 'CEO', 'CHIEF_EXECUTIVE_OFFICER', 'ADMINISTRATOR'].includes(c)
-    );
-    if (isSuperAdmin) return true;
-    const perm = s.permissions.find((p) => p.module_name.toLowerCase() === 'analytics');
-    return perm?.can_view ?? false;
-  });
+  const canViewAnalytics = useCanViewAnalytics();
 
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: planVsActual, isLoading: planLoading } = useGetPlanVsActual();
@@ -151,7 +144,7 @@ export const AdvancedDashboard: React.FC = () => {
         <Grid size={{ xs: 12, lg: 8 }}>
           <Card sx={{ p: 2.5, height: '100%' }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              Hours by Project (Estimated vs Actual)
+              Estimated vs Actual Hours (All Projects)
             </Typography>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ width: '100%', height: 300 }}>

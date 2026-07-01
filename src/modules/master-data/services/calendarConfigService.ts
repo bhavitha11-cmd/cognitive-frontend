@@ -49,7 +49,7 @@ const mapCompanyEventBackendToFrontend = (e: any): CompanyEvent => ({
   endTime: e.end_time || undefined,
   isAllDay: e.is_all_day ?? true,
   color: e.color || undefined,
-  textColor: e.textColor || undefined,
+  textColor: e.text_color || e.textColor || undefined,
   isActive: e.is_active ?? true,
   affectsWorkingDays: e.affects_working_days ?? false,
 });
@@ -66,7 +66,7 @@ const mapCompanyEventFrontendToBackend = (data: any) => {
   if (data.endTime !== undefined) payload.end_time = data.endTime || null;
   if (data.isAllDay !== undefined) payload.is_all_day = data.isAllDay;
   if (data.color !== undefined) payload.color = data.color || null;
-  if (data.textColor !== undefined) payload.textColor = data.textColor || null;
+  if (data.textColor !== undefined) payload.text_color = data.textColor || null;
   if (data.isActive !== undefined) payload.is_active = data.isActive;
   if (data.affectsWorkingDays !== undefined) payload.affects_working_days = data.affectsWorkingDays;
   return payload;
@@ -321,9 +321,9 @@ export const useUpdateCalendarSettings = () => {
   });
 };
 
-export const useGetCalendarEvents = (fromDate: string, toDate: string) => {
+export const useGetCalendarConfigEvents = (fromDate: string, toDate: string) => {
   return useQuery<any[]>({
-    queryKey: ['dashboard', 'calendar-events', fromDate, toDate],
+    queryKey: ['calendar-config', 'events', fromDate, toDate],
     enabled: !!fromDate && !!toDate,
     queryFn: async () => {
       const response = await api.get('/calendar/events', {

@@ -15,7 +15,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 
-import { useGetTeamLeadSummary, useGetTeamLeadCharts, useGetTeamLeadAttendance } from '../services/dashboardService';
+import { useGetTeamLeadSummary, useGetTeamLeadCharts, useGetTeamLeadAttendance, useGetUpcomingDeadlines } from '../services/dashboardService';
 
 import WidgetErrorBoundary from '../components/WidgetErrorBoundary';
 import { CardSkeleton } from '../components/DashboardSkeletons';
@@ -25,6 +25,7 @@ export const TeamLeaderDashboard: React.FC = () => {
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetTeamLeadSummary();
   const { data: charts, refetch: refetchCharts } = useGetTeamLeadCharts();
   const { data: attendance = [], refetch: refetchAttendance } = useGetTeamLeadAttendance();
+  const { data: upcomingDeadlines = [], isLoading: deadlinesLoading } = useGetUpcomingDeadlines(7);
 
   // 1. KPI cards mapping
   const kpis = [
@@ -50,8 +51,12 @@ export const TeamLeaderDashboard: React.FC = () => {
   }));
 
   // 4. Submission status donut mapping
-  const presentCount = attendance.filter((a: any) => a.status === 'PRESENT').length;
-  const absentCount = attendance.filter((a: any) => a.status === 'ABSENT').length;
+  const presentCount = attendance.filter((a: any) =>
+    a.status?.toUpperCase() === 'PRESENT' || a.status?.toUpperCase() === 'CLOCKED_IN'
+  ).length;
+  const absentCount = attendance.filter((a: any) =>
+    a.status?.toUpperCase() === 'ABSENT'
+  ).length;
   const submissionStatusData = [
     { name: 'Approved / Logged', value: presentCount, color: '#2fb344' },
     { name: 'Pending', value: summary?.pendingApprovalsCount ?? 0, color: '#f59f00' },
@@ -68,8 +73,7 @@ export const TeamLeaderDashboard: React.FC = () => {
       planned: w.availableHours,
       actual: w.assignedHours,
       efficiency: `${w.utilizationPercentage.toFixed(1)}%`,
-      tasks: Math.round(w.assignedHours / 8),
-      overdue: w.utilizationPercentage > 120 ? 1 : 0,
+      load: `${w.assignedHours.toFixed(1)}h`,
       compliance: `${prod ? prod.productivityPercentage.toFixed(0) : '100'}%`
     };
   });
@@ -224,12 +228,11 @@ export const TeamLeaderDashboard: React.FC = () => {
                   <TableHead>
                     <TableRow sx={{ borderBottom: '2px solid #1d243a' }}>
                       <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Employee</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Planned</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Actual</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Eff %</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Tasks</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Overdue</TableCell>
-                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Compl %</TableCell>
+                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Avail. Hrs</TableCell>
+                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Assigned Hrs</TableCell>
+                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Util %</TableCell>
+                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Load</TableCell>
+                      <TableCell align="right" sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Productivity %</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -239,8 +242,7 @@ export const TeamLeaderDashboard: React.FC = () => {
                         <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.planned.toFixed(0)}</TableCell>
                         <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.actual.toFixed(0)}</TableCell>
                         <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem', fontWeight: 600 }}>{p.efficiency}</TableCell>
-                        <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.tasks}</TableCell>
-                        <TableCell align="right" sx={{ color: p.overdue > 0 ? '#ef4444' : '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.overdue}</TableCell>
+                        <TableCell align="right" sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem' }}>{p.load}</TableCell>
                         <TableCell align="right" sx={{ color: '#10b981', p: 0.5, fontSize: '0.75rem', fontWeight: 600 }}>{p.compliance}</TableCell>
                       </TableRow>
                     ))}
@@ -327,7 +329,34 @@ export const TeamLeaderDashboard: React.FC = () => {
           <Card sx={{ p: 2, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', minHeight: 300 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>UPCOMING DEADLINES (Next 7 Days)</Typography>
             <Divider sx={{ borderColor: '#1d243a', mb: 1.5 }} />
-            <Box sx={{ p: 3, textAlign: 'center', color: '#94a3b8' }}>No upcoming task deadlines in DB</Box>
+            {deadlinesLoading ? (
+              <Box sx={{ p: 3, textAlign: 'center', color: '#94a3b8' }}>Loading...</Box>
+            ) : upcomingDeadlines.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center', color: '#94a3b8' }}>No upcoming deadlines in the next 7 days</Box>
+            ) : (
+              <TableContainer component={Paper} sx={{ bgcolor: 'transparent', boxShadow: 'none' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ borderBottom: '2px solid #1d243a' }}>
+                      <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Task</TableCell>
+                      <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Project</TableCell>
+                      <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Due Date</TableCell>
+                      <TableCell sx={{ color: '#94a3b8', fontWeight: 700, p: 0.5, fontSize: '0.75rem' }}>Assignee</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {upcomingDeadlines.map((d, idx) => (
+                      <TableRow key={idx} sx={{ borderBottom: '1px solid #1d243a', '&:hover': { bgcolor: '#172033' } }}>
+                        <TableCell sx={{ color: '#ffffff', p: 0.5, fontSize: '0.75rem', fontWeight: 600 }}>{d.title}</TableCell>
+                        <TableCell sx={{ color: '#94a3b8', p: 0.5, fontSize: '0.75rem' }}>{d.projectName}</TableCell>
+                        <TableCell sx={{ color: '#f59f00', p: 0.5, fontSize: '0.75rem' }}>{d.plannedDeliveryDate || 'N/A'}</TableCell>
+                        <TableCell sx={{ color: '#94a3b8', p: 0.5, fontSize: '0.75rem' }}>{d.assigneeName || 'Unassigned'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
           </Card>
         </Grid>
 

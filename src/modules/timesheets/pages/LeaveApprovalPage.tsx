@@ -48,16 +48,14 @@ const STATUS_CONFIG: Record<
 
 const fmtDate = (d?: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  const date = new Date(d.includes('T') ? d : d + 'T12:00:00');
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const fmtDateShort = (d?: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const date = new Date(d.includes('T') ? d : d + 'T12:00:00');
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
 // ==========================================

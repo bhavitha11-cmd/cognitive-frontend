@@ -31,22 +31,24 @@ export const ProjectDashboard: React.FC = () => {
   const actualHoursVal = summary?.actualHours ?? 0.00;
   const remainingHoursVal = summary?.remainingHours ?? 0.00;
   const completionPctVal = summary?.completionPercentage ?? 0.00;
-  const plannedVsActualPct = 0.0; // calculated on backend
-  
+  const plannedVsActualPct = plannedHoursVal > 0
+    ? Math.round(((actualHoursVal / plannedHoursVal) * 100) * 10) / 10
+    : 0;
+
   const kpis = [
     { title: 'PLANNED HOURS', value: plannedHoursVal.toFixed(2), desc: 'Hours', color: '#206bc4', icon: <FolderIcon sx={{ color: '#ffffff' }} /> },
     { title: 'ACTUAL HOURS', value: actualHoursVal.toFixed(2), desc: 'Hours', color: '#2fb344', icon: <QueryBuilderIcon sx={{ color: '#ffffff' }} /> },
     { title: 'REMAINING HOURS', value: remainingHoursVal.toFixed(2), desc: 'Hours', color: '#f59f00', icon: <QueryBuilderIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'COMPLETION %', value: `${completionPctVal.toFixed(2)}%`, desc: (summary as any)?.status || 'On Track', color: '#16a34a', icon: <FolderIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'COMPLETION %', value: `${completionPctVal.toFixed(2)}%`, desc: 'On Track', color: '#16a34a', icon: <FolderIcon sx={{ color: '#ffffff' }} /> },
     { title: 'PLANNED VS ACTUAL', value: `${plannedVsActualPct > 0 ? '+' : ''}${plannedVsActualPct.toFixed(2)}%`, desc: plannedVsActualPct < 0 ? 'Under Planned' : 'Over Planned', color: '#00bcd4', icon: <QueryBuilderIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'ESTIMATED END DATE', value: (summary as any)?.estimatedEndDate || 'N/A', desc: `0 Days Delay`, color: '#d63939', icon: <CalendarMonthIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'ESTIMATED END DATE', value: summary?.deliveryDate || 'N/A', desc: `Delivery Date`, color: '#d63939', icon: <CalendarMonthIcon sx={{ color: '#ffffff' }} /> },
   ];
 
   // 2. S-Curve Cumulative Hours mapping
-  const cumulativeHoursData = (charts?.burnCurve ?? []).map((b: any) => ({
+  const cumulativeHoursData = (charts?.burnCurve ?? []).map((b) => ({
     date: b.date,
-    plannedCumulativeHours: b.plannedCumulativeHours ?? b.planned_cumulative_hours,
-    actualCumulativeHours: b.actualCumulativeHours ?? b.actual_cumulative_hours
+    plannedCumulativeHours: b.plannedCumulativeHours,
+    actualCumulativeHours: b.actualCumulativeHours
   }));
 
   // 3. Task Status Donut mapping
@@ -58,57 +60,41 @@ export const ProjectDashboard: React.FC = () => {
 
   const totalTasksSum = taskStatusData.reduce((acc, curr) => acc + curr.value, 0);
 
-  // 4. Category Hours mapping
-  const categoryHoursData = ((charts as any)?.categoryHours ?? []).map((c: any, idx: number) => ({
-    name: c.categoryName,
-    value: c.actualHours,
+  // 4. Top Time Consuming Tasks mapping (replaces categoryHours which backend does not provide)
+  const topTasksData = (charts?.topTimeConsumingTasks ?? []).map((t, idx) => ({
+    name: t.title,
+    value: t.actualHours,
     color: ['#206bc4', '#2fb344', '#f59f00', '#ae3ec9', '#00bcd4'][idx % 5]
   }));
 
-  // 5. Task Wise Progress mapping
-  const taskWiseProgress = ((charts as any)?.tasksProgress ?? []).map((t: any, idx: number) => ({
-    id: `T-0${idx + 1}`,
-    name: t.taskName,
-    planned: t.plannedHours,
+  // 5. Task Wise Progress mapping — backend provides topTimeConsumingTasks (not tasksProgress)
+  const taskWiseProgress = (charts?.topTimeConsumingTasks ?? []).map((t, idx) => ({
+    id: t.taskCode || `T-0${idx + 1}`,
+    name: t.title,
+    planned: t.estimatedHours,
     actual: t.actualHours,
-    remaining: Math.max(0, t.plannedHours - t.actualHours),
-    progress: t.progressPercentage,
-    status: t.status,
-    color: t.status === 'COMPLETED' ? '#2fb344' : '#206bc4',
-    assignee: t.assigneeName || 'Unassigned'
+    remaining: Math.max(0, t.estimatedHours - t.actualHours),
+    progress: t.estimatedHours > 0 ? Math.min(100, Math.round((t.actualHours / t.estimatedHours) * 100)) : 0,
+    status: t.actualHours >= t.estimatedHours ? 'COMPLETED' : 'IN_PROGRESS',
+    color: t.actualHours >= t.estimatedHours ? '#2fb344' : '#206bc4',
+    assignee: 'N/A'
   }));
 
   // 6. Ideal vs Actual Remaining Burn Down mapping
-  const burnDownData = (charts?.burnCurve ?? []).map((b: any) => ({
+  const burnDownData = (charts?.burnCurve ?? []).map((b) => ({
     date: b.date,
-    ideal: Math.max(0, plannedHoursVal - (b.plannedCumulativeHours ?? b.planned_cumulative_hours)),
-    actual: Math.max(0, plannedHoursVal - (b.actualCumulativeHours ?? b.actual_cumulative_hours))
+    ideal: Math.max(0, plannedHoursVal - b.plannedCumulativeHours),
+    actual: Math.max(0, plannedHoursVal - b.actualCumulativeHours)
   }));
 
-  // 7. Top Contributors mapping
-  const contributors = ((charts as any)?.contributors ?? []).map((c: any) => ({
-    name: c.employeeName,
-    hours: c.actualHours,
-    pct: `${c.contributionPercentage.toFixed(2)}%`
-  }));
+  // 7. Top Contributors — not returned by backend; section shows empty state
+  const contributors: Array<{ name: string; hours: number; pct: string }> = [];
 
-  // 8. Milestones mapping
-  const milestones = ((charts as any)?.milestones ?? []).map((m: any) => ({
-    name: m.milestoneName,
-    planned: m.plannedDate,
-    actual: m.actualDate || 'Pending',
-    status: m.status,
-    color: m.status === 'COMPLETED' ? 'success' : m.status === 'DELAYED' ? 'warning' : 'error'
-  }));
+  // 8. Milestones — not returned by backend; section shows empty state
+  const milestones: Array<{ name: string; planned: string; actual: string; status: string; color: string }> = [];
 
-  // 9. Issues mapping
-  const issues = ((charts as any)?.issues ?? []).map((i: any) => ({
-    desc: i.description,
-    impact: i.severity,
-    status: i.status,
-    color: i.severity === 'HIGH' ? 'error' : i.severity === 'MEDIUM' ? 'warning' : 'info',
-    owner: i.ownerName || 'Unassigned'
-  }));
+  // 9. Issues — not returned by backend; section shows empty state
+  const issues: Array<{ desc: string; impact: string; status: string; color: string; owner: string }> = [];
 
   const handleRefreshData = () => {
     refetchSummary();
@@ -146,8 +132,8 @@ export const ProjectDashboard: React.FC = () => {
                 { label: 'Project Code', val: summary?.projectCode || 'N/A' },
                 { label: 'Customer', val: summary?.customerName || 'N/A' },
                 { label: 'Project Manager', val: summary?.projectManagerName || 'N/A' },
-                { label: 'Start Date', val: 'N/A' },
-                { label: 'Status', val: <Chip label={(summary as any)?.status || "N/A"} size="small" sx={{ fontSize: '0.6875rem', fontWeight: 800 }} /> }
+                { label: 'Delivery Date', val: summary?.deliveryDate || 'N/A' },
+                { label: 'Completion', val: <Chip label={`${summary?.completionPercentage?.toFixed(0) ?? 0}%`} size="small" sx={{ fontSize: '0.6875rem', fontWeight: 800 }} /> }
               ].map((item, idx) => (
                 <Grid size={{ xs: 6, sm: 3, md: 2.4 }} key={idx} sx={{ borderRight: idx < 4 ? '1px solid #1d243a' : 'none' }}>
                   <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block' }}>{item.label}</Typography>
@@ -274,17 +260,17 @@ export const ProjectDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 4 }}>
           <WidgetErrorBoundary title="Category Hours Chart" onRetry={refetchCharts}>
             <Card sx={{ p: 2, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', height: 350, display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>HOURS BY TASK CATEGORY</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>TOP TASKS BY HOURS</Typography>
               <Divider sx={{ borderColor: '#1d243a', mb: 2 }} />
-              {categoryHoursData.length === 0 ? (
-                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No category hours recorded</Box>
+              {topTasksData.length === 0 ? (
+                <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No task hours recorded</Box>
               ) : (
                 <>
                   <Box sx={{ position: 'relative', height: 185, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <ResponsiveContainer width="99%" height={185} minHeight={160}>
                       <PieChart>
                         <Pie
-                          data={categoryHoursData}
+                          data={topTasksData}
                           dataKey="value"
                           cx="50%"
                           cy="50%"
@@ -292,7 +278,7 @@ export const ProjectDashboard: React.FC = () => {
                           outerRadius={70}
                           paddingAngle={3}
                         >
-                          {categoryHoursData.map((entry: any, index: number) => (
+                          {topTasksData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
@@ -305,7 +291,7 @@ export const ProjectDashboard: React.FC = () => {
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
-                    {categoryHoursData.map((d: any, i: number) => (
+                    {topTasksData.map((d, i) => (
                       <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: d.color }} />

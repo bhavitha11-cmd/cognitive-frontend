@@ -260,6 +260,7 @@ export const useGetDailySummary = (employeeId?: string, summaryDate?: string) =>
       const data = response.data?.data?.summary || response.data?.summary || {};
       return mapDailySummary(data);
     },
+    enabled: !!summaryDate,
   });
 };
 

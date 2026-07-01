@@ -5,7 +5,7 @@ import type {
   DashboardStats, PlanVsActualData, UtilizationData, DepartmentLoad, OverdueTask, ClientPerfData, ScopeDist,
   CalendarEvent, PlanVsActualProject, EmployeeUtil, ExecutiveSummary, ExecutiveCharts, ExecutiveAlerts,
   ExecutiveRecentActivities, ProjectSummary, ProjectCharts, TeamLeadSummary, TeamLeadCharts, TeamMemberAttendance,
-  EmployeeSummary, EmployeeCharts, EmployeePerformanceRow
+  EmployeeSummary, EmployeeCharts, EmployeePerformanceRow, PendingScheduleReviewWidgetData
 } from '../types';
 
 interface ApiResponse<T> {
@@ -129,9 +129,9 @@ const mapCalendarEvent = (e: any): CalendarEvent => ({
   title: e.title,
   start: e.start,
   allDay: e.all_day ?? false,
-  backgroundColor: e.backgroundColor ?? '#206bc4',
-  borderColor: e.borderColor ?? '#206bc4',
-  textColor: e.textColor ?? '#ffffff',
+  backgroundColor: e.backgroundColor ?? e.background_color ?? '#206bc4',
+  borderColor: e.borderColor ?? e.border_color ?? '#206bc4',
+  textColor: e.textColor ?? e.text_color ?? '#ffffff',
   extendedProps: e.extendedProps ? {
     type: e.extendedProps.type ?? '',
     status: e.extendedProps.status,
@@ -141,7 +141,7 @@ const mapCalendarEvent = (e: any): CalendarEvent => ({
   } : undefined,
 });
 
-const useCanViewAnalytics = () =>
+export const useCanViewAnalytics = () =>
   useAuthStore((s) => {
     const isSuperAdmin = s.roleCodes.some((c) =>
       ['ADMIN', 'CEO', 'CHIEF_EXECUTIVE_OFFICER', 'ADMINISTRATOR'].includes(c)
@@ -340,7 +340,7 @@ export const useGetExecutiveAlerts = () => {
     refetchOnReconnect: true,
     queryFn: async () => {
       const res = await api.get<ApiResponse<ExecutiveAlerts>>('/dashboard-analytics/executive/alerts');
-      return res.data.data.alerts;
+      return res.data.data?.alerts ?? [];
     },
   });
 };
@@ -359,7 +359,7 @@ export const useGetExecutiveRecentProjects = () => {
     refetchOnReconnect: true,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/dashboard-analytics/executive/recent-projects');
-      return res.data.data.projects;
+      return res.data.data?.projects ?? [];
     },
   });
 };
@@ -378,7 +378,7 @@ export const useGetExecutiveRecentActivities = () => {
     refetchOnReconnect: true,
     queryFn: async () => {
       const res = await api.get<ApiResponse<ExecutiveRecentActivities>>('/dashboard-analytics/executive/recent-activities');
-      return res.data.data.activities;
+      return res.data.data?.activities ?? [];
     },
   });
 };
@@ -467,7 +467,7 @@ export const useGetTeamLeadAttendance = () => {
     refetchOnReconnect: true,
     queryFn: async () => {
       const res = await api.get<ApiResponse<any>>('/dashboard-analytics/team-leader/attendance');
-      return res.data.data.attendance as TeamMemberAttendance[];
+      return (res.data.data?.attendance ?? []) as TeamMemberAttendance[];
     },
   });
 };
@@ -525,8 +525,34 @@ export const useGetPerformanceRankings = (departmentId?: string, teamId?: string
       if (fromDate) params.from_date = fromDate;
       if (toDate) params.to_date = toDate;
       const res = await api.get<ApiResponse<any>>('/dashboard-analytics/performance/rankings', { params });
-      return res.data.data.rankings as EmployeePerformanceRow[];
+      return (res.data.data?.rankings ?? []) as EmployeePerformanceRow[];
     },
   });
 };
+
+export const useGetPendingScheduleReviews = () => {
+  const enabled = useAuthStore((s) => s.hasPermission('Projects', 'view'));
+  return useQuery({
+    queryKey: ['dashboard', 'pending-schedule-reviews'],
+    staleTime: 10000,
+    enabled,
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<{ reviews: any[]; count: number }>>('/dashboard/pending-schedule-reviews');
+      const raw = res.data.data.reviews ?? [];
+      return raw.map((r: any): PendingScheduleReviewWidgetData => ({
+        id: r.id,
+        holidayId: r.holiday_id,
+        holidayName: r.holiday_name,
+        holidayDate: r.holiday_date,
+        projectId: r.project_id,
+        projectName: r.project_name,
+        projectCode: r.project_code,
+        projectManagerName: r.project_manager_name ?? null,
+        reviewStatus: r.review_status,
+        createdAt: r.created_at,
+      }));
+    },
+  });
+};
+
 

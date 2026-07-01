@@ -49,15 +49,6 @@ export const EmployeeListPage: React.FC = () => {
   useGetDepartments();
   useGetRoles();
 
-  // Employee data
-  const query = useGetEmployees();
-  const createMut = useCreateEmployee();
-  const updateMut = useUpdateEmployee();
-  const deactivateMut = useDeactivateEmployee();
-  const deleteMut = useDeleteEmployee();
-  const bulkDeactivateMut = useBulkDeactivateEmployees();
-  const bulkDeleteMut = useBulkDeleteEmployees();
-
   // Reference data from store
   const departments = useHRStore((state) => state.departments);
   const roles = useHRStore((state) => state.roles);
@@ -69,6 +60,21 @@ export const EmployeeListPage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Employee data (server-side pagination)
+  const query = useGetEmployees({
+    search: searchQuery || undefined,
+    skip: page * rowsPerPage,
+    limit: rowsPerPage,
+    departmentId: deptFilter !== 'all' ? deptFilter : undefined,
+    accountStatus: statusFilter !== 'all' ? statusFilter : undefined,
+  });
+  const createMut = useCreateEmployee();
+  const updateMut = useUpdateEmployee();
+  const deactivateMut = useDeactivateEmployee();
+  const deleteMut = useDeleteEmployee();
+  const bulkDeactivateMut = useBulkDeactivateEmployees();
+  const bulkDeleteMut = useBulkDeleteEmployees();
 
   // Modals & Dialogs
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -230,26 +236,13 @@ export const EmployeeListPage: React.FC = () => {
 
   const getManagerName = (id?: string) => {
     if (!id) return 'CEO';
-    const mgr = query.data?.find((e) => e.id === id);
+    const mgr = query.data?.employees?.find((e) => e.id === id);
     return mgr ? `${mgr.firstName} ${mgr.lastName}` : 'CEO';
   };
 
-  // Filtering
-  const data = query.data || [];
-  const filteredEmployees = data.filter((emp) => {
-    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
-    const matchesSearch =
-      fullName.includes(searchQuery.toLowerCase()) ||
-      emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      emp.id.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesDept = deptFilter === 'all' || emp.departmentId === deptFilter;
-    const matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
-
-    return matchesSearch && matchesDept && matchesStatus;
-  });
-
-  const paginatedEmployees = filteredEmployees.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // Server-side filtered and paginated data
+  const paginatedEmployees = query.data?.employees || [];
+  const totalCount = query.data?.total ?? 0;
 
   const columns: Column<Employee>[] = [
     {
@@ -403,6 +396,7 @@ export const EmployeeListPage: React.FC = () => {
         { value: 'PROBATION', label: 'Probation' },
         { value: 'NOTICE_PERIOD', label: 'Notice Period' },
         { value: 'ON_LEAVE', label: 'On Leave' },
+        { value: 'INACTIVE', label: 'Inactive' },
         { value: 'SUSPENDED', label: 'Suspended' },
         { value: 'RESIGNED', label: 'Resigned' },
         { value: 'TERMINATED', label: 'Terminated' },
@@ -469,7 +463,7 @@ export const EmployeeListPage: React.FC = () => {
           bulkActions={bulkActionButtons}
           page={page}
           rowsPerPage={rowsPerPage}
-          totalCount={filteredEmployees.length}
+          totalCount={totalCount}
           onPageChange={setPage}
           onRowsPerPageChange={setRowsPerPage}
         />

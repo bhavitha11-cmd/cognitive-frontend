@@ -324,3 +324,17 @@ export interface PerformanceRankingsResponse {
   rankings: EmployeePerformanceRow[]
 }
 
+export interface PendingScheduleReviewWidgetData {
+  id: string
+  holidayId: string
+  holidayName: string
+  holidayDate: string
+  projectId: string
+  projectName: string
+  projectCode: string
+  projectManagerName?: string | null
+  reviewStatus: string
+  createdAt: string
+}
+
+

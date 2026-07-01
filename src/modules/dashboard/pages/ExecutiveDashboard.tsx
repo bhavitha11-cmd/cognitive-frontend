@@ -51,11 +51,11 @@ export const ExecutiveDashboard: React.FC = () => {
     { title: 'WORKED HOURS', value: (summary?.actualHours ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 }), desc: `${workedPercentage}% of Planned`, color: '#2fb344', icon: <CheckCircleIcon sx={{ color: '#ffffff' }} /> },
     { title: 'REMAINING HOURS', value: remainingHours.toLocaleString(undefined, { maximumFractionDigits: 0 }), desc: 'To Complete', color: '#f59f00', icon: <WarningAmberIcon sx={{ color: '#ffffff' }} /> },
     { title: 'UTILIZATION', value: `${summary?.companyUtilizationPercentage ?? 0}%`, desc: 'Overall Utilization', color: '#00bcd4', icon: <GroupIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'BILLABLE %', value: summary?.companyUtilizationPercentage ? '94%' : '0%', desc: 'Billable Hours', color: '#2fb344', icon: <BarChartIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'UTILIZATION %', value: `${(summary?.companyUtilizationPercentage ?? 0).toFixed(1)}%`, desc: 'Company Utilization', color: '#2fb344', icon: <BarChartIcon sx={{ color: '#ffffff' }} /> },
     { title: 'COMPLETED PROJECTS', value: summary?.completedProjects ?? 0, desc: 'This Month', color: '#16a34a', icon: <CheckCircleIcon sx={{ color: '#ffffff' }} /> },
     { title: 'DELAYED PROJECTS', value: summary?.delayedProjects ?? 0, desc: 'Needs Attention', color: '#d63939', icon: <WarningAmberIcon sx={{ color: '#ffffff' }} /> },
     { title: 'OVER BUDGET PROJECTS', value: overBudgetCount, desc: 'Over Planned Hours', color: '#f76707', icon: <ReceiptIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'PENDING TASKS', value: summary?.pendingTimesheetsCount ?? 0, desc: 'Timesheet Approvals', color: '#f59f00', icon: <AssignmentIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'PENDING TIMESHEETS', value: summary?.pendingTimesheetsCount ?? 0, desc: 'Timesheet Approvals', color: '#f59f00', icon: <AssignmentIcon sx={{ color: '#ffffff' }} /> },
     { title: 'EMPLOYEES', value: summary?.employeesWorkingToday ?? 0, desc: 'Active Attendance', color: '#ae3ec9', icon: <GroupIcon sx={{ color: '#ffffff' }} /> },
     { title: 'REVENUE (EST.)', value: formattedRevenue, desc: 'Based on Logged Hours', color: '#2fb344', icon: <CurrencyRupeeIcon sx={{ color: '#ffffff' }} /> },
   ];
@@ -94,7 +94,7 @@ export const ExecutiveDashboard: React.FC = () => {
       const pct = p.plannedHours > 0 ? ((diff / p.plannedHours) * 100).toFixed(1) : '0';
       return {
         name: p.projectName,
-        customer: p.projectCode || 'Code',
+        customer: p.projectCode || p.projectName || '—',
         planned: p.plannedHours,
         actual: p.actualHours,
         remaining: p.plannedHours - p.actualHours,
@@ -180,7 +180,7 @@ export const ExecutiveDashboard: React.FC = () => {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {/* Project Health Donut */}
         <Grid size={{ xs: 12, md: 3 }}>
-          <WidgetErrorBoundary title="Project Health Chart" onRetry={refetchSummary}>
+          <WidgetErrorBoundary title="Project Health Chart" onRetry={refetchCharts}>
             <Card sx={{ p: 2, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', height: 350, display: 'flex', flexDirection: 'column' }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>PROJECT HEALTH</Typography>
               <Divider sx={{ borderColor: '#1d243a', mb: 2 }} />

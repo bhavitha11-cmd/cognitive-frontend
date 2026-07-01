@@ -53,7 +53,8 @@ const CapacityPlanningPage: React.FC = () => {
   const [editingSchedule, setEditingSchedule] = useState<EmployeeSchedule | null>(null);
   const [editHours, setEditHours] = useState(0);
 
-  const { data: employees } = useGetEmployees();
+  const { data: employeesData } = useGetEmployees();
+  const employees = employeesData?.employees;
   const { data: capacity, isLoading: capLoading, isError: capError } = useGetEmployeeCapacity(
     loaded ? employeeId : '',
     loaded ? fromDate : '',

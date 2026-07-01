@@ -100,11 +100,7 @@ export const LoginPage: React.FC = () => {
         <CardContent sx={{ p: 4, textAlign: 'center' }}>
           {/* Logo & Header */}
           <Avatar
-            onClick={() => {
-              setUsername('admin');
-              setPassword('AdminPassword123!');
-              setError(null);
-            }}
+            onClick={() => { setUsername('admin'); setPassword('AdminPassword123!'); }}
             sx={{
               m: '0 auto 16px',
               bgcolor: 'primary.main',
@@ -112,17 +108,7 @@ export const LoginPage: React.FC = () => {
               height: 52,
               boxShadow: '0 4px 12px rgba(32, 107, 196, 0.4)',
               cursor: 'pointer',
-              transition: 'all 0.2s ease-in-out',
-              '&:hover': {
-                transform: 'scale(1.08)',
-                bgcolor: 'primary.dark',
-                boxShadow: '0 6px 16px rgba(32, 107, 196, 0.6)',
-              },
-              '&:active': {
-                transform: 'scale(0.95)',
-              }
             }}
-            title="Autofill Admin Credentials"
           >
             <LockOutlinedIcon sx={{ fontSize: 28 }} />
           </Avatar>

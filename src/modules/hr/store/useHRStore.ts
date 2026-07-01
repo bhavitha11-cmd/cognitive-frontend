@@ -101,7 +101,7 @@ export const useHRStore = create<HRState>()(
 
       deactivateEmployee: (id) =>
         set((state) => ({
-          employees: state.employees.map((e) => (e.id === id ? { ...e, status: 'SUSPENDED' as const } : e)),
+          employees: state.employees.map((e) => (e.id === id ? { ...e, status: 'INACTIVE' as const } : e)),
         })),
 
       bulkDeleteEmployees: (ids) =>
@@ -111,7 +111,7 @@ export const useHRStore = create<HRState>()(
 
       bulkDeactivateEmployees: (ids) =>
         set((state) => ({
-          employees: state.employees.map((e) => (ids.includes(e.id) ? { ...e, status: 'SUSPENDED' as const } : e)),
+          employees: state.employees.map((e) => (ids.includes(e.id) ? { ...e, status: 'INACTIVE' as const } : e)),
         })),
 
       // Attendance Actions

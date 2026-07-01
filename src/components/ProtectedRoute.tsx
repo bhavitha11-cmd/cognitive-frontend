@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router';
+import { Box, CircularProgress } from '@mui/material';
 import { useAuthStore } from '../store/useAuthStore';
 import { AccessDeniedPage } from './AccessDeniedPage';
 
@@ -29,6 +30,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Not logged in at all
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Token exists but store not yet hydrated — show loading spinner
+  if (token && !isAuthenticated) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
   }
 
   // If a module/action guard is specified, check permissions

@@ -191,3 +191,132 @@ export const useGetHolidays = () => {
   });
 };
 
+// ==========================================
+// PENDING SCHEDULE REVIEW HOOKS
+// ==========================================
+
+export interface ProjectImpact {
+  projectId: string;
+  projectName: string;
+  currentStartDate: string;
+  currentEndDate: string;
+  proposedStartDate: string;
+  proposedEndDate: string;
+  deliveryRisk: string;
+  affectedTasksCount: number;
+}
+
+export interface TaskImpact {
+  taskId: string;
+  taskName: string;
+  assignedEmployeeName: string | null;
+  currentStatus: string;
+  currentStartDate: string;
+  currentEndDate: string;
+  proposedStartDate: string;
+  proposedEndDate: string;
+  dependencyInfo: string | null;
+}
+
+export interface ImpactAnalysis {
+  reviewId: string;
+  reviewStatus: string;
+  holidayId: string;
+  holidayName: string;
+  holidayDate: string;
+  project: ProjectImpact | null;
+  affectedTasks: TaskImpact[];
+}
+
+export const useGetImpactAnalysis = (reviewId: string) => {
+  return useQuery<ImpactAnalysis>({
+    queryKey: ['schedule-reviews', reviewId, 'impact-analysis'],
+    queryFn: async () => {
+      const response = await api.get(`/schedule-reviews/${reviewId}/impact-analysis`);
+      const data = response.data?.data || {};
+      const proj = data.project;
+      const tasks = data.affected_tasks || [];
+
+      return {
+        reviewId: data.review_id,
+        reviewStatus: data.review_status,
+        holidayId: data.holiday_id,
+        holidayName: data.holiday_name,
+        holidayDate: data.holiday_date,
+        project: proj ? {
+          projectId: proj.project_id,
+          projectName: proj.project_name,
+          currentStartDate: proj.current_start_date,
+          currentEndDate: proj.current_end_date,
+          proposedStartDate: proj.proposed_start_date,
+          proposedEndDate: proj.proposed_end_date,
+          deliveryRisk: proj.delivery_risk,
+          affectedTasksCount: proj.affected_tasks_count,
+        } : null,
+        affectedTasks: tasks.map((t: any): TaskImpact => ({
+          taskId: t.task_id,
+          taskName: t.task_name,
+          assignedEmployeeName: t.assigned_employee_name,
+          currentStatus: t.current_status,
+          currentStartDate: t.current_start_date,
+          currentEndDate: t.current_end_date,
+          proposedStartDate: t.proposed_start_date,
+          proposedEndDate: t.proposed_end_date,
+          dependencyInfo: t.dependency_info,
+        })),
+      };
+    },
+    enabled: !!reviewId,
+  });
+};
+
+export interface DateOverride {
+  id: string;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
+}
+
+export interface ApplyReviewPayload {
+  projectUpdates: DateOverride[];
+  taskUpdates: DateOverride[];
+}
+
+export const useApplyScheduleReview = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reviewId, data }: { reviewId: string; data: ApplyReviewPayload }) => {
+      const payload = {
+        project_updates: data.projectUpdates.map(p => ({
+          project_id: p.id,
+          planned_start_date: p.plannedStartDate || null,
+          planned_end_date: p.plannedEndDate || null,
+        })),
+        task_updates: data.taskUpdates.map(t => ({
+          task_id: t.id,
+          planned_start_date: t.plannedStartDate || null,
+          planned_end_date: t.plannedEndDate || null,
+        })),
+      };
+      const response = await api.post(`/schedule-reviews/${reviewId}/apply`, payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'pending-schedule-reviews'] });
+    },
+  });
+};
+
+export const useRejectScheduleReview = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reviewId, notes }: { reviewId: string; notes?: string }) => {
+      const response = await api.post(`/schedule-reviews/${reviewId}/reject`, { notes });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'pending-schedule-reviews'] });
+    },
+  });
+};
+
+

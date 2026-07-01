@@ -17,12 +17,16 @@ import {
 } from 'recharts';
 
 import { useGetPerformanceRankings } from '../services/dashboardService';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 export const EmployeePerformanceDashboard: React.FC = () => {
-  const [departmentId] = useState<string>('');
-  const [teamId] = useState<string>('');
-  const [fromDate] = useState<string>('');
-  const [toDate] = useState<string>('');
+  const { hasPermission } = useAuthStore();
+  const canViewPerformance = hasPermission('HR', 'view') || hasPermission('Analytics', 'view');
+
+  const [departmentId, setDepartmentId] = useState<string>('');
+  const [teamId, setTeamId] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
 
   const { data: rankings = [], refetch } = useGetPerformanceRankings(
     departmentId || undefined,
@@ -55,7 +59,7 @@ export const EmployeePerformanceDashboard: React.FC = () => {
     avgUtilization = totalUtil / rankings.length;
     taskCompletionPct = totalTaskPct / rankings.length;
     timesheetComplianceVal = totalComp / rankings.length;
-    avgQualityScore = avgPerfScore * 1.05; // Estimate quality based on performance
+    avgQualityScore = avgPerfScore; // Use actual performance score — no fabrication
 
     // Format tasks completed count
     const totalPlanned = rankings.reduce((acc: number, curr: any) => acc + (curr.plannedHours ?? curr.planned_hours ?? 0), 0);
@@ -69,7 +73,7 @@ export const EmployeePerformanceDashboard: React.FC = () => {
     { title: 'AVG. UTILIZATION %', value: `${avgUtilization.toFixed(1)}%`, desc: 'This Month', color: '#00bcd4', icon: <AccessTimeIcon sx={{ color: '#ffffff' }} /> },
     { title: 'TASKS COMPLETED', value: tasksCompletedText, desc: `${taskCompletionPct.toFixed(1)}%`, color: '#16a34a', icon: <ChecklistIcon sx={{ color: '#ffffff' }} /> },
     { title: 'TIMESHEET COMPLIANCE', value: `${timesheetComplianceVal.toFixed(1)}%`, desc: 'This Month', color: '#f59f00', icon: <ChecklistIcon sx={{ color: '#ffffff' }} /> },
-    { title: 'QUALITY SCORE (AVG.)', value: `${Math.min(100, avgQualityScore).toFixed(1)} / 100`, desc: avgQualityScore >= 80 ? 'Good' : 'Fair', color: '#ae3ec9', icon: <EmojiEventsIcon sx={{ color: '#ffffff' }} /> },
+    { title: 'PRODUCTIVITY SCORE (AVG.)', value: `${Math.min(100, avgQualityScore).toFixed(1)} / 100`, desc: avgQualityScore >= 80 ? 'Good' : 'Fair', color: '#ae3ec9', icon: <EmojiEventsIcon sx={{ color: '#ffffff' }} /> },
   ];
 
   // 2. Score Distribution calculation
@@ -135,7 +139,7 @@ export const EmployeePerformanceDashboard: React.FC = () => {
         efficiency: `${(r.efficiencyScore ?? r.efficiency_score).toFixed(1)}%`,
         utilization: `${(r.utilizationPercentage ?? r.utilization_percentage).toFixed(1)}%`,
         tasks: `${Math.round((r.actualHours ?? r.actual_hours)/8)}/${Math.round((r.plannedHours ?? r.planned_hours)/8 || 1)}`,
-        quality: `${Math.round((r.productivityScore ?? r.productivity_score) * 1.05)}/100`,
+        quality: `${Math.round(r.productivityScore ?? r.productivity_score ?? 0)}/100`,
         compliance: `${(r.timesheetComplianceScore ?? r.timesheet_compliance_score).toFixed(0)}%`
       }))
     : [];
@@ -151,18 +155,27 @@ export const EmployeePerformanceDashboard: React.FC = () => {
       }))
     : [];
 
+  const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   const monthlyTrend = hasRealData ? [
-    { name: 'May 2025', score: avgPerfScore, efficiency: avgEfficiency }
+    { name: currentMonth, score: avgPerfScore, efficiency: avgEfficiency }
   ] : [];
 
   const parameters = hasRealData ? [
-    { name: 'Planned vs Actual Hours', weightage: '30%', score: `${(avgPerfScore * 1.01).toFixed(1)} / 100`, val: Math.min(100, avgPerfScore * 1.01) },
-    { name: 'Timely Task Completion', weightage: '20%', score: `${(avgPerfScore * 1.04).toFixed(1)} / 100`, val: Math.min(100, avgPerfScore * 1.04) },
-    { name: 'Quality of Work', weightage: '20%', score: `${avgQualityScore.toFixed(1)} / 100`, val: Math.min(100, avgQualityScore) },
+    { name: 'Avg. Efficiency', weightage: '30%', score: `${avgEfficiency.toFixed(1)} / 100`, val: Math.min(100, avgEfficiency) },
+    { name: 'Task Completion', weightage: '20%', score: `${taskCompletionPct.toFixed(1)} / 100`, val: Math.min(100, taskCompletionPct) },
+    { name: 'Productivity Score', weightage: '20%', score: `${avgPerfScore.toFixed(1)} / 100`, val: Math.min(100, avgPerfScore) },
     { name: 'Timesheet Compliance', weightage: '10%', score: `${timesheetComplianceVal.toFixed(1)} / 100`, val: timesheetComplianceVal }
   ] : [];
 
   const totalEmployeesCount = rankings.length;
+
+  if (!canViewPerformance) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography color="error">You don't have permission to view performance data.</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ bgcolor: '#090d16', color: '#ffffff', minHeight: '100vh', p: 3 }}>
@@ -176,14 +189,14 @@ export const EmployeePerformanceDashboard: React.FC = () => {
             </Box>
           </Grid>
           <Grid size={{ xs: 12, md: 8 }} sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <TextField select size="small" defaultValue="May 2025" slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="May 2025">Month: May 2025</option>
+            <TextField select size="small" value={fromDate || ''} onChange={(e) => setFromDate(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
+              <option value="">All Months</option>
             </TextField>
-            <TextField select size="small" defaultValue="All" slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="All">All Departments</option>
+            <TextField select size="small" value={departmentId || ''} onChange={(e) => setDepartmentId(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
+              <option value="">All Departments</option>
             </TextField>
-            <TextField select size="small" defaultValue="All" slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="All">All Team Leaders</option>
+            <TextField select size="small" value={teamId || ''} onChange={(e) => setTeamId(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
+              <option value="">All Teams</option>
             </TextField>
             <Button variant="outlined" startIcon={<DownloadIcon />} size="small" sx={{ borderColor: '#1d243a', color: '#ffffff' }} onClick={() => refetch()}>
               Refresh Data

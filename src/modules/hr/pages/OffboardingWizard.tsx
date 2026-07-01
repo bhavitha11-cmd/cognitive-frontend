@@ -18,7 +18,8 @@ export const OffboardingWizard: React.FC = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [offboardData, setOffboardData] = useState<any>(null);
 
-  const { data: employees } = useGetEmployees();
+  const { data: employeesData } = useGetEmployees();
+  const employees = employeesData?.employees;
   const offboardCheckMut = useOffboardCheck();
   const offboardConfirmMut = useOffboardConfirm();
 

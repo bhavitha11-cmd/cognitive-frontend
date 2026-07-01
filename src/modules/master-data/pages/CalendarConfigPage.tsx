@@ -243,8 +243,7 @@ export const CalendarConfigPage: React.FC = () => {
             setHolidayModalOpen(false);
             const holiday = response?.data?.holiday || response?.holiday || response;
             if (holidayForm.holidayType === 'EMERGENCY' && holiday?.id) {
-              setImpactHolidayId(holiday.id);
-              setImpactModalOpen(true);
+              showSnack('Emergency Holiday created successfully. Pending schedule reviews have been generated for Project Owners.');
             } else {
               showSnack('Holiday created successfully. Overlapping project/task deadlines recalculated.');
             }
@@ -1294,7 +1293,7 @@ export const CalendarConfigPage: React.FC = () => {
               </Typography>
 
               {/* Projects */}
-              <Typography variant="subtitle1" fontWeight={700} color="primary">Affected Projects ({impactData.affected_projects?.length || 0})</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }} color="primary">Affected Projects ({impactData.affected_projects?.length || 0})</Typography>
               {impactData.affected_projects && impactData.affected_projects.length > 0 ? (
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">
@@ -1327,7 +1326,7 @@ export const CalendarConfigPage: React.FC = () => {
               )}
 
               {/* Tasks */}
-              <Typography variant="subtitle1" fontWeight={700} color="primary">Affected Tasks ({impactData.affected_tasks?.length || 0})</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }} color="primary">Affected Tasks ({impactData.affected_tasks?.length || 0})</Typography>
               {impactData.affected_tasks && impactData.affected_tasks.length > 0 ? (
                 <TableContainer component={Paper} variant="outlined">
                   <Table size="small">

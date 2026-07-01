@@ -130,8 +130,8 @@ export const CreateTaskPage: React.FC = () => {
   const projects = projectData?.projects ?? [];
 
   // Active employees for task assignment
-  const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
-  const activeEmployees = employees || [];
+  const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const activeEmployees = employeesData?.employees || [];
 
   // Fetch project details reactively
   const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);

@@ -6,7 +6,6 @@ import {
   Typography,
   Box,
   Grid,
-  Chip,
   CircularProgress,
   Alert,
   Divider,
@@ -33,7 +32,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EventIcon from '@mui/icons-material/Event';
 import { useGetOverdueTasks, useGetUpcomingDeadlines } from '../../dashboard/services/dashboardService';
-import { useGetCalendarEvents } from '../../master-data/services/calendarConfigService';
+import { useGetCalendarConfigEvents } from '../../master-data/services/calendarConfigService';
 import type { EventClickArg } from '@fullcalendar/core';
 import { api } from '../../../utils/api';
 
@@ -46,7 +45,7 @@ export const CalendarPage: React.FC = () => {
     return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
   });
 
-  const { data: events = [], isLoading: eventsLoading } = useGetCalendarEvents(currentRange.start, currentRange.end);
+  const { data: events = [], isLoading: eventsLoading } = useGetCalendarConfigEvents(currentRange.start, currentRange.end);
   const { data: overdueTasks = [] } = useGetOverdueTasks();
   const { data: upcomingDeadlines = [] } = useGetUpcomingDeadlines(30);
 
@@ -290,7 +289,7 @@ export const CalendarPage: React.FC = () => {
               
               <Box>
                 <Typography variant="body2" color="textSecondary">Task details:</Typography>
-                <Typography variant="subtitle1" fontWeight={600}>{selectedRisk.taskCode}: {selectedRisk.taskTitle}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{selectedRisk.taskCode}: {selectedRisk.taskTitle}</Typography>
                 <Typography variant="body2">Remaining Hours: {selectedRisk.remainingHours} hrs</Typography>
               </Box>
               

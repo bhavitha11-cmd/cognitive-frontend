@@ -9,8 +9,9 @@ import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import RateReviewIcon from '@mui/icons-material/RateReview';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useGetDashboardStats, useGetOverdueTasks, useGetUpcomingDeadlines } from '../services/dashboardService';
+import { useGetDashboardStats, useGetOverdueTasks, useGetUpcomingDeadlines, useGetPendingScheduleReviews } from '../services/dashboardService';
 import { EmptyState } from '../../../components/EmptyState';
 
 export const PrivateDashboard: React.FC = () => {
@@ -18,6 +19,7 @@ export const PrivateDashboard: React.FC = () => {
   const { data: stats, isLoading: statsLoading, isError: statsError } = useGetDashboardStats();
   const { data: overdueTasks = [] } = useGetOverdueTasks();
   const { data: upcomingDeadlines = [] } = useGetUpcomingDeadlines(14);
+  const { data: pendingReviews = [] } = useGetPendingScheduleReviews();
 
   if (statsLoading) {
     return (
@@ -85,7 +87,7 @@ export const PrivateDashboard: React.FC = () => {
           <Card sx={{ p: 2.5, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Plan vs Actual — Top 5 Overrun Projects
+                Estimated vs Actual Hours (Company Total)
               </Typography>
               {topOverrun && (
                 <Chip
@@ -153,6 +155,69 @@ export const PrivateDashboard: React.FC = () => {
             </Box>
           </Card>
         </Grid>
+
+        {pendingReviews.length > 0 && (
+          <Grid size={{ xs: 12 }}>
+            <Card sx={{ display: 'flex', flexDirection: 'column', mb: 1 }}>
+              <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <RateReviewIcon color="warning" />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: 'warning.dark' }}>
+                    Pending Schedule Reviews ({pendingReviews.length})
+                  </Typography>
+                </Box>
+                <Chip label="Review Required" color="warning" size="small" sx={{ fontWeight: 600 }} />
+              </Box>
+              <Divider />
+              <Box sx={{ overflow: 'auto', maxHeight: 300 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Project Code</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Project Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Manager</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Emergency Holiday</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Holiday Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                      <TableCell sx={{ fontWeight: 600, align: 'right' }}>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendingReviews.map((review) => (
+                      <TableRow key={review.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>{review.projectCode}</TableCell>
+                        <TableCell>{review.projectName}</TableCell>
+                        <TableCell>{review.projectManagerName || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {review.holidayName}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          {review.holidayDate ? new Date(review.holidayDate).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label="Pending Review" size="small" color="warning" variant="outlined" />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="contained"
+                            color="warning"
+                            size="small"
+                            onClick={() => navigate(`/projects/reviews/${review.id}`)}
+                            sx={{ fontWeight: 600 }}
+                          >
+                            Review
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Card>
+          </Grid>
+        )}
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ display: 'flex', flexDirection: 'column', height: 400 }}>

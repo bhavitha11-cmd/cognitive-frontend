@@ -105,14 +105,15 @@ export const WeeklyTimesheetPage: React.FC = () => {
   const [rejectActionType, setRejectActionType] = useState<'REJECT' | 'RETURN'>('REJECT');
 
   const [page, setPage] = useState(0);
-  const rowsPerPage = 15;
+  const [rowsPerPage, setRowsPerPage] = useState(15);
 
   const weekDates = useMemo(() => getWeekDates(monday), [monday]);
   const dateFrom = formatDateISO(weekDates[0]);
   const dateTo = formatDateISO(weekDates[6]);
 
   // Queries
-  const { data: employees = [] } = useGetEmployees({ limit: 200 }, { enabled: isManagerOrAdmin });
+  const { data: employeesData } = useGetEmployees({ limit: 200 }, { enabled: isManagerOrAdmin });
+  const employees = employeesData?.employees ?? [];
 
   const { data: entriesData, isLoading: entriesLoading, refetch: refetchEntries } = useGetTimeEntries({
     employeeId: selectedEmployeeId || undefined,
@@ -570,9 +571,7 @@ export const WeeklyTimesheetPage: React.FC = () => {
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={(_e, p) => setPage(p)}
-            onRowsPerPageChange={() => {
-              setPage(0);
-            }}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt((e.target as HTMLInputElement).value, 10)); setPage(0); }}
           />
         )}
       </Card>

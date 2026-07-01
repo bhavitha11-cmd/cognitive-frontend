@@ -466,6 +466,42 @@ export const TaskListPage: React.FC = () => {
       ),
     },
     {
+      id: 'plannedStartDate',
+      label: 'Planned Start',
+      render: (row) => (
+        <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
+          {formatDate(row.plannedStartDate)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'plannedEndDate',
+      label: 'Planned End',
+      render: (row) => (
+        <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
+          {formatDate(row.plannedEndDate)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'actualStartDate',
+      label: 'Actual Start',
+      render: (row) => (
+        <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
+          {formatDate(row.actualStartDate)}
+        </Typography>
+      ),
+    },
+    {
+      id: 'actualEndDate',
+      label: 'Actual End',
+      render: (row) => (
+        <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
+          {formatDate(row.actualEndDate)}
+        </Typography>
+      ),
+    },
+    {
       id: 'estimatedHours',
       label: 'Est. Hrs',
       align: 'right',

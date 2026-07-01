@@ -77,12 +77,12 @@ export const CreateProjectPage: React.FC = () => {
 
   const createProject = useCreateProject();
   const { data: clientsData } = useGetClients({ limit: 200 });
-  const { data: employees } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
+  const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
   const { data: departments = [] } = useGetDepartments();
   const { data: holidays = [] } = useGetHolidays();
 
   const clients = clientsData?.clients || [];
-  const managers = employees || [];
+  const managers = employeesData?.employees || [];
 
   const {
     control,

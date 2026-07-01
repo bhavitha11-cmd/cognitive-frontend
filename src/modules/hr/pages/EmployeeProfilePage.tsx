@@ -6,7 +6,7 @@ import MailIcon from '@mui/icons-material/Mail';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import EventIcon from '@mui/icons-material/Event';
 
-import { useGetEmployees, useGetDepartments, useGetRoles } from '../services/hrService';
+import { useGetEmployee, useGetDepartments, useGetRoles } from '../services/hrService';
 import { useHRStore } from '../store/useHRStore';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { HierarchyTree } from '../../../components/HierarchyTree';
@@ -16,13 +16,11 @@ export const EmployeeProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: employees, isLoading } = useGetEmployees();
+  const { data: employee, isLoading } = useGetEmployee(id);
   useGetDepartments();
   const { data: roles } = useGetRoles();
 
   const departments = useHRStore((state) => state.departments);
-
-  const employee = employees?.find((e) => e.id === id);
 
   if (isLoading) {
     return (
@@ -55,35 +53,14 @@ export const EmployeeProfilePage: React.FC = () => {
   };
 
   const buildSupervisorTree = (emp: any): TreeNode => {
-    const chain: any[] = [];
-    let curr: any = emp;
-    const visited = new Set<string>();
-    while (curr && !visited.has(curr.id)) {
-      visited.add(curr.id);
-      chain.unshift(curr);
-      curr = curr.reportingManagerId ? employees?.find((e) => e.id === curr.reportingManagerId) : null;
-    }
-
-    const buildNode = (index: number): TreeNode => {
-      const item = chain[index];
-      const itemRoles = getRoleNames(item.roleIds).join(', ');
-
-      const node: TreeNode = {
-        id: item.id,
-        label: `${item.firstName} ${item.lastName}`,
-        subLabel: `${getDeptName(item.departmentId)} • ${itemRoles}`,
-        avatar: item.profilePhoto,
-        children: [],
-      };
-
-      if (index < chain.length - 1) {
-        node.children = [buildNode(index + 1)];
-      }
-
-      return node;
+    const itemRoles = getRoleNames(emp.roleIds).join(', ');
+    return {
+      id: emp.id,
+      label: `${emp.firstName} ${emp.lastName}`,
+      subLabel: `${getDeptName(emp.departmentId)} • ${itemRoles}`,
+      avatar: emp.profilePhoto,
+      children: [],
     };
-
-    return buildNode(0);
   };
 
   const hierarchyTreeData = buildSupervisorTree(employee);

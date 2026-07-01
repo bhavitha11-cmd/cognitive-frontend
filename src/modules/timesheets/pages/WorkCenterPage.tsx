@@ -494,7 +494,9 @@ export const WorkCenterPage: React.FC = () => {
 
   const handleConfirmSwitch = () => {
     if (pendingSwitchTask) {
-      handleStartTask(pendingSwitchTask.taskId, pendingSwitchTask.projectId, pendingSwitchTask.sessionType);
+      const task = pendingSwitchTask;
+      setPendingSwitchTask(null); // Clear BEFORE starting to prevent re-trigger
+      handleStartTask(task.taskId, task.projectId, task.sessionType);
     }
   };
 
