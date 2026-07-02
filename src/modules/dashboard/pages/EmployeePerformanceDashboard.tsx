@@ -238,7 +238,7 @@ export const EmployeePerformanceDashboard: React.FC = () => {
           <Card sx={{ p: 2, bgcolor: '#121824', borderColor: '#1d243a', border: '1px solid', color: '#ffffff', height: 350 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: '#94a3b8' }}>PERFORMANCE SCORE TREND</Typography>
             <Divider sx={{ borderColor: '#1d243a', mb: 2 }} />
-            <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+            <ResponsiveContainer width="99%" height={300} minHeight={0}>
               <LineChart data={monthlyTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} />

@@ -36,17 +36,32 @@ api.interceptors.request.use(
   }
 );
 
-// Intercept unauthorized requests and redirect to login
+// Intercept unauthorized requests: fully log out, then redirect to login.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('cognitive_token');
-      localStorage.removeItem('cognitive_user');
-      // Redirect to login page if window is defined
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      // Delegate to the auth store's logout so the SAME teardown runs as a
+      // manual logout: clears cognitive_token/user/profile, resets the
+      // persisted `cognitive-auth` (isAuthenticated/permissions), wipes the
+      // persisted HR store, and clears the React Query cache. Leaving
+      // `cognitive-auth` alive here previously kept isAuthenticated:true and
+      // stale permissions after a 401.
+      // Dynamic import avoids a circular dependency (useAuthStore imports api).
+      void import('../store/useAuthStore')
+        .then(({ useAuthStore }) => useAuthStore.getState().logout())
+        .catch(() => {
+          // Fallback: at minimum drop the raw token keys.
+          localStorage.removeItem('cognitive_token');
+          localStorage.removeItem('cognitive_user');
+          localStorage.removeItem('cognitive_profile');
+        })
+        .finally(() => {
+          // Redirect to login page if window is defined
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        });
     }
     return Promise.reject(error);
   }

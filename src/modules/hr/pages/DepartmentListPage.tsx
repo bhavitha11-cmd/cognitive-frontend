@@ -15,6 +15,7 @@ import {
   DialogActions,
   Grid,
   Divider,
+  TextField,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -29,7 +30,6 @@ import {
   useGetDepartments,
   useCreateDepartment,
   useUpdateDepartment,
-  useDeleteDepartment,
 } from '../services/hrService';
 import { DataTable } from '../../../components/DataTable';
 import type { Column } from '../../../components/DataTable';
@@ -48,7 +48,6 @@ export const DepartmentListPage: React.FC = () => {
   const query = useGetDepartments();
   const createMut = useCreateDepartment();
   const updateMut = useUpdateDepartment();
-  const deleteMut = useDeleteDepartment();
 
   const allDepartments = useHRStore((state) => state.departments);
 
@@ -62,7 +61,14 @@ export const DepartmentListPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | undefined>(undefined);
   const [viewingDept, setViewingDept] = useState<Department | null>(null);
-  const [deletingDeptId, setDeletingDeptId] = useState<string | null>(null);
+
+  // Status Change Dialog States
+  const [statusPromptOpen, setStatusPromptOpen] = useState(false);
+  const [pendingDeptData, setPendingDeptData] = useState<any>(null);
+  const [pendingStatus, setPendingStatus] = useState<'Active' | 'Inactive' | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusReasonError, setStatusReasonError] = useState('');
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -83,12 +89,14 @@ export const DepartmentListPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (data: any) => {
+  const executeDeptSave = (data: any, isEditOverride?: boolean) => {
     const { ...deptData } = data;
-    if (editingDept) {
-      console.log('[Frontend] Submitting department update for:', editingDept.id, deptData);
+    const isEdit = isEditOverride !== undefined ? isEditOverride : !!editingDept;
+    if (isEdit) {
+      const targetId = editingDept?.id || data.id;
+      console.log('[Frontend] Submitting department update for:', targetId, deptData);
       updateMut.mutate(
-        { id: editingDept.id, data: deptData },
+        { id: targetId, data: deptData },
         {
           onSuccess: (updatedDept) => {
             console.log('[Frontend] Department updated successfully:', updatedDept);
@@ -135,57 +143,53 @@ export const DepartmentListPage: React.FC = () => {
     }
   };
 
-  const handleToggleStatus = (dept: Department) => {
-    const newStatus = dept.status === 'Active' ? 'Inactive' : 'Active';
-    console.log(`[Frontend] Toggling status for department ${dept.id} to ${newStatus}`);
-    updateMut.mutate(
-      { id: dept.id, data: { status: newStatus } },
-      {
-        onSuccess: (updatedDept) => {
-          console.log('[Frontend] Department status toggled successfully:', updatedDept);
-          setSnackbar({
-            open: true,
-            message: `Department "${dept.name}" status updated to ${newStatus}.`,
-            severity: 'success',
-          });
-        },
-        onError: (err: any) => {
-          console.error('[Frontend] Failed to toggle department status:', err);
-          const msg = parseError(err);
-          setSnackbar({
-            open: true,
-            message: msg,
-            severity: 'error',
-          });
-        },
+  const handleFormSubmit = (data: any) => {
+    const { ...deptData } = data;
+    if (editingDept) {
+      const statusChanged = editingDept.status !== deptData.status;
+      if (statusChanged) {
+        setPendingDeptData({ ...editingDept, ...deptData });
+        setPendingStatus(deptData.status);
+        setStatusReason('');
+        setStatusReasonError('');
+        setStatusPromptOpen(true);
+        return;
       }
-    );
+    }
+    executeDeptSave(data);
   };
 
-  const handleDeleteConfirm = () => {
-    if (deletingDeptId) {
-      console.log('[Frontend] Initiating department deletion for ID:', deletingDeptId);
-      deleteMut.mutate(deletingDeptId, {
-        onSuccess: () => {
-          console.log('[Frontend] Department deleted successfully, ID:', deletingDeptId);
-          setDeletingDeptId(null);
-          setSnackbar({
-            open: true,
-            message: 'Department deleted successfully.',
-            severity: 'success',
-          });
-        },
-        onError: (err: any) => {
-          console.error('[Frontend] Failed to delete department:', err);
-          const msg = parseError(err);
-          setSnackbar({
-            open: true,
-            message: msg,
-            severity: 'error',
-          });
-        },
-      });
+  const handleToggleStatus = (dept: Department) => {
+    const newStatus = dept.status === 'Active' ? 'Inactive' : 'Active';
+    console.log(`[Frontend] Prompting status toggle for department ${dept.id} to ${newStatus}`);
+    setPendingDeptData(dept);
+    setPendingStatus(newStatus);
+    setStatusReason('');
+    setStatusReasonError('');
+    setStatusPromptOpen(true);
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusReason.trim()) {
+      setStatusReasonError('Reason is required.');
+      return;
     }
+    if (!pendingDeptData) return;
+
+    const currentDesc = pendingDeptData.description || '';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newDesc = currentDesc 
+      ? `${currentDesc}\n[${pendingStatus === 'Inactive' ? 'Deactivated' : 'Reactivated'} on ${todayStr}. Reason: ${statusReason}]`
+      : `[${pendingStatus === 'Inactive' ? 'Deactivated' : 'Reactivated'} on ${todayStr}. Reason: ${statusReason}]`;
+    
+    const finalData = {
+      ...pendingDeptData,
+      description: newDesc,
+      status: pendingStatus,
+    };
+    
+    setStatusPromptOpen(false);
+    executeDeptSave(finalData, true);
   };
 
   // Filter & Search Logic
@@ -308,17 +312,6 @@ export const DepartmentListPage: React.FC = () => {
             ) : (
               <ToggleOffIcon fontSize="small" />
             )}
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              setDeletingDeptId(row.id);
-            }}
-            sx={{ color: 'error.main' }}
-            title="Delete Department"
-          >
-            <DeleteIcon fontSize="small" />
           </IconButton>
         </Box>
       ),
@@ -496,6 +489,7 @@ export const DepartmentListPage: React.FC = () => {
         submitText={editingDept ? 'Update Department' : 'Create Department'}
       >
         <DepartmentForm
+          key={editingDept?.id ?? 'new'}
           formId="department-form"
           initialValues={editingDept}
           onSubmit={handleFormSubmit}
@@ -591,17 +585,45 @@ export const DepartmentListPage: React.FC = () => {
         )}
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={deletingDeptId !== null}
-        title="Delete Department"
-        description="Are you sure you want to permanently delete this department? This action cannot be undone and will delete all related designations and unassign employees."
-        confirmText="Delete"
-        cancelText="Cancel"
-        severity="error"
-        onConfirm={handleDeleteConfirm}
-        onClose={() => setDeletingDeptId(null)}
-      />
+      {/* Status Change Prompt Dialog */}
+      <Dialog open={statusPromptOpen} onClose={() => setStatusPromptOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {pendingStatus === 'Inactive' ? 'Deactivate Department' : 'Reactivate Department'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Please provide a reason for {pendingStatus === 'Inactive' ? 'deactivating' : 'reactivating'} this department.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Reason *"
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            value={statusReason}
+            onChange={(e) => {
+              setStatusReason(e.target.value);
+              if (e.target.value.trim()) setStatusReasonError('');
+            }}
+            error={!!statusReasonError}
+            helperText={statusReasonError}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => setStatusPromptOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={pendingStatus === 'Inactive' ? 'error' : 'primary'}
+            size="small"
+            onClick={handleConfirmStatusChange}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar notifications */}
       <Snackbar

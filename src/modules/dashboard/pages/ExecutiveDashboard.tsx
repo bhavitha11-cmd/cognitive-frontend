@@ -235,7 +235,7 @@ export const ExecutiveDashboard: React.FC = () => {
               {(!charts?.plannedVsActual || charts.plannedVsActual.length === 0) ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No project data logged</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={300} minHeight={0}>
                   <BarChart data={charts?.plannedVsActual?.slice(0, 7) ?? []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis dataKey="projectCode" stroke="#94a3b8" fontSize={11} />
@@ -260,7 +260,7 @@ export const ExecutiveDashboard: React.FC = () => {
               {weeklyHoursTrend.length === 0 ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No logs this week</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={300} minHeight={0}>
                   <LineChart data={weeklyHoursTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis dataKey="name" tickFormatter={(t) => t.slice(0, 3)} stroke="#94a3b8" fontSize={10} />
@@ -285,7 +285,7 @@ export const ExecutiveDashboard: React.FC = () => {
             {employeeUtilizationData.length === 0 ? (
               <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No employees active</Box>
             ) : (
-              <ResponsiveContainer width="99%" height="85%" minHeight={200}>
+              <ResponsiveContainer width="99%" height={280} minHeight={0}>
                 <BarChart data={employeeUtilizationData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                   <XAxis type="number" stroke="#94a3b8" fontSize={10} />

@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
-import { Box, Button, Card, Typography, IconButton } from '@mui/material';
+import { Box, Button, Card, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 
-import { useGetRoles, useCreateRole, useUpdateRole, useDeleteRole, useSetRolePermissions } from '../services/hrService';
+import { useGetRoles, useCreateRole, useUpdateRole, useSetRolePermissions } from '../services/hrService';
 import { DataTable } from '../../../components/DataTable';
 import type { Column } from '../../../components/DataTable';
 import { SearchFilters } from '../../../components/SearchFilters';
 import type { FilterOption } from '../../../components/SearchFilters';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { FormModal } from '../../../components/FormModal';
-import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { RoleForm } from '../components/RoleForm';
 import type { Role } from '../types';
 
@@ -19,7 +17,6 @@ export const RoleListPage: React.FC = () => {
   const query = useGetRoles();
   const createMut = useCreateRole();
   const updateMut = useUpdateRole();
-  const deleteMut = useDeleteRole();
   const permMut = useSetRolePermissions();
 
   // States
@@ -31,7 +28,13 @@ export const RoleListPage: React.FC = () => {
   // Modal / Dialog states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | undefined>(undefined);
-  const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
+
+  // Status Change Dialog States
+  const [statusPromptOpen, setStatusPromptOpen] = useState(false);
+  const [pendingRoleData, setPendingRoleData] = useState<any>(null);
+  const [pendingStatus, setPendingStatus] = useState<'Active' | 'Inactive' | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusReasonError, setStatusReasonError] = useState('');
 
   // Event handlers
   const handleOpenCreateModal = () => {
@@ -44,7 +47,7 @@ export const RoleListPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (data: any) => {
+  const executeRoleSave = (data: any) => {
     const { permissions, ...roleData } = data;
     if (editingRole) {
       console.log('[Frontend] Submitting role update for:', editingRole.id, roleData);
@@ -90,19 +93,42 @@ export const RoleListPage: React.FC = () => {
     }
   };
 
-  const handleDeleteConfirm = () => {
-    if (deletingRoleId) {
-      console.log('[Frontend] Initiating role deletion for ID:', deletingRoleId);
-      deleteMut.mutate(deletingRoleId, {
-        onSuccess: () => {
-          console.log('[Frontend] Role deleted successfully, ID:', deletingRoleId);
-          setDeletingRoleId(null);
-        },
-        onError: (err) => {
-          console.error('[Frontend] Failed to delete role:', err);
-        }
-      });
+  const handleFormSubmit = (data: any) => {
+    const { permissions, ...roleData } = data;
+    if (editingRole) {
+      const statusChanged = editingRole.status !== roleData.status;
+      if (statusChanged) {
+        setPendingRoleData(data);
+        setPendingStatus(roleData.status);
+        setStatusReason('');
+        setStatusReasonError('');
+        setStatusPromptOpen(true);
+        return;
+      }
     }
+    executeRoleSave(data);
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusReason.trim()) {
+      setStatusReasonError('Reason is required.');
+      return;
+    }
+    if (!pendingRoleData) return;
+
+    const currentDesc = pendingRoleData.description || '';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newDesc = currentDesc 
+      ? `${currentDesc}\n[${pendingStatus === 'Inactive' ? 'Deactivated' : 'Reactivated'} on ${todayStr}. Reason: ${statusReason}]`
+      : `[${pendingStatus === 'Inactive' ? 'Deactivated' : 'Reactivated'} on ${todayStr}. Reason: ${statusReason}]`;
+    
+    const finalData = {
+      ...pendingRoleData,
+      description: newDesc,
+    };
+    
+    setStatusPromptOpen(false);
+    executeRoleSave(finalData);
   };
 
 
@@ -169,17 +195,6 @@ export const RoleListPage: React.FC = () => {
             sx={{ color: 'text.secondary' }}
           >
             <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              setDeletingRoleId(row.id);
-            }}
-            sx={{ color: 'error.main' }}
-            disabled={row.isSystemRole}
-          >
-            <DeleteIcon fontSize="small" />
           </IconButton>
         </Box>
       ),
@@ -259,23 +274,52 @@ export const RoleListPage: React.FC = () => {
         submitText={editingRole ? 'Update Role' : 'Create Role'}
       >
         <RoleForm
+          key={editingRole?.id ?? 'new'}
           formId="role-form"
           initialValues={editingRole}
           onSubmit={handleFormSubmit}
         />
       </FormModal>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={deletingRoleId !== null}
-        title="Delete Role"
-        description="Are you sure you want to permanently delete this role? This action cannot be undone and will unassign the role from all associated employees."
-        confirmText="Delete"
-        cancelText="Cancel"
-        severity="error"
-        onConfirm={handleDeleteConfirm}
-        onClose={() => setDeletingRoleId(null)}
-      />
+      {/* Status Change Prompt Dialog */}
+      <Dialog open={statusPromptOpen} onClose={() => setStatusPromptOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {pendingStatus === 'Inactive' ? 'Deactivate Role' : 'Reactivate Role'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Please provide a reason for {pendingStatus === 'Inactive' ? 'deactivating' : 'reactivating'} this role.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Reason *"
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            value={statusReason}
+            onChange={(e) => {
+              setStatusReason(e.target.value);
+              if (e.target.value.trim()) setStatusReasonError('');
+            }}
+            error={!!statusReasonError}
+            helperText={statusReasonError}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => setStatusPromptOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={pendingStatus === 'Inactive' ? 'error' : 'primary'}
+            size="small"
+            onClick={handleConfirmStatusChange}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

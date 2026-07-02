@@ -60,7 +60,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'executive',
-            element: lazyLoad(() => import('../modules/dashboard/pages/ExecutiveDashboard'), 'dashboard'),
+            element: (
+              <ProtectedRoute module="Reports" action="view">
+                {lazyLoad(() => import('../modules/dashboard/pages/ExecutiveDashboard'), 'dashboard')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'project/:id',
@@ -68,7 +72,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'team-leader',
-            element: lazyLoad(() => import('../modules/dashboard/pages/TeamLeaderDashboard'), 'dashboard'),
+            element: (
+              <ProtectedRoute module="Reports" action="view">
+                {lazyLoad(() => import('../modules/dashboard/pages/TeamLeaderDashboard'), 'dashboard')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'employee',
@@ -183,7 +191,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'leave-approval',
-            element: lazyLoad(() => import('../modules/timesheets/pages/LeaveApprovalPage'), 'table'),
+            element: (
+              <ProtectedRoute module="Leave" action="approve">
+                {lazyLoad(() => import('../modules/timesheets/pages/LeaveApprovalPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'attendance',
@@ -215,15 +227,27 @@ export const router = createBrowserRouter([
           },
           {
             path: 'roles',
-            element: lazyLoad(() => import('../modules/hr/pages/RoleListPage'), 'table'),
+            element: (
+              <ProtectedRoute module="HR" action="edit">
+                {lazyLoad(() => import('../modules/hr/pages/RoleListPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'departments',
-            element: lazyLoad(() => import('../modules/hr/pages/DepartmentListPage'), 'table'),
+            element: (
+              <ProtectedRoute module="HR" action="edit">
+                {lazyLoad(() => import('../modules/hr/pages/DepartmentListPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'teams',
-            element: lazyLoad(() => import('../modules/hr/pages/TeamListPage'), 'table'),
+            element: (
+              <ProtectedRoute module="HR" action="edit">
+                {lazyLoad(() => import('../modules/hr/pages/TeamListPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'organization-chart',
@@ -235,7 +259,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'audit-logs',
-            element: lazyLoad(() => import('../modules/hr/pages/AuditLogPage'), 'table'),
+            element: (
+              <ProtectedRoute module="HR" action="edit">
+                {lazyLoad(() => import('../modules/hr/pages/AuditLogPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'designations',
@@ -269,7 +297,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'task-templates',
-            element: lazyLoad(() => import('../modules/master-data/pages/TaskTemplateListPage'), 'table'),
+            element: (
+              <ProtectedRoute module="TaskTemplate" action="view">
+                {lazyLoad(() => import('../modules/master-data/pages/TaskTemplateListPage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'calendar-config',

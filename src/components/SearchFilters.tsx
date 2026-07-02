@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Grid, TextField, InputAdornment, FormControl, Select, MenuItem } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 
@@ -23,6 +23,31 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   searchPlaceholder = 'Search...',
   filters = [],
 }) => {
+  // Keep the input responsive (controlled locally); debounce the emitted value
+  // so we don't fire one request per keystroke.
+  const [localValue, setLocalValue] = useState(searchQuery);
+  const onSearchChangeRef = useRef(onSearchChange);
+  onSearchChangeRef.current = onSearchChange;
+
+  // Sync local value if the query is changed/reset from the parent.
+  useEffect(() => {
+    setLocalValue(searchQuery);
+  }, [searchQuery]);
+
+  const handleInputChange = (value: string) => {
+    setLocalValue(value);
+  };
+
+  useEffect(() => {
+    // Skip emitting when already in sync with the parent (e.g. external reset).
+    if (localValue === searchQuery) return;
+    const handle = setTimeout(() => {
+      onSearchChangeRef.current(localValue);
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localValue]);
+
   // Determine sizes dynamically
   const filterCount = filters.length;
   const searchGridSize = filterCount === 0 ? 12 : filterCount === 1 ? 8 : filterCount === 2 ? 6 : 4;
@@ -37,8 +62,8 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
           variant="outlined"
           size="small"
           fullWidth
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          value={localValue}
+          onChange={(e) => handleInputChange(e.target.value)}
           slotProps={{
             input: {
               startAdornment: (

@@ -180,7 +180,7 @@ export const EmployeeDashboard: React.FC = () => {
               {dailyHoursTrend.length === 0 ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No daily logged hours in database</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="80%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={280} minHeight={0}>
                   <BarChart data={dailyHoursTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />

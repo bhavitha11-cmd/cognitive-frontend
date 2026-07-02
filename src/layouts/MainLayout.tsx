@@ -103,6 +103,42 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
+// Live clock widget — isolated & memoized so its per-second tick only
+// re-renders this small component instead of the whole layout tree.
+const LiveClock: React.FC = React.memo(() => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  return (
+    <Box
+      sx={{
+        display: { xs: 'none', md: 'flex' },
+        alignItems: 'center',
+        gap: 0.5,
+        px: 1,
+        py: 0.5,
+        borderRadius: 1,
+        border: '1px solid',
+        borderColor: 'divider',
+        mr: 1,
+      }}
+    >
+      <AccessTimeIcon fontSize="small" color="action" />
+      <Typography variant="body2" sx={{ fontWeight: 600 }} color="textSecondary">
+        {formatTime(currentTime)}
+      </Typography>
+    </Box>
+  );
+});
+LiveClock.displayName = 'LiveClock';
+
 interface SidebarChild {
   name: string;
   path: string;
@@ -138,7 +174,6 @@ export const MainLayout: React.FC = () => {
     Timesheets: false,
     'Master Data': false,
   });
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   const [quickAddAnchor, setQuickAddAnchor] = useState<null | HTMLElement>(null);
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
@@ -151,11 +186,6 @@ export const MainLayout: React.FC = () => {
   const authLogout = useAuthStore((s) => s.logout);
   const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Hydrate auth store on mount if needed
   useEffect(() => {
@@ -192,10 +222,6 @@ export const MainLayout: React.FC = () => {
 
   const handleSubmenuToggle = (name: string) => {
     setOpenSubmenus((prev) => ({ ...prev, [name]: !prev[name] }));
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
   // Navigation structure — Phase 1 scope
@@ -766,24 +792,7 @@ export const MainLayout: React.FC = () => {
               </Search>
 
               {/* Live Clock Widget */}
-              <Box
-                sx={{
-                  display: { xs: 'none', md: 'flex' },
-                  alignItems: 'center',
-                  gap: 0.5,
-                  px: 1,
-                  py: 0.5,
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  mr: 1,
-                }}
-              >
-                <AccessTimeIcon fontSize="small" color="action" />
-                <Typography variant="body2" sx={{ fontWeight: 600 }} color="textSecondary">
-                  {formatTime(currentTime)}
-                </Typography>
-              </Box>
+              <LiveClock />
 
               {/* Quick Add Button */}
               <Tooltip title="Quick Add">

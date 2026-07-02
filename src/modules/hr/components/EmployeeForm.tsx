@@ -32,7 +32,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   officialEmail: z.string().email('Invalid official email').optional().or(z.literal('')),
   personalEmail: z.string().email('Invalid personal email').optional().or(z.literal('')),
   email: z.string().email('Please enter a valid email address'),
-  mobile: z.string().min(5, 'Mobile number must be valid'),
+  mobile: z.string().length(10, 'Mobile number must be exactly 10 digits').regex(/^\d{10}$/, 'Mobile number must contain numeric characters only'),
   phone: z.string().optional(),
   alternatePhone: z.string().optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
@@ -255,6 +255,10 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
                 error={!!errors.mobile}
                 helperText={errors.mobile?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  field.onChange(val);
+                }}
               />
             )}
           />
@@ -543,8 +547,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
                   <MenuItem value="NOTICE_PERIOD">Notice Period</MenuItem>
                   <MenuItem value="ON_LEAVE">On Leave</MenuItem>
                   <MenuItem value="SUSPENDED">Suspended</MenuItem>
-                  <MenuItem value="RESIGNED">Resigned</MenuItem>
-                  <MenuItem value="TERMINATED">Terminated</MenuItem>
                 </Select>
               )}
             />

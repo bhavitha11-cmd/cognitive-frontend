@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../utils/api';
+import { useHRStore } from '../modules/hr/store/useHRStore';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,10 +123,13 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Clear the legacy/back-compat auth keys...
         localStorage.removeItem('cognitive_token');
         localStorage.removeItem('cognitive_user');
         localStorage.removeItem('cognitive_profile');
 
+        // Reset in-memory auth state (persisted `cognitive-auth` is rewritten
+        // by the persist middleware from this cleared state).
         set({
           token: null,
           user: null,
@@ -135,6 +139,27 @@ export const useAuthStore = create<AuthState>()(
           dataAccessLevel: 'SELF',
           isAuthenticated: false,
         });
+
+        // Prevent cross-user data leaks on a shared browser:
+        // wipe the persisted HR store (contains employee/PII) ...
+        try {
+          const hr = useHRStore.getState();
+          hr.setEmployees([]);
+          hr.setRoles([]);
+          hr.setDepartments([]);
+          hr.setTeams([]);
+          // Drop the persisted `cognitive-hr-store` blob from localStorage too.
+          useHRStore.persist?.clearStorage?.();
+        } catch (e) {
+          console.error('Failed to clear HR store on logout:', e);
+        }
+
+        // ...and clear the React Query cache (any cached PII / list responses).
+        // Imported dynamically to avoid a circular import with App.tsx
+        // (App -> router -> ProtectedRoute -> useAuthStore).
+        void import('../App')
+          .then(({ queryClient }) => queryClient.clear())
+          .catch((e) => console.error('Failed to clear query cache on logout:', e));
       },
 
       hydrateFromStorage: () => {

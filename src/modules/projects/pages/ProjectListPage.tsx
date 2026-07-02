@@ -319,7 +319,7 @@ interface EditProjectDialogProps {
 
 const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, onClose }) => {
   const updateProject = useUpdateProject();
-  const { data: clientsData } = useGetClients({ limit: 200 });
+  const { data: clientsData } = useGetClients({ limit: 200, isActive: true });
   const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
   const { data: departments = [] } = useGetDepartments();
   const { data: holidays = [] } = useGetHolidays();

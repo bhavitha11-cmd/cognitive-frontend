@@ -15,6 +15,7 @@ const mapBackendClientToFrontend = (c: any): Client => ({
   contactEmail: c.contact_email || undefined,
   contactPhone: c.contact_phone || undefined,
   alternatePhone: c.alternate_phone || undefined,
+  additionalContacts: c.additional_contacts || [],
   country: c.country || undefined,
   address: c.address || undefined,
   notes: c.notes || undefined,
@@ -35,6 +36,7 @@ const mapFrontendClientToBackend = (data: ClientCreate) => ({
   contact_email: data.contactEmail || null,
   contact_phone: data.contactPhone || null,
   alternate_phone: data.alternatePhone || null,
+  additional_contacts: data.additionalContacts || [],
   country: data.country || null,
   address: data.address || null,
   notes: data.notes || null,
@@ -118,6 +120,7 @@ export const useUpdateClient = () => {
       if (data.contactEmail !== undefined) payload.contact_email = data.contactEmail || null;
       if (data.contactPhone !== undefined) payload.contact_phone = data.contactPhone || null;
       if (data.alternatePhone !== undefined) payload.alternate_phone = data.alternatePhone || null;
+      if (data.additionalContacts !== undefined) payload.additional_contacts = data.additionalContacts || [];
       if (data.country !== undefined) payload.country = data.country || null;
       if (data.address !== undefined) payload.address = data.address || null;
       if (data.notes !== undefined) payload.notes = data.notes || null;

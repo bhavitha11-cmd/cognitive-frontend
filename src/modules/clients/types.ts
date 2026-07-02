@@ -1,3 +1,9 @@
+export interface AdditionalContact {
+  name: string;
+  email: string;
+  phone: string;
+}
+
 export interface Client {
   id: string;
   clientCode: string;
@@ -7,6 +13,7 @@ export interface Client {
   contactEmail?: string;
   contactPhone?: string;
   alternatePhone?: string;
+  additionalContacts?: AdditionalContact[];
   country?: string;
   address?: string;
   notes?: string;
@@ -27,6 +34,7 @@ export interface ClientCreate {
   contactEmail: string;
   contactPhone: string;
   alternatePhone?: string;
+  additionalContacts?: AdditionalContact[];
   country: string;
   address: string;
   notes?: string;

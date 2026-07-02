@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -91,8 +91,16 @@ const clientSchema = z.object({
   notes: z.string().optional(),
   status: z.string().default('Active'),
   deactivationReason: z.string().optional(),
+  additionalContacts: z.array(
+    z.object({
+      name: z.string().min(1, 'Name is required.'),
+      email: z.string().min(1, 'Email is required.').email('Please enter a valid email address.'),
+      phone: z.string().min(1, 'Phone is required.'),
+      countryCode: z.string().default('+91'),
+    })
+  ).optional().default([]),
 }).superRefine((data, ctx) => {
-  // Validate primary phone: numeric only and country-specific length
+  // Validate primary phone: numeric only and exactly 10 digits
   if (!data.contactPhone || data.contactPhone.trim() === '') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -107,17 +115,12 @@ const clientSchema = z.object({
         message: 'Phone number must contain numeric characters only.',
         path: ['contactPhone'],
       });
-    } else if (data.country) {
-      const countryObj = COUNTRIES.find((c) => c.name === data.country);
-      if (countryObj) {
-        if (!countryObj.phoneLengths.includes(primaryPhoneDigits.length)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Phone number for ${data.country} must be ${countryObj.phoneLengths.join(' or ')} digits long.`,
-            path: ['contactPhone'],
-          });
-        }
-      }
+    } else if (primaryPhoneDigits.length !== 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Phone number must be exactly 10 digits.',
+        path: ['contactPhone'],
+      });
     }
   }
 
@@ -130,26 +133,12 @@ const clientSchema = z.object({
         message: 'Phone number must contain numeric characters only.',
         path: ['alternatePhone'],
       });
-    } else {
-      let altCountryName = data.country;
-      if (data.alternateCountryCode) {
-        const altCountryObj = COUNTRIES.find((c) => c.dialCode === data.alternateCountryCode);
-        if (altCountryObj) {
-          altCountryName = altCountryObj.name;
-        }
-      }
-      if (altCountryName) {
-        const altCountryObj = COUNTRIES.find((c) => c.name === altCountryName);
-        if (altCountryObj) {
-          if (!altCountryObj.phoneLengths.includes(altPhoneDigits.length)) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Alternate phone number for ${altCountryName} must be ${altCountryObj.phoneLengths.join(' or ')} digits long.`,
-              path: ['alternatePhone'],
-            });
-          }
-        }
-      }
+    } else if (altPhoneDigits.length !== 10) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Alternate phone number must be exactly 10 digits.',
+        path: ['alternatePhone'],
+      });
     }
   }
 
@@ -163,7 +152,56 @@ const clientSchema = z.object({
       });
     }
   }
+
+  // Validate additional contacts
+  if (data.additionalContacts && data.additionalContacts.length > 0) {
+    data.additionalContacts.forEach((ac, idx) => {
+      if (!ac.name || ac.name.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Contact person name is required.',
+          path: ['additionalContacts', idx, 'name'],
+        });
+      }
+      if (!ac.email || ac.email.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Email is required.',
+          path: ['additionalContacts', idx, 'email'],
+        });
+      }
+      if (!ac.phone || ac.phone.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Phone number is required.',
+          path: ['additionalContacts', idx, 'phone'],
+        });
+      } else {
+        const phoneDigits = ac.phone.replace(/\D/g, '');
+        if (ac.phone !== phoneDigits) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Phone number must contain numeric characters only.',
+            path: ['additionalContacts', idx, 'phone'],
+          });
+        } else if (phoneDigits.length !== 10) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Phone number must be exactly 10 digits.',
+            path: ['additionalContacts', idx, 'phone'],
+          });
+        }
+      }
+    });
+  }
 });
+
+interface AdditionalContactFormValue {
+  name: string;
+  email: string;
+  phone: string;
+  countryCode: string;
+}
 
 interface ClientFormValues {
   name: string;
@@ -180,6 +218,7 @@ interface ClientFormValues {
   notes: string;
   status: string;
   deactivationReason: string;
+  additionalContacts: AdditionalContactFormValue[];
 }
 
 const FORM_ID = 'client-form';
@@ -219,8 +258,14 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
       notes: '',
       status: 'Active',
       deactivationReason: '',
+      additionalContacts: [],
       ...defaultValues,
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'additionalContacts',
   });
 
   const watchedCountry = watch('country');
@@ -439,6 +484,10 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                 error={!!errors.contactPhone}
                 helperText={errors.contactPhone?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  field.onChange(val);
+                }}
               />
             )}
           />
@@ -480,6 +529,10 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                 error={!!errors.alternatePhone}
                 helperText={errors.alternatePhone?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  field.onChange(val);
+                }}
               />
             )}
           />
@@ -523,6 +576,139 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
               />
             )}
           />
+        </Grid>
+
+        {/* Deactivation Reason (Conditional) */}
+        {statusValue === 'Inactive' && (
+          <Grid size={{ xs: 12 }}>
+            <Controller
+              name="deactivationReason"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Deactivation Reason *"
+                  fullWidth
+                  size="small"
+                  multiline
+                  rows={2}
+                  error={!!errors.deactivationReason}
+                  helperText={errors.deactivationReason?.message}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              )}
+            />
+          </Grid>
+        )}
+
+        {/* Section: Additional Contacts */}
+        <Grid size={{ xs: 12 }}>
+          <Box sx={{ mt: 3, mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+              Additional Contact Persons
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => append({ name: '', email: '', phone: '', countryCode: '+91' })}
+            >
+              Add Contact
+            </Button>
+          </Box>
+          <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 1, p: 2, bgcolor: 'background.neutral' }}>
+            {fields.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 1 }}>
+                No additional contact persons added.
+              </Typography>
+            ) : (
+              <Stack spacing={2}>
+                {fields.map((item, index) => (
+                  <Grid container spacing={1} key={item.id} sx={{ alignItems: 'flex-start' }}>
+                    <Grid size={{ xs: 12, sm: 3.5 }}>
+                      <Controller
+                        name={`additionalContacts.${index}.name`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            label="Name *"
+                            fullWidth
+                            size="small"
+                            error={!!errors.additionalContacts?.[index]?.name}
+                            helperText={errors.additionalContacts?.[index]?.name?.message}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3.5 }}>
+                      <Controller
+                        name={`additionalContacts.${index}.email`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            label="Email *"
+                            type="email"
+                            fullWidth
+                            size="small"
+                            error={!!errors.additionalContacts?.[index]?.email}
+                            helperText={errors.additionalContacts?.[index]?.email?.message}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 4, sm: 1.5 }}>
+                      <Controller
+                        name={`additionalContacts.${index}.countryCode`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            select
+                            label="Code *"
+                            fullWidth
+                            size="small"
+                          >
+                            {UNIQUE_DIAL_CODES.map((code) => (
+                              <MenuItem key={code} value={code}>
+                                {code}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 6, sm: 2.5 }}>
+                      <Controller
+                        name={`additionalContacts.${index}.phone`}
+                        control={control}
+                        render={({ field }) => (
+                          <TextField
+                            {...field}
+                            label="Phone *"
+                            fullWidth
+                            size="small"
+                            error={!!errors.additionalContacts?.[index]?.phone}
+                            helperText={errors.additionalContacts?.[index]?.phone?.message}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              field.onChange(val);
+                            }}
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 2, sm: 1 }} sx={{ display: 'flex', justifyContent: 'center', mt: 0.5 }}>
+                      <IconButton color="error" size="small" onClick={() => remove(index)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Grid>
+                  </Grid>
+                ))}
+              </Stack>
+            )}
+          </Box>
         </Grid>
       </Grid>
 
@@ -576,9 +762,24 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
       <Dialog open={reactivateOpen} onClose={() => setReactivateOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>Reactivate Client</DialogTitle>
         <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to reactivate this client?
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Please provide a reason for reactivating this client.
           </Typography>
+          <TextField
+            autoFocus
+            label="Reactivation Reason *"
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            value={tempReason}
+            onChange={(e) => {
+              setTempReason(e.target.value);
+              if (e.target.value.trim()) setReasonError('');
+            }}
+            error={!!reasonError}
+            helperText={reasonError}
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button variant="outlined" color="inherit" size="small" onClick={() => setReactivateOpen(false)}>
@@ -589,8 +790,18 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
             color="primary"
             size="small"
             onClick={() => {
+              if (!tempReason.trim()) {
+                setReasonError('Reactivation reason is required.');
+                return;
+              }
+              const currentNotes = getValues('notes') || '';
+              const todayStr = new Date().toISOString().split('T')[0];
+              const appendedNotes = currentNotes 
+                ? `${currentNotes}\n[Reactivated on ${todayStr}. Reason: ${tempReason}]`
+                : `[Reactivated on ${todayStr}. Reason: ${tempReason}]`;
               setValue('status', 'Active');
               setValue('deactivationReason', '');
+              setValue('notes', appendedNotes);
               setReactivateOpen(false);
             }}
           >
@@ -631,9 +842,6 @@ export const ClientListPage: React.FC = () => {
   const [formOpen, setFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
-  // Delete confirm state
-  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
-
   // Snackbar
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -658,7 +866,6 @@ export const ClientListPage: React.FC = () => {
 
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();
-  const deleteClient = useDeleteClient();
 
   const clients = data?.clients ?? [];
   const totalCount = data?.total ?? 0;
@@ -687,6 +894,12 @@ export const ClientListPage: React.FC = () => {
         ? `${values.alternateCountryCode || values.countryCode} ${values.alternatePhone}`
         : undefined;
 
+    const additionalContactsFormatted = (values.additionalContacts || []).map((ac) => ({
+      name: ac.name,
+      email: ac.email,
+      phone: `${ac.countryCode} ${ac.phone}`,
+    }));
+
     const payload: ClientCreate = {
       name: values.name,
       clientCode: values.clientCode,
@@ -695,6 +908,7 @@ export const ClientListPage: React.FC = () => {
       contactEmail: values.contactEmail,
       contactPhone: contactPhoneFormatted,
       alternatePhone: alternatePhoneFormatted,
+      additionalContacts: additionalContactsFormatted,
       country: values.country,
       address: values.address,
       notes: values.notes || undefined,
@@ -728,19 +942,7 @@ export const ClientListPage: React.FC = () => {
     }
   };
 
-  const handleDeleteConfirm = () => {
-    if (!deleteTarget) return;
-    deleteClient.mutate(deleteTarget.id, {
-      onSuccess: () => {
-        showSnack('Client deleted.');
-        setDeleteTarget(null);
-      },
-      onError: (err) => {
-        showSnack(parseError(err), 'error');
-        setDeleteTarget(null);
-      },
-    });
-  };
+
 
   // ---- Columns ----
 
@@ -791,9 +993,26 @@ export const ClientListPage: React.FC = () => {
     {
       id: 'contactPerson',
       label: 'Contact Person',
-      render: (row) => (
-        <Typography variant="body2">{row.contactPerson || '—'}</Typography>
-      ),
+      render: (row) => {
+        const primary = row.contactPerson;
+        const additionalCount = row.additionalContacts?.length || 0;
+        if (!primary) return <Typography variant="body2">—</Typography>;
+        return (
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+            <Typography variant="body2">{primary}</Typography>
+            {additionalCount > 0 && (
+              <Chip
+                label={`+${additionalCount}`}
+                size="small"
+                variant="outlined"
+                color="primary"
+                title={row.additionalContacts?.map((c) => `${c.name} (${c.phone})`).join('\n')}
+                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 600 }}
+              />
+            )}
+          </Stack>
+        );
+      },
     },
     {
       id: 'contactEmail',
@@ -879,18 +1098,6 @@ export const ClientListPage: React.FC = () => {
             }}
           >
             <EditIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            disabled={row.projectCount > 0}
-            title={row.projectCount > 0 ? 'Cannot delete: client has active projects' : 'Delete client'}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleteTarget(row);
-            }}
-          >
-            <DeleteIcon fontSize="small" />
           </IconButton>
         </Stack>
       ),
@@ -981,6 +1188,15 @@ export const ClientListPage: React.FC = () => {
               ? (() => {
                   const primaryPhoneData = parsePhoneField(editingClient.contactPhone, '+91');
                   const alternatePhoneData = parsePhoneField(editingClient.alternatePhone, '+91');
+                  const additionalContactsParsed = (editingClient.additionalContacts || []).map((ac) => {
+                    const parsed = parsePhoneField(ac.phone, '+91');
+                    return {
+                      name: ac.name,
+                      email: ac.email,
+                      phone: parsed.number,
+                      countryCode: parsed.dialCode,
+                    };
+                  });
                   return {
                     name: editingClient.name,
                     clientCode: editingClient.clientCode,
@@ -996,6 +1212,7 @@ export const ClientListPage: React.FC = () => {
                     notes: editingClient.notes ?? '',
                     status: editingClient.status || (editingClient.isActive ? 'Active' : 'Inactive'),
                     deactivationReason: editingClient.deactivationReason ?? '',
+                    additionalContacts: additionalContactsParsed,
                   };
                 })()
               : {
@@ -1013,36 +1230,13 @@ export const ClientListPage: React.FC = () => {
                   notes: '',
                   status: 'Active',
                   deactivationReason: '',
+                  additionalContacts: [],
                 }
           }
           onSubmit={handleFormSubmit}
         />
       </FormModal>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Delete Client</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2">
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button variant="outlined" color="inherit" size="small" onClick={() => setDeleteTarget(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            size="small"
-            onClick={handleDeleteConfirm}
-            disabled={deleteClient.isPending}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Snackbar */}
       <Snackbar

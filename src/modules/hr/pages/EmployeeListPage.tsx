@@ -11,12 +11,12 @@ import {
   Stack,
   Snackbar,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import BlockIcon from '@mui/icons-material/Block';
-import DeleteIcon from '@mui/icons-material/Delete';
 
 import {
   useGetEmployees,
@@ -25,9 +25,7 @@ import {
   useCreateEmployee,
   useUpdateEmployee,
   useDeactivateEmployee,
-  useDeleteEmployee,
   useBulkDeactivateEmployees,
-  useBulkDeleteEmployees,
 } from '../services/hrService';
 import { useHRStore } from '../store/useHRStore';
 import { DataTable } from '../../../components/DataTable';
@@ -72,16 +70,13 @@ export const EmployeeListPage: React.FC = () => {
   const createMut = useCreateEmployee();
   const updateMut = useUpdateEmployee();
   const deactivateMut = useDeactivateEmployee();
-  const deleteMut = useDeleteEmployee();
   const bulkDeactivateMut = useBulkDeactivateEmployees();
-  const bulkDeleteMut = useBulkDeleteEmployees();
 
   // Modals & Dialogs
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | undefined>(undefined);
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [bulkActionType, setBulkActionType] = useState<'deactivate' | 'delete' | null>(null);
+  const [showBulkDeactivate, setShowBulkDeactivate] = useState(false);
 
   // Credentials dialog
   const [isCredsOpen, setIsCredsOpen] = useState(false);
@@ -117,27 +112,22 @@ export const EmployeeListPage: React.FC = () => {
 
   const handleFormSubmit = (data: any) => {
     if (editingEmployee) {
-      console.log('[Frontend] Submitting employee update for:', editingEmployee.id, data);
       updateMut.mutate(
         { id: editingEmployee.id, data },
         {
-          onSuccess: (updatedEmp) => {
-            console.log('[Frontend] Employee updated successfully:', updatedEmp);
+          onSuccess: () => {
             setIsModalOpen(false);
             showSnackbar('Employee updated successfully');
           },
           onError: (err: any) => {
-            console.error('[Frontend] Failed to update employee:', err);
             showSnackbar(parseError(err), 'error');
           },
         }
       );
     } else {
       const rawPassword = data.password;
-      console.log('[Frontend] Submitting new employee creation:', data);
       createMut.mutate(data, {
         onSuccess: (newEmpResponse: any) => {
-          console.log('[Frontend] Employee created successfully:', newEmpResponse);
           setIsModalOpen(false);
           showSnackbar('Employee created successfully');
           if (newEmpResponse) {
@@ -152,7 +142,6 @@ export const EmployeeListPage: React.FC = () => {
           }
         },
         onError: (err: any) => {
-          console.error('[Frontend] Failed to create employee:', err);
           showSnackbar(parseError(err), 'error');
         },
       });
@@ -161,15 +150,12 @@ export const EmployeeListPage: React.FC = () => {
 
   const handleSingleDeactivate = () => {
     if (deactivatingId) {
-      console.log('[Frontend] Initiating single employee deactivation for ID:', deactivatingId);
       deactivateMut.mutate(deactivatingId, {
-        onSuccess: (deactivatedEmp) => {
-          console.log('[Frontend] Employee deactivated successfully:', deactivatedEmp);
+        onSuccess: () => {
           setDeactivatingId(null);
           showSnackbar('Employee account deactivated');
         },
         onError: (err: any) => {
-          console.error('[Frontend] Failed to deactivate employee:', err);
           setDeactivatingId(null);
           showSnackbar(parseError(err), 'error');
         },
@@ -177,55 +163,17 @@ export const EmployeeListPage: React.FC = () => {
     }
   };
 
-  const handleSingleDelete = () => {
-    if (deletingId) {
-      console.log('[Frontend] Initiating single employee deletion for ID:', deletingId);
-      deleteMut.mutate(deletingId, {
-        onSuccess: () => {
-          console.log('[Frontend] Employee record deleted successfully, ID:', deletingId);
-          setDeletingId(null);
-          setSelectedIds((prev) => prev.filter((id) => id !== deletingId));
-          showSnackbar('Employee record deleted');
-        },
-        onError: (err: any) => {
-          console.error('[Frontend] Failed to delete employee:', err);
-          setDeletingId(null);
-          showSnackbar(parseError(err), 'error');
-        },
-      });
-    }
-  };
-
-  const handleBulkActionConfirm = () => {
-    if (bulkActionType === 'deactivate') {
-      console.log('[Frontend] Initiating bulk employee deactivation for IDs:', selectedIds);
-      bulkDeactivateMut.mutate(selectedIds, {
-        onSuccess: () => {
-          console.log('[Frontend] Bulk employee deactivation succeeded for IDs:', selectedIds);
-          setSelectedIds([]);
-          setBulkActionType(null);
-          showSnackbar(`${selectedIds.length} employee(s) deactivated`);
-        },
-        onError: (err: any) => {
-          console.error('[Frontend] Failed to bulk deactivate employees:', err);
-          showSnackbar(parseError(err), 'error');
-        },
-      });
-    } else if (bulkActionType === 'delete') {
-      console.log('[Frontend] Initiating bulk employee deletion for IDs:', selectedIds);
-      bulkDeleteMut.mutate(selectedIds, {
-        onSuccess: () => {
-          console.log('[Frontend] Bulk employee deletion succeeded for IDs:', selectedIds);
-          setSelectedIds([]);
-          setBulkActionType(null);
-          showSnackbar(`${selectedIds.length} employee(s) deleted`);
-        },
-        onError: (err: any) => {
-          console.error('[Frontend] Failed to bulk delete employees:', err);
-          showSnackbar(parseError(err), 'error');
-        },
-      });
-    }
+  const handleBulkDeactivateConfirm = () => {
+    bulkDeactivateMut.mutate(selectedIds, {
+      onSuccess: () => {
+        setSelectedIds([]);
+        setShowBulkDeactivate(false);
+        showSnackbar(`${selectedIds.length} employee(s) deactivated`);
+      },
+      onError: (err: any) => {
+        showSnackbar(parseError(err), 'error');
+      },
+    });
   };
 
   // Helper mappings
@@ -234,10 +182,16 @@ export const EmployeeListPage: React.FC = () => {
   const getRoleNames = (ids: string[]) =>
     ids.map((id) => roles.find((r) => r.id === id)?.name || id);
 
-  const getManagerName = (id?: string) => {
-    if (!id) return 'CEO';
-    const mgr = query.data?.employees?.find((e) => e.id === id);
-    return mgr ? `${mgr.firstName} ${mgr.lastName}` : 'CEO';
+  const getManagerName = (row: Employee) => {
+    if (!row.reportingManagerId) return 'CEO';
+    // Prefer a manager name provided directly by the API, if present.
+    const apiName = (row as any).reportingManagerName as string | undefined;
+    if (apiName) return apiName;
+    // Otherwise fall back to resolving from the currently loaded page.
+    const mgr = query.data?.employees?.find((e) => e.id === row.reportingManagerId);
+    if (mgr) return `${mgr.firstName} ${mgr.lastName}`;
+    // Manager isn't on this page and the API didn't include a name.
+    return '—';
   };
 
   // Server-side filtered and paginated data
@@ -260,7 +214,7 @@ export const EmployeeListPage: React.FC = () => {
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Avatar src={row.profilePhoto} sx={{ width: 34, height: 34, fontSize: '0.8125rem' }}>
-            {row.firstName.charAt(0)}{row.lastName.charAt(0)}
+            {(row.firstName || '').charAt(0)}{(row.lastName || '').charAt(0)}
           </Avatar>
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -318,7 +272,7 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'manager',
       label: 'Manager',
-      render: (row) => <Typography variant="body2">{getManagerName(row.reportingManagerId)}</Typography>,
+      render: (row) => <Typography variant="body2">{getManagerName(row)}</Typography>,
     },
     {
       id: 'status',
@@ -364,17 +318,6 @@ export const EmployeeListPage: React.FC = () => {
           >
             <BlockIcon fontSize="small" />
           </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.currentTarget.blur();
-              setDeletingId(row.id);
-            }}
-            sx={{ color: 'error.main' }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
         </Box>
       ),
     },
@@ -396,7 +339,6 @@ export const EmployeeListPage: React.FC = () => {
         { value: 'PROBATION', label: 'Probation' },
         { value: 'NOTICE_PERIOD', label: 'Notice Period' },
         { value: 'ON_LEAVE', label: 'On Leave' },
-        { value: 'INACTIVE', label: 'Inactive' },
         { value: 'SUSPENDED', label: 'Suspended' },
         { value: 'RESIGNED', label: 'Resigned' },
         { value: 'TERMINATED', label: 'Terminated' },
@@ -411,18 +353,9 @@ export const EmployeeListPage: React.FC = () => {
         color="warning"
         size="small"
         startIcon={<BlockIcon />}
-        onClick={() => setBulkActionType('deactivate')}
+        onClick={() => setShowBulkDeactivate(true)}
       >
         Deactivate Selected
-      </Button>
-      <Button
-        variant="contained"
-        color="error"
-        size="small"
-        startIcon={<DeleteIcon />}
-        onClick={() => setBulkActionType('delete')}
-      >
-        Delete Selected
       </Button>
     </Stack>
   );
@@ -454,19 +387,30 @@ export const EmployeeListPage: React.FC = () => {
       </Card>
 
       <Card sx={{ p: 2 }}>
-        <DataTable
-          columns={columns}
-          data={paginatedEmployees}
-          keyExtractor={(row) => row.id}
-          selectedIds={selectedIds}
-          onSelectionChange={setSelectedIds}
-          bulkActions={bulkActionButtons}
-          page={page}
-          rowsPerPage={rowsPerPage}
-          totalCount={totalCount}
-          onPageChange={setPage}
-          onRowsPerPageChange={setRowsPerPage}
-        />
+        {query.isError && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {parseError(query.error)}
+          </Alert>
+        )}
+        {query.isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={paginatedEmployees}
+            keyExtractor={(row) => row.id}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            bulkActions={bulkActionButtons}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            totalCount={totalCount}
+            onPageChange={setPage}
+            onRowsPerPageChange={setRowsPerPage}
+          />
+        )}
       </Card>
 
       <FormModal
@@ -476,6 +420,7 @@ export const EmployeeListPage: React.FC = () => {
         formId="employee-form"
         submitText={editingEmployee ? 'Save Changes' : 'Create Employee'}
         maxWidth="md"
+        isSubmitDisabled={createMut.isPending || updateMut.isPending}
       >
         <EmployeeForm
           formId="employee-form"
@@ -490,28 +435,20 @@ export const EmployeeListPage: React.FC = () => {
         description="Are you sure you want to deactivate this employee's account? They will lose access to login to the system."
         confirmText="Deactivate"
         severity="warning"
+        loading={deactivateMut.isPending}
         onConfirm={handleSingleDeactivate}
         onClose={() => setDeactivatingId(null)}
       />
 
       <ConfirmationDialog
-        open={deletingId !== null}
-        title="Delete Employee Record"
-        description="Are you sure you want to permanently delete this employee record? All logs and entries associated will remain unassigned."
-        confirmText="Delete"
-        severity="error"
-        onConfirm={handleSingleDelete}
-        onClose={() => setDeletingId(null)}
-      />
-
-      <ConfirmationDialog
-        open={bulkActionType !== null}
-        title={bulkActionType === 'deactivate' ? 'Bulk Deactivate' : 'Bulk Delete'}
-        description={`Are you sure you want to ${bulkActionType} all ${selectedIds.length} selected employee records?`}
-        confirmText={bulkActionType === 'deactivate' ? 'Deactivate All' : 'Delete All'}
-        severity={bulkActionType === 'deactivate' ? 'warning' : 'error'}
-        onConfirm={handleBulkActionConfirm}
-        onClose={() => setBulkActionType(null)}
+        open={showBulkDeactivate}
+        title="Bulk Deactivate"
+        description={`Are you sure you want to deactivate all ${selectedIds.length} selected employee accounts? They will lose login access.`}
+        confirmText="Deactivate All"
+        severity="warning"
+        loading={bulkDeactivateMut.isPending}
+        onConfirm={handleBulkDeactivateConfirm}
+        onClose={() => setShowBulkDeactivate(false)}
       />
 
       {newEmpDetails && (

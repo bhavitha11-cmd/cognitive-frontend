@@ -192,7 +192,7 @@ export const ProjectDashboard: React.FC = () => {
               {cumulativeHoursData.length === 0 ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No burn curve recorded</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={300} minHeight={0}>
                   <LineChart data={cumulativeHoursData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} />
@@ -356,7 +356,7 @@ export const ProjectDashboard: React.FC = () => {
             {burnDownData.length === 0 ? (
               <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No burn down data</Box>
             ) : (
-              <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+              <ResponsiveContainer width="99%" height={300} minHeight={0}>
                 <AreaChart data={burnDownData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                   <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} />

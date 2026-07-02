@@ -164,7 +164,7 @@ export const TeamLeaderDashboard: React.FC = () => {
               {teamUtilizationData.length === 0 ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No team members assigned</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={300} minHeight={0}>
                   <BarChart data={teamUtilizationData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis type="number" stroke="#94a3b8" fontSize={9} />
@@ -187,7 +187,7 @@ export const TeamLeaderDashboard: React.FC = () => {
               {completionsTrend.length === 0 ? (
                 <Box sx={{ height: '80%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>No completed tasks recorded in period</Box>
               ) : (
-                <ResponsiveContainer width="99%" height="82%" minHeight={220}>
+                <ResponsiveContainer width="99%" height={300} minHeight={0}>
                   <BarChart data={completionsTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1d243a" />
                     <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} />

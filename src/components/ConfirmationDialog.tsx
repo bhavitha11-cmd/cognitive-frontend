@@ -17,6 +17,9 @@ interface ConfirmationDialogProps {
   onConfirm: () => void;
   onClose: () => void;
   severity?: 'primary' | 'error' | 'warning';
+  /** Disable the confirm button while the action is pending (prevents double-submit). */
+  loading?: boolean;
+  disabled?: boolean;
 }
 
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
@@ -28,6 +31,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
   onConfirm,
   onClose,
   severity = 'primary',
+  loading = false,
+  disabled = false,
 }) => {
   const getButtonColor = () => {
     if (severity === 'error') return 'error';
@@ -45,7 +50,14 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
         <Button onClick={onClose} color="inherit" variant="outlined" size="small">
           {cancelText}
         </Button>
-        <Button onClick={onConfirm} color={getButtonColor()} variant="contained" autoFocus size="small">
+        <Button
+          onClick={onConfirm}
+          color={getButtonColor()}
+          variant="contained"
+          autoFocus
+          size="small"
+          disabled={loading || disabled}
+        >
           {confirmText}
         </Button>
       </DialogActions>

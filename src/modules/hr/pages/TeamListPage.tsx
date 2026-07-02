@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { Box, Button, Card, Typography, IconButton } from '@mui/material';
+import { Box, Button, Card, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 
-import { useGetTeams, useCreateTeam, useUpdateTeam, useDeleteTeam } from '../services/hrService';
+import { useGetTeams, useCreateTeam, useUpdateTeam } from '../services/hrService';
 import { DataTable } from '../../../components/DataTable';
 import type { Column } from '../../../components/DataTable';
 import { SearchFilters } from '../../../components/SearchFilters';
 import type { FilterOption } from '../../../components/SearchFilters';
 import { FormModal } from '../../../components/FormModal';
-import { ConfirmationDialog } from '../../../components/ConfirmationDialog';
 import { TeamForm } from '../components/TeamForm';
 import type { Team } from '../types';
 
@@ -18,7 +16,6 @@ export const TeamListPage: React.FC = () => {
   const query = useGetTeams();
   const createMut = useCreateTeam();
   const updateMut = useUpdateTeam();
-  const deleteMut = useDeleteTeam();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -26,7 +23,13 @@ export const TeamListPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | undefined>(undefined);
-  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+
+  // Status Change Dialog States
+  const [statusPromptOpen, setStatusPromptOpen] = useState(false);
+  const [pendingTeamData, setPendingTeamData] = useState<any>(null);
+  const [pendingActiveState, setPendingActiveState] = useState<boolean | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusReasonError, setStatusReasonError] = useState('');
 
   const handleOpenCreateModal = () => {
     setEditingTeam(undefined);
@@ -38,7 +41,7 @@ export const TeamListPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (data: Partial<Team>) => {
+  const executeTeamSave = (data: Partial<Team>) => {
     if (editingTeam) {
       console.log('[Frontend] Submitting team update for:', editingTeam.id, data);
       updateMut.mutate({ id: editingTeam.id, data }, {
@@ -64,20 +67,41 @@ export const TeamListPage: React.FC = () => {
     }
   };
 
-  const handleDeleteConfirm = () => {
-    if (deletingTeamId) {
-      console.log('[Frontend] Initiating team deletion for ID:', deletingTeamId);
-      deleteMut.mutate(deletingTeamId, {
-        onSuccess: () => {
-          console.log('[Frontend] Team deleted successfully, ID:', deletingTeamId);
-          setDeletingTeamId(null);
-        },
-        onError: (err) => {
-          console.error('[Frontend] Failed to delete team:', err);
-          setDeletingTeamId(null);
-        }
-      });
+  const handleFormSubmit = (data: Partial<Team>) => {
+    if (editingTeam) {
+      const statusChanged = editingTeam.is_active !== data.is_active;
+      if (statusChanged) {
+        setPendingTeamData(data);
+        setPendingActiveState(data.is_active ?? false);
+        setStatusReason('');
+        setStatusReasonError('');
+        setStatusPromptOpen(true);
+        return;
+      }
     }
+    executeTeamSave(data);
+  };
+
+  const handleConfirmStatusChange = () => {
+    if (!statusReason.trim()) {
+      setStatusReasonError('Reason is required.');
+      return;
+    }
+    if (!pendingTeamData) return;
+
+    const currentDesc = pendingTeamData.description || '';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newDesc = currentDesc 
+      ? `${currentDesc}\n[${pendingActiveState ? 'Reactivated' : 'Deactivated'} on ${todayStr}. Reason: ${statusReason}]`
+      : `[${pendingActiveState ? 'Reactivated' : 'Deactivated'} on ${todayStr}. Reason: ${statusReason}]`;
+    
+    const finalData = {
+      ...pendingTeamData,
+      description: newDesc,
+    };
+    
+    setStatusPromptOpen(false);
+    executeTeamSave(finalData);
   };
 
   const data = query.data || [];
@@ -148,16 +172,6 @@ export const TeamListPage: React.FC = () => {
           >
             <EditIcon fontSize="small" />
           </IconButton>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              setDeletingTeamId(row.id);
-            }}
-            sx={{ color: 'error.main' }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
         </Box>
       ),
     },
@@ -212,22 +226,52 @@ export const TeamListPage: React.FC = () => {
         submitText={editingTeam ? 'Update Team' : 'Create Team'}
       >
         <TeamForm
+          key={editingTeam?.id ?? 'new'}
           formId="team-form"
           initialValues={editingTeam}
           onSubmit={handleFormSubmit}
         />
       </FormModal>
 
-      <ConfirmationDialog
-        open={deletingTeamId !== null}
-        title="Delete Team"
-        description="Are you sure you want to permanently delete this team? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        severity="error"
-        onConfirm={handleDeleteConfirm}
-        onClose={() => setDeletingTeamId(null)}
-      />
+      {/* Status Change Prompt Dialog */}
+      <Dialog open={statusPromptOpen} onClose={() => setStatusPromptOpen(false)} disableRestoreFocus maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>
+          {pendingActiveState ? 'Reactivate Team' : 'Deactivate Team'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Please provide a reason for {pendingActiveState ? 'reactivating' : 'deactivating'} this team.
+          </Typography>
+          <TextField
+            autoFocus
+            label="Reason *"
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            value={statusReason}
+            onChange={(e) => {
+              setStatusReason(e.target.value);
+              if (e.target.value.trim()) setStatusReasonError('');
+            }}
+            error={!!statusReasonError}
+            helperText={statusReasonError}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => setStatusPromptOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color={pendingActiveState ? 'primary' : 'error'}
+            size="small"
+            onClick={handleConfirmStatusChange}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

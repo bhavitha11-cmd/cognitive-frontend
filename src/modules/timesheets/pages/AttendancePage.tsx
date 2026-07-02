@@ -144,10 +144,18 @@ const toISODate = (d: Date): string => {
 
 const fmtTime = (t?: string) => {
   if (!t) return '—';
-  // Handle "HH:MM:SS" or ISO datetime
-  const timePart = t.includes('T') ? t.split('T')[1] : t;
-  const [hh, mm] = timePart.split(':');
+  // Backend stores timestamps as UTC (ISO with offset). Convert to the
+  // viewer's local time (IST for this org) for display.
+  if (t.includes('T')) {
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+  }
+  // Fallback: bare "HH:MM[:SS]" string with no date/offset info — render as-is.
+  const [hh, mm] = t.split(':');
   const h = parseInt(hh, 10);
+  if (isNaN(h)) return t;
   const suffix = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${mm} ${suffix}`;
@@ -480,6 +488,15 @@ export const AttendancePage: React.FC = () => {
   const [clockInConfirmOpen, setClockInConfirmOpen] = useState(false);
   const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
 
+  // Missed clock-out request dialog
+  const [missedDialogOpen, setMissedDialogOpen] = useState(false);
+  const [missedDate, setMissedDate] = useState('');
+  const [missedTime, setMissedTime] = useState('');
+  const [missedReason, setMissedReason] = useState('');
+
+  // Admin: pending requests panel visibility
+  const [showPendingRequests, setShowPendingRequests] = useState(false);
+
   const handleClockInConfirm = () => {
     setClockInConfirmOpen(false);
     clockIn.mutate();
@@ -548,6 +565,74 @@ export const AttendancePage: React.FC = () => {
     },
     onError: (err) => showSnack(parseError(err), 'error'),
   });
+
+  // --- Missed clock-out request mutation ---
+  const submitMissedRequest = useMutation({
+    mutationFn: async (payload: { attendance_date: string; requested_clock_out: string; reason: string }) => {
+      const response = await api.post('/attendance/missed-clockout-request', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      setMissedDialogOpen(false);
+      setMissedDate('');
+      setMissedTime('');
+      setMissedReason('');
+      showSnack('Missed clock-out request submitted. Awaiting admin approval.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  // --- Admin: pending missed clock-out requests ---
+  const { data: pendingRequestsData, refetch: refetchPending } = useQuery({
+    queryKey: ['missed-clockout-requests', 'PENDING'],
+    queryFn: async () => {
+      const response = await api.get('/attendance/missed-clockout-requests', { params: { status: 'PENDING' } });
+      return response.data?.data?.requests ?? [];
+    },
+    enabled: showPendingRequests,
+  });
+  const pendingRequests: any[] = pendingRequestsData ?? [];
+
+  const approveMissedRequest = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+      const response = await api.post(`/attendance/missed-clockout-requests/${id}/approve`, { review_notes: notes });
+      return response.data;
+    },
+    onSuccess: () => {
+      refetchPending();
+      queryClient.invalidateQueries({ queryKey: ['attendance', selectedDate] });
+      showSnack('Request approved. Attendance updated.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  const rejectMissedRequest = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+      const response = await api.post(`/attendance/missed-clockout-requests/${id}/reject`, { review_notes: notes });
+      return response.data;
+    },
+    onSuccess: () => {
+      refetchPending();
+      showSnack('Request rejected.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  const handleSubmitMissedRequest = () => {
+    if (!missedDate || !missedTime || !missedReason.trim()) return;
+    // The employee enters their LOCAL (IST) date + time. Build a Date from the
+    // local wall-clock values, then serialize to a proper UTC ISO string so the
+    // backend receives the correct instant regardless of the viewer's timezone.
+    const [year, month, day] = missedDate.split('-').map(Number);
+    const [hours, minutes] = missedTime.split(':').map(Number);
+    const localDate = new Date(year, month - 1, day, hours, minutes, 0);
+    const isoDateTime = localDate.toISOString();
+    submitMissedRequest.mutate({
+      attendance_date: missedDate,
+      requested_clock_out: isoDateTime,
+      reason: missedReason.trim(),
+    });
+  };
 
   // --- Break hook calls ---
   const { data: activeBreak } = useGetActiveBreak();
@@ -740,6 +825,19 @@ export const AttendancePage: React.FC = () => {
                       sx={{ fontWeight: 600 }}
                     />
                   )}
+                  {/* Report missed clock-out for a past day */}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="warning"
+                    startIcon={<AccessTimeIcon />}
+                    onClick={() => {
+                      setMissedDate(selectedDate !== today ? selectedDate : '');
+                      setMissedDialogOpen(true);
+                    }}
+                  >
+                    Forgot to Clock Out?
+                  </Button>
                 </Stack>
               </Box>
             </Stack>
@@ -810,6 +908,150 @@ export const AttendancePage: React.FC = () => {
           />
         </Grid>
       </Grid>
+
+      {/* Admin: Missed Clock-Out Requests Panel */}
+      <Card sx={{ mb: 3 }}>
+        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <AccessTimeIcon sx={{ color: 'warning.main', fontSize: 20 }} />
+              <Typography variant="subtitle1" fontWeight={600}>
+                Missed Clock-Out Requests
+              </Typography>
+              {pendingRequests.length > 0 && (
+                <Chip label={pendingRequests.length} color="warning" size="small" sx={{ fontWeight: 700, height: 20, fontSize: '0.7rem' }} />
+              )}
+            </Stack>
+            <Button size="small" variant="outlined" onClick={() => setShowPendingRequests((v) => !v)}>
+              {showPendingRequests ? 'Hide' : 'View Pending'}
+            </Button>
+          </Stack>
+        </Box>
+        {showPendingRequests && (
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Divider sx={{ mb: 2 }} />
+            {pendingRequests.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                No pending requests.
+              </Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Employee</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Requested Clock-Out</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendingRequests.map((req: any) => (
+                      <TableRow key={req.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{req.employee_name || '—'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{req.employee_code || ''}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{req.attendance_date}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{fmtTime(req.requested_clock_out)}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 200 }}>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{req.reason}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(req.created_at).toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              disabled={approveMissedRequest.isPending}
+                              onClick={() => approveMissedRequest.mutate({ id: req.id })}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              disabled={rejectMissedRequest.isPending}
+                              onClick={() => rejectMissedRequest.mutate({ id: req.id, notes: 'Rejected by admin' })}
+                            >
+                              Reject
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
+      </Card>
+
+      {/* Missed Clock-Out Request Dialog (Employee) */}
+      <Dialog open={missedDialogOpen} onClose={() => setMissedDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Report Missed Clock-Out</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2, fontSize: '0.875rem' }}>
+            Enter the date and the time you actually left. Your request will go to the admin for approval before the attendance record is updated.
+          </DialogContentText>
+          <Stack spacing={2.5}>
+            <TextField
+              label="Date you forgot to clock out"
+              type="date"
+              size="small"
+              fullWidth
+              value={missedDate}
+              onChange={(e) => setMissedDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              inputProps={{ max: today }}
+            />
+            <TextField
+              label="Time you actually left (your local time)"
+              type="time"
+              size="small"
+              fullWidth
+              value={missedTime}
+              onChange={(e) => setMissedTime(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="Reason"
+              size="small"
+              fullWidth
+              multiline
+              rows={3}
+              value={missedReason}
+              onChange={(e) => setMissedReason(e.target.value)}
+              placeholder="e.g. Left in a hurry for an emergency, forgot to clock out on the system…"
+              inputProps={{ maxLength: 500 }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setMissedDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="warning"
+            disabled={!missedDate || !missedTime || !missedReason.trim() || submitMissedRequest.isPending}
+            onClick={handleSubmitMissedRequest}
+          >
+            {submitMissedRequest.isPending ? 'Submitting…' : 'Submit Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Attendance Table */}
       <Card>

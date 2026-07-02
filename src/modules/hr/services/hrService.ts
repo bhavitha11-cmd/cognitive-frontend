@@ -59,6 +59,7 @@ const mapBackendDesignationToFrontend = (d: any): Designation => ({
 
 const mapBackendEmployeeToFrontend = (e: any): Employee => ({
   id: e.id,
+  employeeCode: e.employee_code || '',
   firstName: e.first_name,
   middleName: e.middle_name || undefined,
   lastName: e.last_name,
@@ -73,6 +74,7 @@ const mapBackendEmployeeToFrontend = (e: any): Employee => ({
   dateOfBirth: e.date_of_birth || '',
   profilePhoto: e.profile_photo_url || '',
   departmentId: e.department_id || '',
+  departmentName: e.department_name || undefined,
   designationId: e.designation_id || undefined,
   designationName: e.designation_name || undefined,
   roleIds: e.role_ids || [],
@@ -726,5 +728,114 @@ export const useGetAuditLogs = (filters?: { entity_type?: string; entity_id?: st
       return response.data?.data || { logs: [], total: 0 };
     },
     enabled: true,
+  });
+};
+
+// ---- Enterprise Ownership Transfer ----
+
+export interface OffboardImpactItem {
+  id: string;
+  name: string;
+  detail?: string;
+}
+
+export interface OffboardImpactCategory {
+  count: number;
+  items: OffboardImpactItem[];
+}
+
+export interface OffboardImpactWarning {
+  severity: 'info' | 'warning' | 'error';
+  message: string;
+}
+
+export interface OffboardImpactData {
+  employeeId: string;
+  employeeName: string;
+  currentStatus: string;
+  directReports: OffboardImpactCategory;
+  teamsLed: OffboardImpactCategory;
+  departmentsHeaded: OffboardImpactCategory;
+  projectsAsPm: OffboardImpactCategory;
+  activeTasks: OffboardImpactCategory;
+  pendingLeaves: OffboardImpactCategory;
+  pendingTimeEntries: OffboardImpactCategory;
+  projectMemberships: OffboardImpactCategory;
+  warnings: OffboardImpactWarning[];
+}
+
+export interface OffboardExecutePayload {
+  effectiveDate: string;
+  finalStatus: 'RESIGNED' | 'TERMINATED';
+  reason?: string;
+  newManagerId?: string;
+  directReportIds: string[];
+  newTeamLeadId?: string;
+  teamIds: string[];
+  newDeptHeadId?: string;
+  departmentIds: string[];
+  projectPmReassignments: { projectId: string; newPmId: string }[];
+  taskReassignments: { taskId: string; newAssigneeId: string }[];
+  bulkTaskReassignTo?: string;
+  leaveDisposition: 'CANCEL_ALL' | 'KEEP';
+  timeEntryDisposition: 'AUTO_APPROVE' | 'AUTO_REJECT' | 'KEEP';
+}
+
+const mapImpactCategory = (raw: any): OffboardImpactCategory => ({
+  count: raw?.count ?? 0,
+  items: (raw?.items ?? []).map((i: any) => ({ id: i.id, name: i.name, detail: i.detail })),
+});
+
+export const useGetOffboardImpact = (employeeId: string | null) =>
+  useQuery<OffboardImpactData>({
+    queryKey: ['offboard-impact', employeeId],
+    queryFn: async () => {
+      const res = await api.get(`/employees/${employeeId}/offboard/impact`);
+      const d = res.data?.data ?? {};
+      return {
+        employeeId: d.employee_id,
+        employeeName: d.employee_name,
+        currentStatus: d.current_status,
+        directReports: mapImpactCategory(d.direct_reports),
+        teamsLed: mapImpactCategory(d.teams_led),
+        departmentsHeaded: mapImpactCategory(d.departments_headed),
+        projectsAsPm: mapImpactCategory(d.projects_as_pm),
+        activeTasks: mapImpactCategory(d.active_tasks),
+        pendingLeaves: mapImpactCategory(d.pending_leaves),
+        pendingTimeEntries: mapImpactCategory(d.pending_time_entries),
+        projectMemberships: mapImpactCategory(d.project_memberships),
+        warnings: (d.warnings ?? []).map((w: any) => ({ severity: w.severity, message: w.message })),
+      };
+    },
+    enabled: !!employeeId,
+  });
+
+export const useExecuteOffboard = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employeeId, payload }: { employeeId: string; payload: OffboardExecutePayload }) => {
+      const body = {
+        effective_date: payload.effectiveDate,
+        final_status: payload.finalStatus,
+        reason: payload.reason,
+        new_manager_id: payload.newManagerId,
+        direct_report_ids: payload.directReportIds,
+        new_team_lead_id: payload.newTeamLeadId,
+        team_ids: payload.teamIds,
+        new_dept_head_id: payload.newDeptHeadId,
+        department_ids: payload.departmentIds,
+        project_pm_reassignments: payload.projectPmReassignments.map(r => ({ project_id: r.projectId, new_pm_id: r.newPmId })),
+        task_reassignments: payload.taskReassignments.map(r => ({ task_id: r.taskId, new_assignee_id: r.newAssigneeId })),
+        bulk_task_reassign_to: payload.bulkTaskReassignTo,
+        leave_disposition: payload.leaveDisposition,
+        time_entry_disposition: payload.timeEntryDisposition,
+      };
+      const res = await api.post(`/employees/${employeeId}/offboard/execute`, body);
+      return res.data?.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ['offboard-impact'] });
+    },
   });
 };

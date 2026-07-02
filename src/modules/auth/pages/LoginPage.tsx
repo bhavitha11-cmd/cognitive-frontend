@@ -100,14 +100,12 @@ export const LoginPage: React.FC = () => {
         <CardContent sx={{ p: 4, textAlign: 'center' }}>
           {/* Logo & Header */}
           <Avatar
-            onClick={() => { setUsername('admin'); setPassword('AdminPassword123!'); }}
             sx={{
               m: '0 auto 16px',
               bgcolor: 'primary.main',
               width: 52,
               height: 52,
               boxShadow: '0 4px 12px rgba(32, 107, 196, 0.4)',
-              cursor: 'pointer',
             }}
           >
             <LockOutlinedIcon sx={{ fontSize: 28 }} />
