@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Button, Card, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { Box, Button, Card, Typography, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -10,6 +10,7 @@ import { SearchFilters } from '../../../components/SearchFilters';
 import type { FilterOption } from '../../../components/SearchFilters';
 import { FormModal } from '../../../components/FormModal';
 import { TeamForm } from '../components/TeamForm';
+import { parseError } from '../../../utils/api';
 import type { Team } from '../types';
 
 export const TeamListPage: React.FC = () => {
@@ -31,6 +32,16 @@ export const TeamListPage: React.FC = () => {
   const [statusReason, setStatusReason] = useState('');
   const [statusReasonError, setStatusReasonError] = useState('');
 
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
   const handleOpenCreateModal = () => {
     setEditingTeam(undefined);
     setIsModalOpen(true);
@@ -48,9 +59,20 @@ export const TeamListPage: React.FC = () => {
         onSuccess: (updatedTeam) => {
           console.log('[Frontend] Team updated successfully:', updatedTeam);
           setIsModalOpen(false);
+          setSnackbar({
+            open: true,
+            message: 'Team updated successfully.',
+            severity: 'success',
+          });
         },
         onError: (err) => {
           console.error('[Frontend] Failed to update team:', err);
+          const msg = parseError(err);
+          setSnackbar({
+            open: true,
+            message: msg,
+            severity: 'error',
+          });
         }
       });
     } else {
@@ -59,9 +81,20 @@ export const TeamListPage: React.FC = () => {
         onSuccess: (newTeam) => {
           console.log('[Frontend] Team created successfully:', newTeam);
           setIsModalOpen(false);
+          setSnackbar({
+            open: true,
+            message: 'Team created successfully.',
+            severity: 'success',
+          });
         },
         onError: (err) => {
           console.error('[Frontend] Failed to create team:', err);
+          const msg = parseError(err);
+          setSnackbar({
+            open: true,
+            message: msg,
+            severity: 'error',
+          });
         }
       });
     }
@@ -272,6 +305,21 @@ export const TeamListPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

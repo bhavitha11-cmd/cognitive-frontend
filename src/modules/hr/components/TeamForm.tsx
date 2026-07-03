@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { TextField, Grid, FormControl, FormLabel, Select, MenuItem, Switch, FormControlLabel } from '@mui/material';
+import { TextField, Grid, FormControl, FormLabel, Select, MenuItem, Switch, FormControlLabel, FormHelperText } from '@mui/material';
 import { useHRStore } from '../store/useHRStore';
 import type { Team } from '../types';
 
@@ -10,7 +10,7 @@ const teamSchema = z.object({
   team_name: z.string().min(2, 'Team name must be at least 2 characters'),
   team_code: z.string().min(2, 'Team code must be at least 2 characters'),
   description: z.string().optional(),
-  department_id: z.string(),
+  department_id: z.string().min(1, 'Department is required'),
   is_active: z.boolean(),
 });
 
@@ -95,13 +95,13 @@ export const TeamForm: React.FC<TeamFormProps> = ({ initialValues, onSubmit, for
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth size="small">
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department</FormLabel>
+          <FormControl fullWidth size="small" error={!!errors.department_id}>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department *</FormLabel>
             <Controller
               name="department_id"
               control={control}
               render={({ field }) => (
-                <Select {...field} displayEmpty>
+                <Select {...field} displayEmpty error={!!errors.department_id}>
                   <MenuItem value="">-- None --</MenuItem>
                   {departments.map((d) => (
                     <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
@@ -109,6 +109,9 @@ export const TeamForm: React.FC<TeamFormProps> = ({ initialValues, onSubmit, for
                 </Select>
               )}
             />
+            {errors.department_id && (
+              <FormHelperText>{errors.department_id.message}</FormHelperText>
+            )}
           </FormControl>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>

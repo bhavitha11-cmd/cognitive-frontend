@@ -33,7 +33,7 @@ import {
   useUpdateTask,
 } from '../services/taskService';
 import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
-import { useGetEmployees } from '../../hr/services/hrService';
+import { useGetEmployees, useGetDepartments, useGetTeams } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
@@ -49,7 +49,7 @@ const taskFormSchema = z.object({
   title: z.string().min(2, 'Title must be at least 2 characters'),
   description: z.string().optional(),
   scopeOfWorkId: z.string().optional(),
-  teamId: z.string().optional(),
+  teamId: z.string().min(1, 'Team is required'),
   departmentCategory: z.string().min(1, 'Department Category is required'),
   status: z
     .enum(['NOT_STARTED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED', 'REOPENED']),
@@ -67,15 +67,6 @@ const taskFormSchema = z.object({
 
 type TaskFormInputs = z.infer<typeof taskFormSchema>;
 
-const DEPT_OPTIONS = [
-  { value: 'CAD', label: 'CAD — Computer-Aided Design' },
-  { value: 'CAM', label: 'CAM — Computer-Aided Manufacturing' },
-  { value: 'GEN', label: 'GEN — General' },
-  { value: 'SALES', label: 'SALES — Sales' },
-  { value: 'ADMIN', label: 'ADMIN — Administration' },
-  { value: 'MKRT', label: 'MKRT — Marketing' },
-  { value: 'SUPRT', label: 'SUPRT — Support' },
-];
 
 const STATUS_OPTIONS = [
   { value: 'NOT_STARTED', label: 'Yet To Start' },
@@ -133,6 +124,9 @@ export const CreateTaskPage: React.FC = () => {
   const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
   const activeEmployees = employeesData?.employees || [];
 
+  // Fetch departments from DB
+  const { data: departments = [] } = useGetDepartments();
+
   // Fetch project details reactively
   const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);
 
@@ -149,7 +143,7 @@ export const CreateTaskPage: React.FC = () => {
     setError,
     clearErrors,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<TaskFormInputs>({
     resolver: zodResolver(taskFormSchema) as any,
     defaultValues: {
@@ -158,7 +152,7 @@ export const CreateTaskPage: React.FC = () => {
       title: '',
       description: '',
       scopeOfWorkId: '',
-      teamId: undefined,
+      teamId: '',
       departmentCategory: '' as any,
       status: 'NOT_STARTED',
       priority: 'MEDIUM',
@@ -177,13 +171,50 @@ export const CreateTaskPage: React.FC = () => {
   const today = React.useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const watchedProjectId = watch('projectId');
+  const watchedDeptCat = watch('departmentCategory');
 
+  // Resolve matching department ID from DB list
+  const selectedDeptId = React.useMemo(() => {
+    return departments.find((d) => d.code === watchedDeptCat)?.id;
+  }, [watchedDeptCat, departments]);
 
+  // Fetch teams for the selected department
+  const { data: teams = [] } = useGetTeams(selectedDeptId || undefined);
+  const displayTeams = selectedDeptId ? teams : [];
+
+  console.log('DEBUG TEAMS:', {
+    departmentsCount: departments.length,
+    watchedDeptCat,
+    selectedDeptId,
+    teams,
+    displayTeams,
+  });
+
+  // Reset team field if department changes
+  useEffect(() => {
+    if (dirtyFields.departmentCategory) {
+      setValue('teamId', '');
+    }
+  }, [watchedDeptCat, setValue, dirtyFields.departmentCategory]);
+
+  const watchedTeamId = watch('teamId');
+
+  // Filter employees to show only those belonging to the selected team
+  const filteredEmployees = React.useMemo(() => {
+    if (!watchedTeamId) return activeEmployees;
+    return activeEmployees.filter((e) => e.teamId === watchedTeamId);
+  }, [watchedTeamId, activeEmployees]);
+
+  // Reset assignee if selected team changes
+  useEffect(() => {
+    if (dirtyFields.teamId) {
+      setValue('assignedEmployeeId', '');
+    }
+  }, [watchedTeamId, setValue, dirtyFields.teamId]);
 
   const plannedStartDate = watch('plannedStartDate');
   const plannedEndDate = watch('plannedEndDate');
   const estimatedHours = watch('estimatedHours');
-
 
   // Fetch next available task code from server (bypasses RBAC, scans ALL tasks)
   const { data: nextCodeData } = useGetNextTaskCode(watchedProjectId);
@@ -624,9 +655,9 @@ export const CreateTaskPage: React.FC = () => {
                     render={({ field }) => (
                       <Select {...field} label="Department Category *" displayEmpty notched>
                         <MenuItem value="">— Select Department —</MenuItem>
-                        {DEPT_OPTIONS.map((d) => (
-                          <MenuItem key={d.value} value={d.value}>
-                            {d.label}
+                        {departments.map((d) => (
+                          <MenuItem key={d.id} value={d.code}>
+                            {d.code} — {d.name}
                           </MenuItem>
                         ))}
                       </Select>
@@ -634,6 +665,30 @@ export const CreateTaskPage: React.FC = () => {
                   />
                   {errors.departmentCategory && (
                     <FormHelperText>{errors.departmentCategory.message}</FormHelperText>
+                  )}
+                </FormControl>
+              </Grid>
+
+              {/* Team */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size="small" error={!!errors.teamId}>
+                  <InputLabel shrink>Team *</InputLabel>
+                  <Controller
+                    name="teamId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select {...field} label="Team *" displayEmpty notched>
+                        <MenuItem value="">— Select Team —</MenuItem>
+                         {displayTeams.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            {t.team_name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    )}
+                  />
+                  {errors.teamId && (
+                    <FormHelperText>{errors.teamId.message}</FormHelperText>
                   )}
                 </FormControl>
               </Grid>
@@ -714,7 +769,7 @@ export const CreateTaskPage: React.FC = () => {
                     render={({ field }) => (
                       <Select {...field} label="Assigned To" displayEmpty notched>
                         <MenuItem value="">— Unassigned —</MenuItem>
-                        {activeEmployees.map((e) => (
+                        {filteredEmployees.map((e) => (
                           <MenuItem key={e.id} value={e.id}>
                             {e.firstName} {e.lastName}
                             {e.designationName ? ` — ${e.designationName}` : ''}

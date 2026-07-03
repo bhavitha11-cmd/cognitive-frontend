@@ -21,7 +21,7 @@ import {
   Checkbox,
 } from '@mui/material';
 import { useHRStore } from '../store/useHRStore';
-import { useGetDesignations, useGetTeams } from '../services/hrService';
+import { useGetTeams } from '../services/hrService';
 import type { Employee } from '../types';
 
 const getEmployeeSchema = (isEditing: boolean) => z.object({
@@ -51,9 +51,9 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   password: isEditing ? z.string().optional() : z.string().min(8, 'Password must be at least 8 characters'),
   sendWelcomeEmail: z.boolean(),
 
-  emergencyContactName: z.string().optional(),
-  emergencyContactPhone: z.string().optional(),
-  address: z.string().optional(),
+  emergencyContactName: z.string().min(1, 'Emergency contact name is required'),
+  emergencyContactPhone: z.string().min(1, 'Emergency contact phone is required').regex(/^\+?\d{7,15}$/, 'Invalid phone number format (7 to 15 digits)'),
+  address: z.string().min(1, 'Address is required'),
   isDepartmentHead: z.boolean().optional(),
   teamId: z.string().optional(),
   isTeamLead: z.boolean().optional(),
@@ -103,7 +103,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       reportingManagerId: initialValues?.reportingManagerId || '',
       dateOfJoining: initialValues?.dateOfJoining || '',
       employmentType: initialValues?.employmentType || 'FULL_TIME',
-      status: initialValues?.status || 'ACTIVE',
+      status: (initialValues?.status || 'ACTIVE') as any,
       username: initialValues?.username || '',
       password: '',
       sendWelcomeEmail: initialValues?.sendWelcomeEmail !== undefined ? initialValues.sendWelcomeEmail : true,
@@ -118,7 +118,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
 
   const watchedDeptId = watch('departmentId');
   const watchedTeamId = watch('teamId');
-  const { data: designations = [] } = useGetDesignations(watchedDeptId || undefined);
   const { data: teams = [] } = useGetTeams();
 
   return (
@@ -329,24 +328,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             )}
           />
         </Grid>
-        <Grid size={{ xs: 12 }}>
-          <Controller
-            name="profilePhoto"
-            control={control}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                label="Profile Photo URL"
-                placeholder="https://example.com/photo.jpg"
-                fullWidth
-                size="small"
-                error={!!errors.profilePhoto}
-                helperText={errors.profilePhoto?.message}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            )}
-          />
-        </Grid>
       </Grid>
 
       <Divider sx={{ my: 3 }} />
@@ -387,26 +368,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
               )}
             />
           )}
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth size="small" error={!!errors.designationId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Designation</FormLabel>
-            <Controller
-              name="designationId"
-              control={control}
-              render={({ field }) => (
-                <Select {...field} displayEmpty>
-                  <MenuItem value="">-- Select Designation --</MenuItem>
-                  {designations.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            />
-            {errors.designationId && <FormHelperText>{errors.designationId.message}</FormHelperText>}
-          </FormControl>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.teamId}>
@@ -568,9 +529,11 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Emergency Contact Name"
+                label="Emergency Contact Name *"
                 fullWidth
                 size="small"
+                error={!!errors.emergencyContactName}
+                helperText={errors.emergencyContactName?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
@@ -583,9 +546,11 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Emergency Contact Phone"
+                label="Emergency Contact Phone *"
                 fullWidth
                 size="small"
+                error={!!errors.emergencyContactPhone}
+                helperText={errors.emergencyContactPhone?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
@@ -598,11 +563,13 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Address"
+                label="Address *"
                 multiline
                 rows={2}
                 fullWidth
                 size="small"
+                error={!!errors.address}
+                helperText={errors.address?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}
