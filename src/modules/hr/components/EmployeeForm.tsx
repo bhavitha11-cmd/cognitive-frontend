@@ -35,14 +35,14 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   mobile: z.string().length(10, 'Mobile number must be exactly 10 digits').regex(/^\d{10}$/, 'Mobile number must contain numeric characters only'),
   phone: z.string().optional(),
   alternatePhone: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'], { message: 'Gender is required' }),
   dateOfBirth: z.string().min(1, 'Date of Birth is required'),
   profilePhoto: z.string().optional(),
 
-  departmentId: z.string().optional(),
+  departmentId: z.string().min(1, 'Department is required'),
   designationId: z.string().optional(),
-  roleIds: z.array(z.string()).optional(),
-  reportingManagerId: z.string().optional(),
+  roleIds: z.array(z.string()).min(1, 'At least one role must be assigned'),
+  reportingManagerId: z.string().min(1, 'Reporting Manager is required'),
   dateOfJoining: z.string().min(1, 'Date of Joining is required'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']),
   status: z.enum(['ACTIVE', 'PROBATION', 'NOTICE_PERIOD', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED']),
@@ -55,7 +55,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   emergencyContactPhone: z.string().min(1, 'Emergency contact phone is required').regex(/^\+?\d{7,15}$/, 'Invalid phone number format (7 to 15 digits)'),
   address: z.string().min(1, 'Address is required'),
   isDepartmentHead: z.boolean().optional(),
-  teamId: z.string().optional(),
+  teamId: z.string().min(1, 'Team is required'),
   isTeamLead: z.boolean().optional(),
 });
 
@@ -79,7 +79,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
   const {
     control,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<EmployeeFormInputs>({
     resolver: zodResolver(getEmployeeSchema(isEditing)),
@@ -94,7 +93,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       mobile: initialValues?.mobile || '',
       phone: initialValues?.phone || '',
       alternatePhone: initialValues?.alternatePhone || '',
-      gender: initialValues?.gender || 'MALE',
+      gender: initialValues?.gender || '' as any,
       dateOfBirth: initialValues?.dateOfBirth || '',
       profilePhoto: initialValues?.profilePhoto || '',
       departmentId: initialValues?.departmentId || '',
@@ -116,8 +115,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
     },
   });
 
-  const watchedDeptId = watch('departmentId');
-  const watchedTeamId = watch('teamId');
   const { data: teams = [] } = useGetTeams();
 
   return (
@@ -294,12 +291,13 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.gender}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Gender</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Gender *</FormLabel>
             <Controller
               name="gender"
               control={control}
               render={({ field }) => (
-                <Select {...field}>
+                <Select {...field} displayEmpty>
+                  <MenuItem value="">-- Select Gender --</MenuItem>
                   <MenuItem value="MALE">Male</MenuItem>
                   <MenuItem value="FEMALE">Female</MenuItem>
                   <MenuItem value="OTHER">Other</MenuItem>
@@ -338,7 +336,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.departmentId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department *</FormLabel>
             <Controller
               name="departmentId"
               control={control}
@@ -355,23 +353,10 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             />
             {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
           </FormControl>
-          {watchedDeptId && (
-            <Controller
-              name="isDepartmentHead"
-              control={control}
-              render={({ field }) => (
-                <FormControlLabel
-                  control={<Checkbox checked={!!field.value} onChange={field.onChange} color="primary" />}
-                  label="Is Department Head"
-                  sx={{ mt: 1 }}
-                />
-              )}
-            />
-          )}
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.teamId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team *</FormLabel>
             <Controller
               name="teamId"
               control={control}
@@ -388,29 +373,16 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             />
             {errors.teamId && <FormHelperText>{errors.teamId.message}</FormHelperText>}
           </FormControl>
-          {watchedTeamId && (
-            <Controller
-              name="isTeamLead"
-              control={control}
-              render={({ field }) => (
-                <FormControlLabel
-                  control={<Checkbox checked={!!field.value} onChange={field.onChange} color="primary" />}
-                  label="Is Team Lead"
-                  sx={{ mt: 1 }}
-                />
-              )}
-            />
-          )}
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.reportingManagerId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Reporting Manager</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Reporting Manager *</FormLabel>
             <Controller
               name="reportingManagerId"
               control={control}
               render={({ field }) => (
                 <Select {...field} displayEmpty>
-                  <MenuItem value="">-- None (Reports to CEO) --</MenuItem>
+                  <MenuItem value="">-- Select Reporting Manager --</MenuItem>
                   {managerOptions.map((m) => (
                     <MenuItem key={m.id} value={m.id}>
                       {m.firstName} {m.lastName}
@@ -424,7 +396,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.roleIds}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Assigned Roles</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Assigned Roles *</FormLabel>
             <Controller
               name="roleIds"
               control={control}
