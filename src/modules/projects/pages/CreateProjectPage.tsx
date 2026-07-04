@@ -27,8 +27,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 import { useCreateProject, useGetHolidays } from '../services/projectService';
-import { useGetClients } from '../../clients/services/clientService';
-import { useGetEmployees, useGetDepartments } from '../../hr/services/hrService';
+import { useGetClientsLookup } from '../../clients/services/clientService';
+import { useGetEmployeesLookup, useGetDepartmentsLookup } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
 
@@ -76,13 +76,10 @@ export const CreateProjectPage: React.FC = () => {
   const navigate = useNavigate();
 
   const createProject = useCreateProject();
-  const { data: clientsData } = useGetClients({ limit: 200, isActive: true });
-  const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
-  const { data: departments = [] } = useGetDepartments();
+  const { data: clients = [] } = useGetClientsLookup();
+  const { data: managers = [] } = useGetEmployeesLookup();
+  const { data: departments = [] } = useGetDepartmentsLookup();
   const { data: holidays = [] } = useGetHolidays();
-
-  const clients = clientsData?.clients || [];
-  const managers = employeesData?.employees || [];
 
   const {
     control,
@@ -308,7 +305,7 @@ export const CreateProjectPage: React.FC = () => {
                         <MenuItem value="" disabled>
                           -- Select Department --
                         </MenuItem>
-                        {departments.filter((d: any) => d.status === 'Active').map((d: any) => (
+                        {departments.map((d) => (
                           <MenuItem key={d.id} value={d.id}>
                             {d.name} {d.code ? `(${d.code})` : ''}
                           </MenuItem>
@@ -361,8 +358,7 @@ export const CreateProjectPage: React.FC = () => {
                         <MenuItem value="">-- Unassigned --</MenuItem>
                         {managers.map((e) => (
                           <MenuItem key={e.id} value={e.id}>
-                            {e.firstName} {e.lastName}
-                            {e.designationName ? ` — ${e.designationName}` : ''}
+                            {e.displayName}
                           </MenuItem>
                         ))}
                       </Select>

@@ -168,7 +168,7 @@ export const RoleListPage: React.FC = () => {
       id: 'permissions',
       label: 'Permissions',
       render: (row) => {
-        const pCount = row.permissions?.filter((p) => p.can_view || p.can_create || p.can_edit || p.can_delete || p.can_approve || p.can_export).length || 0;
+        const pCount = row.permissions?.filter((p) => p.can_view || p.can_create || p.can_edit || p.can_activate).length || 0;
         return (
           <Typography variant="body2" sx={{ fontSize: '0.75rem', color: pCount > 0 ? 'text.primary' : 'text.disabled' }}>
             {pCount > 0 ? `${pCount} module(s)` : 'None'}

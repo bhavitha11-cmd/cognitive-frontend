@@ -192,7 +192,7 @@ export const router = createBrowserRouter([
           {
             path: 'leave-approval',
             element: (
-              <ProtectedRoute module="Leave" action="approve">
+              <ProtectedRoute module="Leave" action="edit">
                 {lazyLoad(() => import('../modules/timesheets/pages/LeaveApprovalPage'), 'table')}
               </ProtectedRoute>
             ),

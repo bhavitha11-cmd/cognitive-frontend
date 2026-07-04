@@ -33,7 +33,7 @@ import {
   useUpdateTask,
 } from '../services/taskService';
 import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
-import { useGetEmployees, useGetDepartments, useGetTeams } from '../../hr/services/hrService';
+import { useGetEmployeesLookup, useGetDepartmentsLookup, useGetTeamsLookup } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
@@ -120,12 +120,11 @@ export const CreateTaskPage: React.FC = () => {
   const { data: projectData, isLoading: projectsLoading } = useGetProjects({ limit: 500 });
   const projects = projectData?.projects ?? [];
 
-  // Active employees for task assignment
-  const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
-  const activeEmployees = employeesData?.employees || [];
+  // Active employees for task assignment (auth-only reference lookup)
+  const { data: activeEmployees = [] } = useGetEmployeesLookup();
 
-  // Fetch departments from DB
-  const { data: departments = [] } = useGetDepartments();
+  // Fetch departments from DB (auth-only reference lookup)
+  const { data: departments = [] } = useGetDepartmentsLookup();
 
   // Fetch project details reactively
   const { data: fetchedDetails, error: fetchError, isLoading: detailsLoading } = useGetProjectDetailsByPart(selectedPartNumber);
@@ -178,8 +177,8 @@ export const CreateTaskPage: React.FC = () => {
     return departments.find((d) => d.code === watchedDeptCat)?.id;
   }, [watchedDeptCat, departments]);
 
-  // Fetch teams for the selected department
-  const { data: teams = [] } = useGetTeams(selectedDeptId || undefined);
+  // Fetch teams for the selected department (auth-only reference lookup)
+  const { data: teams = [] } = useGetTeamsLookup(selectedDeptId || undefined);
   const displayTeams = selectedDeptId ? teams : [];
 
   console.log('DEBUG TEAMS:', {
@@ -199,11 +198,14 @@ export const CreateTaskPage: React.FC = () => {
 
   const watchedTeamId = watch('teamId');
 
-  // Filter employees to show only those belonging to the selected team
+  // Filter employees to show only those belonging to the selected department.
+  // (The employee lookup DTO only carries department_id, not team_id, so
+  // narrowing by team is no longer possible here — department is the closest
+  // available scope, and department is already a required field on this form.)
   const filteredEmployees = React.useMemo(() => {
-    if (!watchedTeamId) return activeEmployees;
-    return activeEmployees.filter((e) => e.teamId === watchedTeamId);
-  }, [watchedTeamId, activeEmployees]);
+    if (!selectedDeptId) return activeEmployees;
+    return activeEmployees.filter((e) => e.departmentId === selectedDeptId);
+  }, [selectedDeptId, activeEmployees]);
 
   // Reset assignee if selected team changes
   useEffect(() => {
@@ -771,8 +773,7 @@ export const CreateTaskPage: React.FC = () => {
                         <MenuItem value="">— Unassigned —</MenuItem>
                         {filteredEmployees.map((e) => (
                           <MenuItem key={e.id} value={e.id}>
-                            {e.firstName} {e.lastName}
-                            {e.designationName ? ` — ${e.designationName}` : ''}
+                            {e.displayName}
                           </MenuItem>
                         ))}
                       </Select>

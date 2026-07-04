@@ -81,6 +81,32 @@ export const useGetClients = (params?: ClientListParams) => {
   });
 };
 
+// ==========================================
+// LOOKUP (lightweight, auth-only reference endpoint — no Clients:view needed)
+// ==========================================
+
+export interface ClientLookupItem {
+  id: string;
+  name: string;
+  clientCode: string;
+}
+
+export const useGetClientsLookup = () => {
+  return useQuery<ClientLookupItem[]>({
+    queryKey: ['clients-lookup'],
+    queryFn: async () => {
+      const response = await api.get('/clients/lookup');
+      const data = response.data?.data || response.data;
+      const items = data?.clients || data || [];
+      return items.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        clientCode: c.client_code || c.clientCode || '',
+      }));
+    },
+  });
+};
+
 export const useGetClient = (id: string) => {
   return useQuery<Client>({
     queryKey: ['clients', id],

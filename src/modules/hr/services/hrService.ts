@@ -196,9 +196,7 @@ export const useSetRolePermissions = () => {
         can_view: perms.can_view || false,
         can_create: perms.can_create || false,
         can_edit: perms.can_edit || false,
-        can_delete: perms.can_delete || false,
-        can_approve: perms.can_approve || false,
-        can_export: perms.can_export || false,
+        can_activate: perms.can_activate || false,
       }));
       const response = await api.put(`/roles/${id}/permissions`, { permissions: permissionsList });
       return response.data;
@@ -221,6 +219,37 @@ export const useGetDepartments = () => {
       const items = response.data?.data?.departments || [];
       const mapped = items.map(mapBackendDepartmentToFrontend);
       useHRStore.getState().setDepartments(mapped);
+      return mapped;
+    },
+  });
+};
+
+// ---- Lookup (lightweight, auth-only reference endpoint — no Departments:view needed) ----
+
+export interface DepartmentLookupItem {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export const useGetDepartmentsLookup = () => {
+  return useQuery<DepartmentLookupItem[]>({
+    queryKey: ['departments-lookup'],
+    queryFn: async () => {
+      const response = await api.get('/departments/lookup');
+      const data = response.data?.data || response.data;
+      const items = data?.departments || data || [];
+      const mapped: DepartmentLookupItem[] = items.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        code: d.code,
+      }));
+      // Keep the shared HR store populated for consumers that read department
+      // reference data from the store (e.g. EmployeeForm). Lookup results are
+      // already is_active-only, so 'Active' is a safe default here.
+      useHRStore.getState().setDepartments(
+        mapped.map((d) => ({ id: d.id, name: d.name, code: d.code, status: 'Active' as const }))
+      );
       return mapped;
     },
   });
@@ -287,6 +316,34 @@ export const useGetDesignations = (departmentId?: string) => {
       const response = await api.get('/designations', { params });
       const items = response.data?.data?.designations || [];
       return items.map(mapBackendDesignationToFrontend);
+    },
+  });
+};
+
+// ---- Lookup (lightweight, auth-only reference endpoint — no Designations:view needed) ----
+
+export interface DesignationLookupItem {
+  id: string;
+  name: string;
+  code: string;
+  departmentId?: string;
+}
+
+export const useGetDesignationsLookup = (departmentId?: string) => {
+  return useQuery<DesignationLookupItem[]>({
+    queryKey: ['designations-lookup', departmentId],
+    queryFn: async () => {
+      const params: Record<string, any> = {};
+      if (departmentId) params.department_id = departmentId;
+      const response = await api.get('/designations/lookup', { params });
+      const data = response.data?.data || response.data;
+      const items = data?.designations || data || [];
+      return items.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        code: d.code,
+        departmentId: d.department_id || undefined,
+      }));
     },
   });
 };
@@ -396,6 +453,32 @@ export const useGetEmployees = (params?: EmployeeListParams, options?: { enabled
       return { employees: mapped, total: data.total ?? mapped.length };
     },
     ...options,
+  });
+};
+
+// ---- Lookup (lightweight, auth-only reference endpoint — no Employees:view needed) ----
+
+export interface EmployeeLookupItem {
+  id: string;
+  displayName: string;
+  employeeCode: string;
+  departmentId?: string;
+}
+
+export const useGetEmployeesLookup = () => {
+  return useQuery<EmployeeLookupItem[]>({
+    queryKey: ['employees-lookup'],
+    queryFn: async () => {
+      const response = await api.get('/employees/lookup');
+      const data = response.data?.data || response.data;
+      const items = data?.employees || data || [];
+      return items.map((e: any) => ({
+        id: e.id,
+        displayName: e.display_name || '',
+        employeeCode: e.employee_code || '',
+        departmentId: e.department_id || undefined,
+      }));
+    },
   });
 };
 
@@ -616,6 +699,33 @@ export const useGetTeams = (departmentId?: string) => {
       const params = departmentId ? { department_id: departmentId } : {};
       const response = await api.get('/teams', { params });
       return response.data?.data?.teams || [];
+    },
+  });
+};
+
+// ---- Lookup (lightweight, auth-only reference endpoint — no Teams:view needed) ----
+
+export interface TeamLookupItem {
+  id: string;
+  team_name: string;
+  team_code: string;
+  department_id?: string;
+}
+
+export const useGetTeamsLookup = (departmentId?: string) => {
+  return useQuery<TeamLookupItem[]>({
+    queryKey: ['teams-lookup', departmentId],
+    queryFn: async () => {
+      const params = departmentId ? { department_id: departmentId } : {};
+      const response = await api.get('/teams/lookup', { params });
+      const data = response.data?.data || response.data;
+      const items = data?.teams || data || [];
+      return items.map((t: any) => ({
+        id: t.id,
+        team_name: t.team_name,
+        team_code: t.team_code,
+        department_id: t.department_id || undefined,
+      }));
     },
   });
 };

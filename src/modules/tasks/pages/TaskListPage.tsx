@@ -649,7 +649,7 @@ export const TaskListPage: React.FC = () => {
               </IconButton>
             </Tooltip>
           )}
-          {useAuthStore.getState().hasPermission('Tasks', 'delete') && (
+          {useAuthStore.getState().hasPermission('Tasks', 'activate') && (
             <Tooltip title="Delete Task">
               <IconButton
                 size="small"

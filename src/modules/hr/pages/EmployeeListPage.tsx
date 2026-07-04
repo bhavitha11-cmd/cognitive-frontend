@@ -20,7 +20,7 @@ import BlockIcon from '@mui/icons-material/Block';
 
 import {
   useGetEmployees,
-  useGetDepartments,
+  useGetDepartmentsLookup,
   useGetRoles,
   useCreateEmployee,
   useUpdateEmployee,
@@ -43,8 +43,8 @@ import type { Employee } from '../types';
 export const EmployeeListPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Load reference data
-  useGetDepartments();
+  // Load reference data (auth-only reference lookup for departments)
+  useGetDepartmentsLookup();
   useGetRoles();
 
   // Reference data from store

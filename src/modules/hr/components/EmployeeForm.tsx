@@ -21,7 +21,7 @@ import {
   Checkbox,
 } from '@mui/material';
 import { useHRStore } from '../store/useHRStore';
-import { useGetTeams } from '../services/hrService';
+import { useGetTeamsLookup, useGetEmployeesLookup } from '../services/hrService';
 import type { Employee } from '../types';
 
 const getEmployeeSchema = (isEditing: boolean) => z.object({
@@ -70,9 +70,11 @@ interface EmployeeFormProps {
 export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSubmit, formId }) => {
   const departments = useHRStore((state) => state.departments);
   const roles = useHRStore((state) => state.roles);
-  const employees = useHRStore((state) => state.employees);
 
-  const managerOptions = employees.filter((e) => !initialValues || e.id !== initialValues.id);
+  // Reporting-Manager picker: auth-only reference lookup, not the full
+  // Employees:view-gated list (and not the paginated main-table store slice).
+  const { data: employeesLookup = [] } = useGetEmployeesLookup();
+  const managerOptions = employeesLookup.filter((e) => !initialValues || e.id !== initialValues.id);
 
   const isEditing = !!initialValues;
 
@@ -115,7 +117,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
     },
   });
 
-  const { data: teams = [] } = useGetTeams();
+  const { data: teams = [] } = useGetTeamsLookup();
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit as any)}>
@@ -385,7 +387,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
                   <MenuItem value="">-- Select Reporting Manager --</MenuItem>
                   {managerOptions.map((m) => (
                     <MenuItem key={m.id} value={m.id}>
-                      {m.firstName} {m.lastName}
+                      {m.displayName}
                     </MenuItem>
                   ))}
                 </Select>

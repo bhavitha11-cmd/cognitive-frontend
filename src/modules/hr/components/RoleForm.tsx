@@ -13,9 +13,7 @@ const PERMISSION_ACTIONS = [
   { key: 'can_view', label: 'View' },
   { key: 'can_create', label: 'Create' },
   { key: 'can_edit', label: 'Edit' },
-  { key: 'can_delete', label: 'Delete' },
-  { key: 'can_approve', label: 'Approve' },
-  { key: 'can_export', label: 'Export' },
+  { key: 'can_activate', label: 'Activate / Deactivate' },
 ];
 
 const permissionSchema = z.record(
@@ -24,9 +22,7 @@ const permissionSchema = z.record(
     can_view: z.boolean(),
     can_create: z.boolean(),
     can_edit: z.boolean(),
-    can_delete: z.boolean(),
-    can_approve: z.boolean(),
-    can_export: z.boolean(),
+    can_activate: z.boolean(),
   })
 );
 
@@ -54,9 +50,7 @@ const buildDefaultPermissions = (existing?: Role): Record<string, any> => {
       can_view: existingPerm?.can_view || false,
       can_create: existingPerm?.can_create || false,
       can_edit: existingPerm?.can_edit || false,
-      can_delete: existingPerm?.can_delete || false,
-      can_approve: existingPerm?.can_approve || false,
-      can_export: existingPerm?.can_export || false,
+      can_activate: existingPerm?.can_activate || false,
     };
   }
   return perms;
@@ -87,9 +81,7 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
       can_view: checked,
       can_create: checked,
       can_edit: checked,
-      can_delete: checked,
-      can_approve: checked,
-      can_export: checked,
+      can_activate: checked,
     } as any);
   };
 
@@ -178,8 +170,7 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
           <tbody>
             {MODULES.map((mod) => {
               const perm = watchedPerms?.[mod] || {
-                can_view: false, can_create: false, can_edit: false,
-                can_delete: false, can_approve: false, can_export: false,
+                can_view: false, can_create: false, can_edit: false, can_activate: false,
               };
               const allChecked = Object.values(perm).every(Boolean);
               return (

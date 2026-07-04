@@ -24,7 +24,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import { Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Line, ComposedChart } from 'recharts';
-import { useGetEmployees } from '../../hr/services/hrService';
+import { useGetEmployeesLookup } from '../../hr/services/hrService';
 import { useGetEmployeeCapacity, useGetEmployeeSchedules, useUpdateSchedule } from '../services/planningService';
 import type { EmployeeSchedule } from '../types';
 
@@ -53,8 +53,7 @@ const CapacityPlanningPage: React.FC = () => {
   const [editingSchedule, setEditingSchedule] = useState<EmployeeSchedule | null>(null);
   const [editHours, setEditHours] = useState(0);
 
-  const { data: employeesData } = useGetEmployees();
-  const employees = employeesData?.employees;
+  const { data: employees } = useGetEmployeesLookup();
   const { data: capacity, isLoading: capLoading, isError: capError } = useGetEmployeeCapacity(
     loaded ? employeeId : '',
     loaded ? fromDate : '',
@@ -114,9 +113,9 @@ const CapacityPlanningPage: React.FC = () => {
             onChange={(e) => { setEmployeeId(e.target.value); setLoaded(false); }}
             sx={{ minWidth: 220 }}
           >
-            {employees?.map((emp: any) => (
+            {employees?.map((emp) => (
               <MenuItem key={emp.id} value={emp.id}>
-                {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                {emp.displayName}{emp.employeeCode ? ` (${emp.employeeCode})` : ''}
               </MenuItem>
             ))}
           </TextField>
