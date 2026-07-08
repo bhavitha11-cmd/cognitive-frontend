@@ -92,13 +92,14 @@ export interface TaskListParams {
   status?: string;
   deptCat?: string;
   search?: string;
+  employeeId?: string;
 }
 
 // ==========================================
 // 1. GET TASKS (paginated list)
 // ==========================================
 
-export const useGetTasks = (params?: TaskListParams) => {
+export const useGetTasks = (params?: TaskListParams, options?: any) => {
   return useQuery<{ tasks: Task[]; total: number; skip: number; limit: number }>({
     queryKey: ['tasks', params],
     queryFn: async () => {
@@ -109,6 +110,7 @@ export const useGetTasks = (params?: TaskListParams) => {
       if (params?.status && params.status !== 'all') queryParams.status = params.status;
       if (params?.deptCat && params.deptCat !== 'all') queryParams.department_category = params.deptCat;
       if (params?.search) queryParams.search = params.search;
+      if (params?.employeeId) queryParams.employee_id = params.employeeId;
 
       const response = await api.get('/tasks', { params: queryParams });
       const data = response.data?.data || response.data || {};
@@ -120,6 +122,7 @@ export const useGetTasks = (params?: TaskListParams) => {
         limit: data.limit ?? rawTasks.length,
       };
     },
+    ...options,
   });
 };
 

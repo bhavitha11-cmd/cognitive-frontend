@@ -167,6 +167,7 @@ export const CalendarPage: React.FC = () => {
             <CardContent sx={{ p: 3 }}>
               <Box
                 sx={{
+                  position: 'relative',
                   '& .fc': { fontFamily: 'inherit', color: 'text.primary' },
                   '& .fc-theme-standard td, & .fc-theme-standard th': { borderColor: '#e2e8f0' },
                   '& .fc-header-toolbar': { flexWrap: 'wrap', gap: 1.5, mb: 3 },
@@ -186,30 +187,42 @@ export const CalendarPage: React.FC = () => {
                   '& .fc-list-day-cushion': { backgroundColor: '#f8fafc' },
                 }}
               >
-                {eventsLoading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                {eventsLoading && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                      zIndex: 100,
+                    }}
+                  >
                     <CircularProgress />
                   </Box>
-                ) : (
-                  <FullCalendar
-                    plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-                    initialView="dayGridMonth"
-                    initialDate={now}
-                    headerToolbar={{
-                      left: 'prev,next today',
-                      center: 'title',
-                      right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth',
-                    }}
-                    events={fullCalendarEvents}
-                    editable={false}
-                    selectable={true}
-                    selectMirror={true}
-                    dayMaxEvents={true}
-                    height="70vh"
-                    eventClick={handleEventClick}
-                    datesSet={handleDatesSet}
-                  />
                 )}
+                <FullCalendar
+                  plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+                  initialView="dayGridMonth"
+                  initialDate={now}
+                  headerToolbar={{
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth',
+                  }}
+                  events={fullCalendarEvents}
+                  editable={false}
+                  selectable={true}
+                  selectMirror={true}
+                  dayMaxEvents={true}
+                  height="70vh"
+                  eventClick={handleEventClick}
+                  datesSet={handleDatesSet}
+                />
               </Box>
             </CardContent>
           </Card>

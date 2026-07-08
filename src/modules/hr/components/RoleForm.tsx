@@ -1,37 +1,45 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
   TextField, MenuItem, FormControl, FormLabel, Select, Grid,
-  FormHelperText, Box, Typography, Checkbox, Divider,
+  FormHelperText, Box, Typography, Divider, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody
 } from '@mui/material';
-import type { Role } from '../types';
+import type { Role, FeaturePermission, PermissionScope } from '../types';
+import { useGetRoles, useGetRoleFeaturePermissions } from '../services/hrService';
+import { useGetModules } from '../services/moduleService';
+import api from '../../../utils/api';
 
-const MODULES = ['HR', 'Clients', 'Finance', 'Projects', 'Inventory', 'Settings', 'Reports', 'Timesheets', 'Tasks', 'Attendance', 'Leave', 'Analytics'];
-const PERMISSION_ACTIONS = [
-  { key: 'can_view', label: 'View' },
-  { key: 'can_create', label: 'Create' },
-  { key: 'can_edit', label: 'Edit' },
-  { key: 'can_activate', label: 'Activate / Deactivate' },
-];
+const SCOPES: { value: PermissionScope; label: string } = [
+  { value: 'NONE', label: 'None' },
+  { value: 'OWNED', label: 'Owned' },
+  { value: 'ADDED', label: 'Added' },
+  { value: 'ADDED_OWNED', label: 'Added & Owned' },
+  { value: 'TEAM', label: 'Team' },
+  { value: 'DEPARTMENT', label: 'Department' },
+  { value: 'COMPANY', label: 'Company' },
+  { value: 'ALL', label: 'All' },
+] as any;
 
-const permissionSchema = z.record(
-  z.string(),
-  z.object({
-    can_view: z.boolean(),
-    can_create: z.boolean(),
-    can_edit: z.boolean(),
-    can_activate: z.boolean(),
-  })
-);
+const featurePermissionSchema = z.object({
+  feature_id: z.string(),
+  feature_key: z.string(),
+  feature_name: z.string(),
+  module_key: z.string(),
+  module_name: z.string(),
+  view_scope: z.string(),
+  create_scope: z.string(),
+  update_scope: z.string(),
+  delete_scope: z.string(),
+});
 
 const roleSchema = z.object({
   name: z.string().min(2, 'Role Name must be at least 2 characters'),
   description: z.string().min(5, 'Description must be at least 5 characters'),
   reportsTo: z.string().optional(),
   status: z.enum(['Active', 'Inactive']),
-  permissions: permissionSchema,
+  featurePermissions: z.array(featurePermissionSchema),
 });
 
 type RoleFormInputs = z.infer<typeof roleSchema>;
@@ -42,26 +50,27 @@ interface RoleFormProps {
   formId: string;
 }
 
-const buildDefaultPermissions = (existing?: Role): Record<string, any> => {
-  const perms: Record<string, any> = {};
-  for (const mod of MODULES) {
-    const existingPerm = existing?.permissions?.find((p) => p.module_name === mod);
-    perms[mod] = {
-      can_view: existingPerm?.can_view || false,
-      can_create: existingPerm?.can_create || false,
-      can_edit: existingPerm?.can_edit || false,
-      can_activate: existingPerm?.can_activate || false,
-    };
-  }
-  return perms;
-};
-
 export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, formId }) => {
+  const { data: roles = [] } = useGetRoles();
+  const { data: modules = [] } = useGetModules();
+  
+  // Load permissions for existing role
+  const { data: fetchedPermissions = [], isLoading: isPermsLoading } = 
+    useGetRoleFeaturePermissions(initialValues?.id || '');
+
+  const [cloneSourceId, setCloneSourceId] = useState<string>('');
+  const [isCloning, setIsCloning] = useState<boolean>(false);
+
+  const parentRoleOptions = roles.filter(
+    (r) => !initialValues || r.id !== initialValues.id
+  );
+
   const {
     control,
     handleSubmit,
-    watch,
     setValue,
+    reset,
+    watch,
     formState: { errors },
   } = useForm<RoleFormInputs>({
     resolver: zodResolver(roleSchema),
@@ -70,29 +79,104 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
       description: initialValues?.description || '',
       reportsTo: initialValues?.reportsTo || '',
       status: initialValues?.status || 'Active',
-      permissions: buildDefaultPermissions(initialValues),
+      featurePermissions: [],
     },
   });
 
-  const watchedPerms = watch('permissions');
+  const watchPermissions = watch('featurePermissions') || [];
 
-  const handleToggleModule = (module: string, checked: boolean) => {
-    setValue(`permissions.${module}`, {
-      can_view: checked,
-      can_create: checked,
-      can_edit: checked,
-      can_activate: checked,
-    } as any);
+  // Reset form when initial values or fetched permissions change
+  useEffect(() => {
+    if (initialValues) {
+      if (fetchedPermissions && fetchedPermissions.length > 0) {
+        reset({
+          name: initialValues.name || '',
+          description: initialValues.description || '',
+          reportsTo: initialValues.reportsTo || '',
+          status: initialValues.status || 'Active',
+          featurePermissions: fetchedPermissions,
+        });
+      }
+    } else {
+      // For new roles, populate default NONE permissions using modules from dynamic module registry
+      if (modules && modules.length > 0) {
+        const defaultPerms: any[] = [];
+        modules.forEach((mod) => {
+          mod.features.forEach((feat) => {
+            defaultPerms.push({
+              feature_id: feat.id,
+              feature_key: feat.feature_key,
+              feature_name: feat.feature_name,
+              module_key: mod.module_key,
+              module_name: mod.module_name,
+              view_scope: 'NONE',
+              create_scope: 'NONE',
+              update_scope: 'NONE',
+              delete_scope: 'NONE',
+            });
+          });
+        });
+        reset({
+          name: '',
+          description: '',
+          reportsTo: '',
+          status: 'Active',
+          featurePermissions: defaultPerms,
+        });
+      }
+    }
+  }, [initialValues, fetchedPermissions, modules, reset]);
+
+  // Handle cloning permissions from another role
+  const handleCloneSelect = async (sourceId: string) => {
+    if (!sourceId) return;
+    setCloneSourceId(sourceId);
+    setIsCloning(true);
+    try {
+      const response = await api.get(`/roles/${sourceId}/feature-permissions`);
+      const sourcePerms = response.data?.data?.permissions || [];
+      
+      // Update form permissions with clones
+      if (sourcePerms.length > 0) {
+        // Map feature permission scope settings to matching features in form
+        const updatedPerms = watchPermissions.map((curr) => {
+          const match = sourcePerms.find((sp: any) => sp.feature_key === curr.feature_key);
+          if (match) {
+            return {
+              ...curr,
+              view_scope: match.view_scope,
+              create_scope: match.create_scope,
+              update_scope: match.update_scope,
+              delete_scope: match.delete_scope,
+            };
+          }
+          return curr;
+        });
+        setValue('featurePermissions', updatedPerms);
+      }
+    } catch (err) {
+      console.error('Failed to copy permissions:', err);
+    } finally {
+      setIsCloning(false);
+    }
   };
 
-  const handleToggleAction = (module: string, action: string, checked: boolean) => {
-    setValue(`permissions.${module}.${action}` as any, checked as any);
-  };
+  // Group features by module for rendering
+  const groupedPermissions: Record<string, typeof watchPermissions> = {};
+  watchPermissions.forEach((perm, index) => {
+    const key = perm.module_name || 'General';
+    if (!groupedPermissions[key]) {
+      groupedPermissions[key] = [];
+    }
+    // Store original index to bind correct register/Controller path
+    (perm as any).formIndex = index;
+    groupedPermissions[key].push(perm);
+  });
 
   return (
     <form id={formId} onSubmit={handleSubmit(onSubmit)}>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12 }}>
+        <Grid item xs={12}>
           <Controller
             name="name"
             control={control}
@@ -110,7 +194,7 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
           />
         </Grid>
 
-        <Grid size={{ xs: 12 }}>
+        <Grid item xs={12}>
           <Controller
             name="description"
             control={control}
@@ -130,7 +214,28 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
           />
         </Grid>
 
-        <Grid size={{ xs: 12 }}>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth size="small" error={!!errors.reportsTo}>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Parent Role (Reports To)</FormLabel>
+            <Controller
+              name="reportsTo"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} displayEmpty>
+                  <MenuItem value=""><em>None (Root Role)</em></MenuItem>
+                  {parentRoleOptions.map((r) => (
+                    <MenuItem key={r.id} value={r.id}>
+                      {r.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+            {errors.reportsTo && <FormHelperText>{errors.reportsTo.message}</FormHelperText>}
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
           <FormControl fullWidth size="small" error={!!errors.status}>
             <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Status</FormLabel>
             <Controller
@@ -150,54 +255,143 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
 
       <Divider sx={{ my: 3 }} />
 
-      <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 2 }}>
-        Module Permissions
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700 }}>
+          Module & Feature Permissions
+        </Typography>
 
-      <Box sx={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid #e0e0e0' }}>Module</th>
-              <th style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '2px solid #e0e0e0' }}>All</th>
-              {PERMISSION_ACTIONS.map((act) => (
-                <th key={act.key} style={{ textAlign: 'center', padding: '8px 6px', borderBottom: '2px solid #e0e0e0', fontWeight: 600, fontSize: '0.75rem' }}>
-                  {act.label}
-                </th>
+        <FormControl size="small" sx={{ minWidth: 240 }}>
+          <Select
+            value={cloneSourceId}
+            displayEmpty
+            onChange={(e) => handleCloneSelect(e.target.value as string)}
+            disabled={isCloning}
+          >
+            <MenuItem value="">
+              <em>{isCloning ? 'Copying...' : 'Copy Permissions from Role'}</em>
+            </MenuItem>
+            {roles
+              .filter((r) => r.id !== initialValues?.id)
+              .map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.name}
+                </MenuItem>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MODULES.map((mod) => {
-              const perm = watchedPerms?.[mod] || {
-                can_view: false, can_create: false, can_edit: false, can_activate: false,
-              };
-              const allChecked = Object.values(perm).every(Boolean);
-              return (
-                <tr key={mod}>
-                  <td style={{ padding: '6px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>{mod}</td>
-                  <td style={{ textAlign: 'center', padding: '6px 6px', borderBottom: '1px solid #f0f0f0' }}>
-                    <Checkbox
-                      size="small"
-                      checked={allChecked}
-                      onChange={(e) => handleToggleModule(mod, e.target.checked)}
-                    />
-                  </td>
-                  {PERMISSION_ACTIONS.map((act) => (
-                    <td key={act.key} style={{ textAlign: 'center', padding: '6px 6px', borderBottom: '1px solid #f0f0f0' }}>
-                      <Checkbox
-                        size="small"
-                        checked={(perm as any)[act.key]}
-                        onChange={(e) => handleToggleAction(mod, act.key, e.target.checked)}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          </Select>
+        </FormControl>
       </Box>
+
+      {isPermsLoading ? (
+        <Box sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
+          <Typography color="textSecondary">Loading permissions registry...</Typography>
+        </Box>
+      ) : (
+        <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 2 }}>
+          <Table size="small">
+            <TableHead sx={{ backgroundColor: '#f8f9fa' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Feature / Operation</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, width: '18%' }}>Create</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, width: '18%' }}>View</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, width: '18%' }}>Update</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, py: 1.5, width: '18%' }}>Delete</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.entries(groupedPermissions).map(([moduleName, perms]) => (
+                <React.Fragment key={moduleName}>
+                  {/* Module Header Row */}
+                  <TableRow>
+                    <TableCell colSpan={5} sx={{ backgroundColor: '#f1f3f4', fontWeight: 700, py: 1, color: '#3c4043' }}>
+                      {moduleName}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Feature Rows */}
+                  {perms.map((perm) => {
+                    const formIdx = (perm as any).formIndex;
+                    return (
+                      <TableRow key={perm.feature_id} hover>
+                        <TableCell sx={{ pl: 4, fontWeight: 500, color: '#202124' }}>
+                          {perm.feature_name}
+                        </TableCell>
+
+                        {/* Create Scope */}
+                        <TableCell align="center">
+                          <Controller
+                            name={`featurePermissions.${formIdx}.create_scope`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select {...field} size="small" fullWidth sx={{ fontSize: '0.75rem', height: 32 }}>
+                                {SCOPES.map((sc) => (
+                                  <MenuItem key={sc.value} value={sc.value} sx={{ fontSize: '0.75rem' }}>
+                                    {sc.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            )}
+                          />
+                        </TableCell>
+
+                        {/* View Scope */}
+                        <TableCell align="center">
+                          <Controller
+                            name={`featurePermissions.${formIdx}.view_scope`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select {...field} size="small" fullWidth sx={{ fontSize: '0.75rem', height: 32 }}>
+                                {SCOPES.map((sc) => (
+                                  <MenuItem key={sc.value} value={sc.value} sx={{ fontSize: '0.75rem' }}>
+                                    {sc.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            )}
+                          />
+                        </TableCell>
+
+                        {/* Update Scope */}
+                        <TableCell align="center">
+                          <Controller
+                            name={`featurePermissions.${formIdx}.update_scope`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select {...field} size="small" fullWidth sx={{ fontSize: '0.75rem', height: 32 }}>
+                                {SCOPES.map((sc) => (
+                                  <MenuItem key={sc.value} value={sc.value} sx={{ fontSize: '0.75rem' }}>
+                                    {sc.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            )}
+                          />
+                        </TableCell>
+
+                        {/* Delete Scope */}
+                        <TableCell align="center">
+                          <Controller
+                            name={`featurePermissions.${formIdx}.delete_scope`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select {...field} size="small" fullWidth sx={{ fontSize: '0.75rem', height: 32 }}>
+                                {SCOPES.map((sc) => (
+                                  <MenuItem key={sc.value} value={sc.value} sx={{ fontSize: '0.75rem' }}>
+                                    {sc.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            )}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </form>
   );
 };

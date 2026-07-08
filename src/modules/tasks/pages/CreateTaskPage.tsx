@@ -31,12 +31,13 @@ import {
   useGetNextTaskCode,
   useGetTask,
   useUpdateTask,
+  useGetTasks,
 } from '../services/taskService';
 import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
 import { useGetEmployeesLookup, useGetDepartmentsLookup, useGetTeamsLookup } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
-import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
+import { calculateWorkingHours, calculateEndDate, isWeekend, formatDateString } from '../../../utils/projectScheduler';
 import { TaskTitleDropdown } from '../../master-data/components/TaskTitleDropdown';
 
 // ==========================================
@@ -217,6 +218,79 @@ export const CreateTaskPage: React.FC = () => {
   const plannedStartDate = watch('plannedStartDate');
   const plannedEndDate = watch('plannedEndDate');
   const estimatedHours = watch('estimatedHours');
+  const watchedAssignedEmployeeId = watch('assignedEmployeeId');
+
+  // Query active tasks for the selected employee to calculate sequential start date
+  const { data: employeeTasksData } = useGetTasks(
+    {
+      employeeId: !isEditMode && watchedAssignedEmployeeId ? watchedAssignedEmployeeId : undefined,
+      limit: 100,
+    },
+    {
+      enabled: !isEditMode && !!watchedAssignedEmployeeId,
+    }
+  );
+
+  const [autoScheduledMsg, setAutoScheduledMsg] = useState<string | null>(null);
+  const [lastAutoScheduledEmployee, setLastAutoScheduledEmployee] = useState<string | null>(null);
+
+  const getNextWorkingDay = (dateStr: string, holidaysList: string[]): string => {
+    const date = new Date(dateStr);
+    const holidaysSet = new Set(holidaysList);
+    
+    let current = new Date(date);
+    current.setDate(current.getDate() + 1);
+    
+    while (isWeekend(current) || holidaysSet.has(formatDateString(current))) {
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return formatDateString(current);
+  };
+
+  // Auto-schedule next available start date for the assignee
+  useEffect(() => {
+    if (!isEditMode && watchedAssignedEmployeeId && employeeTasksData?.tasks) {
+      if (lastAutoScheduledEmployee === watchedAssignedEmployeeId) {
+        return;
+      }
+
+      const activeTasks = employeeTasksData.tasks.filter(
+        (t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED' && t.plannedEndDate
+      );
+
+      if (activeTasks.length > 0) {
+        const endDates = activeTasks.map((t) => new Date(t.plannedEndDate!));
+        const latestEndDate = new Date(Math.max(...endDates.map((d) => d.getTime())));
+        const latestEndDateStr = formatDateString(latestEndDate);
+
+        const employeeName = activeEmployees.find((e) => e.id === watchedAssignedEmployeeId)?.displayName || 'Employee';
+        const nextDay = getNextWorkingDay(latestEndDateStr, holidays);
+        
+        setValue('plannedStartDate', nextDay, { shouldValidate: true });
+        setLastAutoScheduledEmployee(watchedAssignedEmployeeId);
+        setAutoScheduledMsg(
+          `Auto-scheduled Planned Start Date to ${nextDay} based on ${employeeName}'s last active task ending on ${latestEndDateStr}.`
+        );
+      } else {
+        setValue('plannedStartDate', today, { shouldValidate: true });
+        setLastAutoScheduledEmployee(watchedAssignedEmployeeId);
+        setAutoScheduledMsg(null);
+      }
+    } else if (!watchedAssignedEmployeeId) {
+      setLastAutoScheduledEmployee(null);
+      setAutoScheduledMsg(null);
+    }
+  }, [
+    watchedAssignedEmployeeId,
+    employeeTasksData,
+    isEditMode,
+    holidays,
+    today,
+    setValue,
+    activeEmployees,
+    lastAutoScheduledEmployee,
+  ]);
 
   // Fetch next available task code from server (bypasses RBAC, scans ALL tasks)
   const { data: nextCodeData } = useGetNextTaskCode(watchedProjectId);
@@ -877,6 +951,18 @@ export const CreateTaskPage: React.FC = () => {
                     }}
                   >
                     Available Capacity: {availableCapacity} Hours | Estimated Effort: {estimatedHours || 0} Hours
+                  </Typography>
+                </Grid>
+              )}
+
+              {autoScheduledMsg && (
+                <Grid size={{ xs: 12 }}>
+                  <Typography
+                    variant="body2"
+                    color="primary"
+                    sx={{ fontWeight: 500 }}
+                  >
+                    ℹ️ {autoScheduledMsg}
                   </Typography>
                 </Grid>
               )}

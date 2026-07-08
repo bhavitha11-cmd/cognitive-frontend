@@ -36,6 +36,54 @@ export interface RolePermission {
   can_activate: boolean;
 }
 
+export type PermissionScope =
+  | 'NONE'
+  | 'OWNED'
+  | 'ADDED'
+  | 'ADDED_OWNED'
+  | 'TEAM'
+  | 'DEPARTMENT'
+  | 'COMPANY'
+  | 'ALL';
+
+export interface FeaturePermission {
+  id: string;
+  feature_id: string;
+  feature_key: string;
+  feature_name: string;
+  module_key: string;
+  module_name: string;
+  view_scope: PermissionScope;
+  create_scope: PermissionScope;
+  update_scope: PermissionScope;
+  delete_scope: PermissionScope;
+}
+
+export interface Feature {
+  id: string;
+  module_id: string;
+  feature_key: string;
+  feature_name: string;
+  description?: string;
+  route?: string;
+  icon?: string;
+  display_order: number;
+  menu_visible: boolean;
+  permission_enabled: boolean;
+  is_system: boolean;
+  is_active: boolean;
+}
+
+export interface Module {
+  id: string;
+  module_key: string;
+  module_name: string;
+  display_order: number;
+  icon?: string;
+  is_active: boolean;
+  features: Feature[];
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -45,6 +93,7 @@ export interface Role {
   createdDate: string;
   isSystemRole?: boolean;
   permissions?: RolePermission[];
+  featurePermissions?: FeaturePermission[];
 }
 
 export interface Employee {
@@ -64,6 +113,8 @@ export interface Employee {
   profilePhoto?: string;
 
   // Organization Info
+  employeeCode: string;
+  departmentName?: string;
   departmentId: string;
   designationId?: string;
   designationName?: string;

@@ -337,4 +337,77 @@ export interface PendingScheduleReviewWidgetData {
   createdAt: string
 }
 
+// --- New Executive Tabbed Drilldown Types ---
+export interface TeamPerformanceRow {
+  teamId: string
+  teamName: string
+  departmentName?: string | null
+  headcount: number
+  utilizationPercentage: number
+  plannedHours: number
+  actualHours: number
+  taskCount: number
+  overdueTasksCount: number
+}
+
+export interface ExecutiveTeamPerformanceResponse {
+  teams: TeamPerformanceRow[]
+}
+
+export interface ClientPerformanceRow {
+  clientId: string
+  clientName: string
+  totalProjects: number
+  activeProjects: number
+  completedProjects: number
+  delayedProjects: number
+  plannedHours: number
+  actualHours: number
+  onTimeDeliveryPct: number
+}
+
+export interface ExecutiveClientPerformanceResponse {
+  clients: ClientPerformanceRow[]
+}
+
+export interface ProjectListRow {
+  projectId: string
+  projectCode: string
+  projectName: string
+  clientName?: string | null
+  departmentName?: string | null
+  projectManagerName?: string | null
+  plannedHours: number
+  actualHours: number
+  overrunHours: number
+  overrunPercentage: number
+  status: string
+  taskCount: number
+  completedTaskCount: number
+  plannedEndDate?: string | null
+}
+
+export interface ExecutiveProjectListResponse {
+  projects: ProjectListRow[]
+}
+
+export interface TaskSummaryRow {
+  taskId: string
+  taskCode: string
+  title: string
+  projectName?: string | null
+  assigneeName?: string | null
+  status: string
+  priority: string
+  estimatedHours: number
+  actualHours: number
+  overrunHours: number
+  plannedDeliveryDate?: string | null
+}
+
+export interface ExecutiveTaskSummaryResponse {
+  tasks: TaskSummaryRow[]
+}
+
+
 

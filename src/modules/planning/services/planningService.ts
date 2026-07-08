@@ -223,3 +223,104 @@ export const useGetTaskDependencies = (taskId: string) => {
     enabled: !!taskId,
   });
 };
+
+// ── Employee Load Chart ──────────────────────────────────────────────────────
+
+export interface LoadTask {
+  taskId: string;
+  taskCode: string;
+  taskTitle: string;
+  projectId: string;
+  projectName: string;
+  status: string;
+  priority: string;
+  progress: number;
+  assignedHours: number;
+  estimatedHours: number;
+  actualHours: number;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export interface EmployeeLoadRow {
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  displayName: string;
+  profilePhotoUrl: string | null;
+  designation: string | null;
+  department: string | null;
+  reportingManagerId: string | null;
+  loadedUntil: string | null;
+  loadStatus: 'AVAILABLE' | 'UNDERLOADED' | 'OPTIMAL' | 'OVERLOADED';
+  totalAssignedHours: number;
+  activeTaskCount: number;
+  tasks: LoadTask[];
+}
+
+export interface EmployeeLoadChartData {
+  rows: EmployeeLoadRow[];
+  fromDate: string;
+  toDate: string;
+}
+
+const mapLoadTask = (t: any): LoadTask => ({
+  taskId: t.task_id,
+  taskCode: t.task_code,
+  taskTitle: t.task_title,
+  projectId: t.project_id,
+  projectName: t.project_name,
+  status: t.status,
+  priority: t.priority,
+  progress: t.progress ?? 0,
+  assignedHours: t.assigned_hours ?? 0,
+  estimatedHours: t.estimated_hours ?? 0,
+  actualHours: t.actual_hours ?? 0,
+  startDate: t.start_date || null,
+  endDate: t.end_date || null,
+});
+
+const mapEmployeeLoadRow = (r: any): EmployeeLoadRow => ({
+  employeeId: r.employee_id,
+  employeeCode: r.employee_code,
+  employeeName: r.employee_name,
+  displayName: r.display_name || r.employee_name,
+  profilePhotoUrl: r.profile_photo_url || null,
+  designation: r.designation || null,
+  department: r.department || null,
+  reportingManagerId: r.reporting_manager_id || null,
+  loadedUntil: r.loaded_until || null,
+  loadStatus: r.load_status || 'AVAILABLE',
+  totalAssignedHours: r.total_assigned_hours ?? 0,
+  activeTaskCount: r.active_task_count ?? 0,
+  tasks: Array.isArray(r.tasks) ? r.tasks.map(mapLoadTask) : [],
+});
+
+export const useGetEmployeeLoadChart = (params: {
+  fromDate?: string;
+  toDate?: string;
+  departmentId?: string;
+  teamId?: string;
+}) => {
+  return useQuery<EmployeeLoadChartData>({
+    queryKey: ['employee-load-chart', params.fromDate, params.toDate, params.departmentId, params.teamId],
+    queryFn: async () => {
+      const response = await api.get('/dashboard-analytics/employee-load', {
+        params: {
+          from_date: params.fromDate,
+          to_date: params.toDate,
+          department_id: params.departmentId,
+          team_id: params.teamId,
+        },
+      });
+      const raw = response.data?.data || response.data;
+      return {
+        rows: Array.isArray(raw.rows) ? raw.rows.map(mapEmployeeLoadRow) : [],
+        fromDate: raw.from_date || params.fromDate || '',
+        toDate: raw.to_date || params.toDate || '',
+      };
+    },
+    staleTime: 30_000,
+  });
+};
+

@@ -144,6 +144,8 @@ interface SidebarChild {
   path: string;
   icon?: React.ReactNode;
   adminOnly?: boolean;
+  /** Module permission required to view this nav item (module:view check). */
+  requiredPermission?: string;
 }
 
 interface SidebarItem {
@@ -164,7 +166,19 @@ export const MainLayout: React.FC = () => {
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
   const settings = useAppStore((state) => state.settings);
 
-  const { data: activeBreak } = useGetActiveBreak();
+  // ── Auth Store — read BEFORE any conditional hooks ───────────────────────────
+  const authUser = useAuthStore((s) => s.user);
+  const authRoles = useAuthStore((s) => s.roles);
+  const authIsSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const authHasPermission = useAuthStore((s) => s.hasPermission);
+  const authLogout = useAuthStore((s) => s.logout);
+  const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Only poll /breaks/active when the user is authenticated to prevent an
+  // unauthenticated request that triggers the 401 interceptor, which clears
+  // the token and interferes with the login flow.
+  const { data: activeBreak } = useGetActiveBreak(isAuthenticated);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
@@ -178,21 +192,14 @@ export const MainLayout: React.FC = () => {
   const [quickAddAnchor, setQuickAddAnchor] = useState<null | HTMLElement>(null);
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
 
-  // ── Auth Store ──────────────────────────────────────────────────────────────
-  const authUser = useAuthStore((s) => s.user);
-  const authRoles = useAuthStore((s) => s.roles);
-  const authIsSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
-  const authHasPermission = useAuthStore((s) => s.hasPermission);
-  const authLogout = useAuthStore((s) => s.logout);
-  const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
   // Hydrate auth store on mount if needed
   useEffect(() => {
     if (!isAuthenticated && localStorage.getItem('cognitive_token')) {
       hydrateFromStorage();
     }
   }, [isAuthenticated, hydrateFromStorage]);
+
+  const modulePermissions = useAuthStore((s) => s.modulePermissions) || [];
 
   const hasPermission = (itemName: string): boolean => {
     if (!isAuthenticated) return true;
@@ -216,6 +223,105 @@ export const MainLayout: React.FC = () => {
     return authHasPermission(targetModule, 'view');
   };
 
+  const getFilteredSidebarItems = (): SidebarItem[] => {
+    if (!isAuthenticated) return [];
+    if (authIsSuperAdmin()) return menuItems;
+
+    // Map each child path to its corresponding feature_key
+    const PATH_TO_FEATURE_KEY: Record<string, string> = {
+      '/dashboard/private': 'private_dashboard',
+      '/dashboard/advanced': 'advanced_dashboard',
+      '/dashboard/executive': 'executive_dashboard',
+      '/dashboard/team-leader': 'team_leader_dashboard',
+      '/dashboard/employee': 'my_dashboard',
+      '/dashboard/employee-performance': 'employee_performance',
+      '/dashboard/employee-load': 'employee_load_chart',
+      '/clients': 'clients',
+      '/hr/employees': 'employees',
+      '/hr/roles': 'roles',
+      '/hr/departments': 'departments',
+      '/hr/teams': 'teams',
+      '/hr/organization-chart': 'org_chart',
+      '/hr/offboarding': 'offboarding',
+      '/hr/audit-logs': 'audit_logs',
+      '/hr/attendance-settings': 'attendance_settings',
+      '/projects': 'projects',
+      '/tasks': 'tasks',
+      '/timesheets/active': 'work_center',
+      '/timesheets/weekly': 'weekly_timesheet',
+      '/timesheets': 'session_history',
+      '/timesheets/attendance': 'attendance',
+      '/timesheets/leave': 'my_leaves',
+      '/timesheets/leave-approval': 'leave_approval',
+      '/calendar': 'calendar',
+      '/reports': 'reports',
+      '/master-data/task-templates': 'task_title_library',
+      '/master-data/calendar-config': 'calendar_configuration',
+      '/settings': 'settings',
+    };
+
+    // If modulePermissions is empty (e.g. before initial profile fetch), fallback to hasPermission filter
+    if (!modulePermissions || modulePermissions.length === 0) {
+      return menuItems.filter((item) => hasPermission(item.name));
+    }
+
+    // Map menuItems.name to backend module_key
+    const MODULE_NAME_TO_KEY: Record<string, string> = {
+      'Dashboard': 'dashboard',
+      'Clients': 'clients',
+      'HR': 'hr',
+      'Projects': 'projects',
+      'Tasks': 'tasks',
+      'Timesheets': 'timesheets',
+      'Calendar': 'calendar',
+      'Reports': 'reports',
+      'Master Data': 'master_data',
+      'Settings': 'settings',
+    };
+
+    return menuItems
+      .map((item) => {
+        const modKey = MODULE_NAME_TO_KEY[item.name];
+        if (!modKey) return null;
+
+        const backendModule = modulePermissions.find((m) => m.module_key === modKey);
+        if (!backendModule) return null;
+
+        // If the item has children
+        if (item.children) {
+          const filteredChildren = item.children.filter((child) => {
+            const featKey = PATH_TO_FEATURE_KEY[child.path];
+            if (!featKey) return false;
+
+            const backendFeature = backendModule.features.find((f) => f.feature_key === featKey);
+            if (!backendFeature) return false;
+
+            return backendFeature.view_scope !== 'NONE' && backendFeature.menu_visible;
+          });
+
+          if (filteredChildren.length === 0) return null;
+          return {
+            ...item,
+            children: filteredChildren,
+          };
+        }
+
+        // If the item has a direct path
+        if (item.path) {
+          const featKey = PATH_TO_FEATURE_KEY[item.path];
+          if (!featKey) return null;
+
+          const backendFeature = backendModule.features.find((f) => f.feature_key === featKey);
+          if (!backendFeature) return null;
+
+          if (backendFeature.view_scope === 'NONE') return null;
+        }
+
+        return item;
+      })
+      .filter((item): item is SidebarItem => item !== null);
+  };
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -230,12 +336,13 @@ export const MainLayout: React.FC = () => {
       name: 'Dashboard',
       icon: <DashboardOutlinedIcon />,
       children: [
-        { name: 'Private Dashboard', path: '/dashboard/private' },
-        { name: 'Advanced Dashboard', path: '/dashboard/advanced' },
-        { name: 'Executive Dashboard', path: '/dashboard/executive' },
-        { name: 'Team Lead Dashboard', path: '/dashboard/team-leader' },
-        { name: 'My Dashboard', path: '/dashboard/employee' },
-        { name: 'Employee Performance', path: '/dashboard/employee-performance' },
+        { name: 'Private Dashboard', path: '/dashboard/private', requiredPermission: 'Analytics' },
+        { name: 'Advanced Dashboard', path: '/dashboard/advanced', requiredPermission: 'Analytics' },
+        { name: 'Executive Dashboard', path: '/dashboard/executive', requiredPermission: 'Analytics' },
+        { name: 'Team Lead Dashboard', path: '/dashboard/team-leader', requiredPermission: 'Dashboard' },
+        { name: 'My Dashboard', path: '/dashboard/employee', requiredPermission: 'Dashboard' },
+        { name: 'Employee Performance', path: '/dashboard/employee-performance', requiredPermission: 'HR' },
+        { name: 'Employee Load Chart', path: '/dashboard/employee-load', requiredPermission: 'Dashboard' },
       ],
     },
     {
@@ -305,7 +412,7 @@ export const MainLayout: React.FC = () => {
     },
   ];
 
-  const filteredMenuItems = menuItems.filter((item) => hasPermission(item.name));
+  const filteredMenuItems = getFilteredSidebarItems();
 
   const isRouteActive = (path?: string) => {
     if (!path) return false;
@@ -517,15 +624,25 @@ export const MainLayout: React.FC = () => {
                     <List disablePadding>
                       {item.children
                         .filter((child) => {
-                          if (!child.adminOnly) return true;
-                          if (!isAuthenticated) return true;
-                          if (child.path === '/master-data/calendar-config') {
-                            return authHasPermission('CalendarSettings', 'edit');
+                          // Super admins always see everything
+                          if (authIsSuperAdmin()) return true;
+
+                          // Per-item permission guard
+                          if (child.requiredPermission) {
+                            if (!isAuthenticated) return true; // show during hydration
+                            if (!authHasPermission(child.requiredPermission, 'view')) return false;
                           }
-                          return (
-                            authIsSuperAdmin() ||
-                            authRoles.includes('Manager')
-                          );
+
+                          // Legacy adminOnly flag (e.g. calendar-config)
+                          if (child.adminOnly) {
+                            if (!isAuthenticated) return true;
+                            if (child.path === '/master-data/calendar-config') {
+                              return authHasPermission('CalendarSettings', 'edit');
+                            }
+                            return authIsSuperAdmin() || authRoles.includes('Manager');
+                          }
+
+                          return true;
                         })
                         .map((child) => {
                           const childActive = isChildActive(child.path, item.children!);

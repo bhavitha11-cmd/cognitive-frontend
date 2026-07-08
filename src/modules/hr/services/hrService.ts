@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useHRStore } from '../store/useHRStore';
 import { api } from '../../../utils/api';
-import type { Employee, Role, Department, Designation, Team, TeamMember } from '../types';
+import type { Employee, Role, Department, Designation, Team, TeamMember, FeaturePermission } from '../types';
 
 // ==========================================
 // MAPPERS
@@ -203,6 +203,66 @@ export const useSetRolePermissions = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+  });
+};
+
+export const useGetRoleFeaturePermissions = (roleId: string) => {
+  return useQuery<FeaturePermission[]>({
+    queryKey: ['role-feature-permissions', roleId],
+    queryFn: async () => {
+      if (!roleId) return [];
+      const response = await api.get(`/roles/${roleId}/feature-permissions`);
+      return response.data?.data?.permissions || [];
+    },
+    enabled: !!roleId,
+  });
+};
+
+export const useSetRoleFeaturePermissions = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      roleId,
+      permissions,
+    }: {
+      roleId: string;
+      permissions: Array<{
+        feature_id: string;
+        view_scope: string;
+        create_scope: string;
+        update_scope: string;
+        delete_scope: string;
+      }>;
+    }) => {
+      const response = await api.put(`/roles/${roleId}/feature-permissions`, { permissions });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['role-feature-permissions', variables.roleId] });
+    },
+  });
+};
+
+export const useCloneRolePermissions = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      targetRoleId,
+      sourceRoleId,
+    }: {
+      targetRoleId: string;
+      sourceRoleId: string;
+    }) => {
+      const response = await api.post(`/roles/${targetRoleId}/clone-permissions`, {
+        source_role_id: sourceRoleId,
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['role-feature-permissions', variables.targetRoleId] });
     },
   });
 };
@@ -463,6 +523,8 @@ export interface EmployeeLookupItem {
   displayName: string;
   employeeCode: string;
   departmentId?: string;
+  roleIds?: string[];
+  teamId?: string;
 }
 
 export const useGetEmployeesLookup = () => {
@@ -477,6 +539,8 @@ export const useGetEmployeesLookup = () => {
         displayName: e.display_name || '',
         employeeCode: e.employee_code || '',
         departmentId: e.department_id || undefined,
+        roleIds: e.role_ids || [],
+        teamId: e.team_id || undefined,
       }));
     },
   });

@@ -100,7 +100,7 @@ const ImpactCard: React.FC<ImpactCardProps> = ({ icon, label, count, critical })
         minHeight: 110,
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1.5}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
         <Box
           sx={{
             width: 38,
@@ -116,13 +116,13 @@ const ImpactCard: React.FC<ImpactCardProps> = ({ icon, label, count, critical })
         >
           {icon}
         </Box>
-        <Typography variant="body2" fontWeight={600} color="text.primary" lineHeight={1.3}>
+        <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
           {label}
         </Typography>
       </Stack>
 
-      <Stack direction="row" alignItems="flex-end" justifyContent="space-between">
-        <Typography variant="h4" fontWeight={800} color={countColor} lineHeight={1}>
+      <Stack direction="row" sx={{ alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <Typography variant="h4" color={countColor} sx={{ fontWeight: 800, lineHeight: 1 }}>
           {count}
         </Typography>
         {hasItems ? (
@@ -134,9 +134,9 @@ const ImpactCard: React.FC<ImpactCardProps> = ({ icon, label, count, critical })
             sx={{ fontSize: '0.65rem', height: 22, fontWeight: 600 }}
           />
         ) : (
-          <Stack direction="row" alignItems="center" spacing={0.5}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
             <CheckCircleIcon sx={{ color: 'success.main', fontSize: 16 }} />
-            <Typography variant="caption" color="success.main" fontWeight={600}>Clear</Typography>
+            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>Clear</Typography>
           </Stack>
         )}
       </Stack>
@@ -171,7 +171,7 @@ const EmployeeAutocomplete: React.FC<{
             {option.firstName?.[0]}{option.lastName?.[0]}
           </Avatar>
           <Box>
-            <Typography variant="body2" fontWeight={600}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {option.firstName} {option.lastName}
             </Typography>
             <Typography variant="caption" color="text.secondary">
@@ -277,10 +277,10 @@ export const OffboardingWizard: React.FC = () => {
       {/* Employee picker card */}
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="h6" fontWeight={700} mb={0.5}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
             Choose Employee to Offboard
           </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3} lineHeight={1.7}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.7 }}>
             Only active employees are shown. Click a card to select the employee you wish to offboard.
           </Typography>
 
@@ -290,12 +290,14 @@ export const OffboardingWizard: React.FC = () => {
             placeholder="Search by name, employee code or department…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+              },
             }}
             sx={{ mb: 3 }}
           />
@@ -313,7 +315,7 @@ export const OffboardingWizard: React.FC = () => {
               {filteredForSelect.map((emp) => {
                 const isSelected = selectedId === emp.id;
                 return (
-                  <Grid item xs={12} sm={6} md={4} key={emp.id}>
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={emp.id}>
                     <Paper
                       variant="outlined"
                       onClick={() => setSelectedId(emp.id)}
@@ -335,7 +337,7 @@ export const OffboardingWizard: React.FC = () => {
                           sx={{ position: 'absolute', top: 10, right: 10, color: 'primary.main', fontSize: 20 }}
                         />
                       )}
-                      <Stack direction="row" spacing={2} alignItems="center" mb={1.5}>
+                      <Stack direction="row" spacing={2} sx={{ mb: 1.5, alignItems: 'center' }}>
                         <Avatar
                           sx={{
                             width: 46,
@@ -350,17 +352,17 @@ export const OffboardingWizard: React.FC = () => {
                           {emp.firstName?.[0]}{emp.lastName?.[0]}
                         </Avatar>
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="body1" fontWeight={700} noWrap>
+                          <Typography variant="body1" sx={{ fontWeight: 700, noWrap: true }}>
                             {emp.firstName} {emp.lastName}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" noWrap>
+                          <Typography variant="body2" color="text.secondary" sx={{ noWrap: true }}>
                             {emp.employeeCode || emp.id.slice(0, 8)}
                           </Typography>
                         </Box>
                       </Stack>
 
                       {emp.departmentName && (
-                        <Typography variant="caption" color="text.disabled" display="block" mb={1} noWrap>
+                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 1, noWrap: true }}>
                           {emp.departmentName}
                         </Typography>
                       )}
@@ -390,12 +392,12 @@ export const OffboardingWizard: React.FC = () => {
       {selectedEmployee && (
         <Card variant="outlined" sx={{ borderColor: 'primary.main', borderRadius: 3, borderWidth: 2 }}>
           <CardContent sx={{ p: 4 }}>
-            <Stack direction="row" alignItems="center" spacing={2} mb={3}>
+            <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
               <Avatar sx={{ bgcolor: 'primary.main', width: 44, height: 44, fontWeight: 800, fontSize: '1rem' }}>
                 {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
               </Avatar>
               <Box>
-                <Typography variant="subtitle1" fontWeight={700}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                   Offboarding Details
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -405,7 +407,7 @@ export const OffboardingWizard: React.FC = () => {
             </Stack>
 
             <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   label="Last Working Date"
                   type="date"
@@ -413,10 +415,10 @@ export const OffboardingWizard: React.FC = () => {
                   fullWidth
                   value={effectiveDate}
                   onChange={(e) => setEffectiveDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Final Status</InputLabel>
                   <Select
@@ -429,7 +431,7 @@ export const OffboardingWizard: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   label="Reason / Notes (optional)"
                   size="small"
@@ -454,12 +456,12 @@ export const OffboardingWizard: React.FC = () => {
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent sx={{ p: 4 }}>
         {/* Header */}
-        <Stack direction="row" alignItems="center" spacing={2} mb={4}>
+        <Stack direction="row" spacing={2} sx={{ mb: 4, alignItems: 'center' }}>
           <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48, fontWeight: 800, fontSize: '1rem' }}>
             {selectedEmployee?.firstName?.[0]}{selectedEmployee?.lastName?.[0]}
           </Avatar>
           <Box>
-            <Typography variant="h6" fontWeight={700}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Impact Analysis
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -479,7 +481,7 @@ export const OffboardingWizard: React.FC = () => {
           <>
             {/* Warnings */}
             {impact.warnings.length > 0 && (
-              <Stack spacing={1.5} mb={4}>
+              <Stack spacing={1.5} sx={{ mb: 4 }}>
                 {impact.warnings.map((w, i) => (
                   <Alert
                     key={i}
@@ -504,7 +506,7 @@ export const OffboardingWizard: React.FC = () => {
 
             <Divider sx={{ mb: 3 }} />
 
-            <Typography variant="overline" color="text.secondary" display="block" letterSpacing={1.2} mb={2}>
+            <Typography variant="overline" color="text.secondary" sx={{ display: 'block', letterSpacing: 1.2, mb: 2 }}>
               Dependency Overview
             </Typography>
 
@@ -519,7 +521,7 @@ export const OffboardingWizard: React.FC = () => {
                 { icon: <AccessTimeOutlinedIcon />, label: 'Pending Time Entries', count: impact.pendingTimeEntries.count, critical: false },
                 { icon: <FolderSharedOutlinedIcon />, label: 'Project Memberships', count: impact.projectMemberships.count, critical: false },
               ].map((card) => (
-                <Grid item xs={12} sm={6} md={3} key={card.label}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }} key={card.label}>
                   <ImpactCard {...card} />
                 </Grid>
               ))}
@@ -535,8 +537,8 @@ export const OffboardingWizard: React.FC = () => {
   const renderStep2 = () => (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent sx={{ p: 4 }}>
-        <Typography variant="h6" fontWeight={700} mb={0.5}>Transfer People</Typography>
-        <Typography variant="body2" color="text.secondary" mb={4} lineHeight={1.7}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Transfer People</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, lineHeight: 1.7 }}>
           Assign a replacement for each leadership role this employee currently holds.
           Fields marked * are mandatory.
         </Typography>
@@ -544,13 +546,13 @@ export const OffboardingWizard: React.FC = () => {
         <Stack spacing={4}>
           {(impact?.directReports.count ?? 0) > 0 && (
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
                 <PeopleAltOutlinedIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" fontWeight={700}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Direct Reports ({impact!.directReports.count})
                 </Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" mb={2} lineHeight={1.6}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
                 {impact!.directReports.items.map((i) => i.name).join(' · ')}
               </Typography>
               <EmployeeAutocomplete
@@ -565,13 +567,13 @@ export const OffboardingWizard: React.FC = () => {
 
           {(impact?.teamsLed.count ?? 0) > 0 && (
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
                 <GroupsOutlinedIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" fontWeight={700}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Teams Led ({impact!.teamsLed.count})
                 </Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" mb={2} lineHeight={1.6}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
                 {impact!.teamsLed.items.map((i) => i.name).join(' · ')}
               </Typography>
               <EmployeeAutocomplete
@@ -586,13 +588,13 @@ export const OffboardingWizard: React.FC = () => {
 
           {(impact?.departmentsHeaded.count ?? 0) > 0 && (
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
                 <ApartmentOutlinedIcon sx={{ color: 'warning.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" fontWeight={700}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Departments Headed ({impact!.departmentsHeaded.count})
                 </Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" mb={2} lineHeight={1.6}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
                 {impact!.departmentsHeaded.items.map((i) => i.name).join(' · ')}
               </Typography>
               <EmployeeAutocomplete
@@ -622,8 +624,8 @@ export const OffboardingWizard: React.FC = () => {
   const renderStep3 = () => (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent sx={{ p: 4 }}>
-        <Typography variant="h6" fontWeight={700} mb={0.5}>Projects & Tasks</Typography>
-        <Typography variant="body2" color="text.secondary" mb={4} lineHeight={1.7}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Projects & Tasks</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, lineHeight: 1.7 }}>
           Assign a new project manager for each project this employee owns, and optionally
           bulk-reassign their open tasks.
         </Typography>
@@ -631,18 +633,18 @@ export const OffboardingWizard: React.FC = () => {
         <Stack spacing={4}>
           {(impact?.projectsAsPm.count ?? 0) > 0 && (
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+              <Stack direction="row" spacing={1} sx={{ mb: 2, alignItems: 'center' }}>
                 <AccountTreeOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" fontWeight={700}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Projects as PM ({impact!.projectsAsPm.count})
                 </Typography>
               </Stack>
               <Stack spacing={2}>
                 {impact!.projectsAsPm.items.map((proj) => (
                   <Paper key={proj.id} variant="outlined" sx={{ p: 2.5, borderRadius: 2.5 }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight={700} mb={0.25}>{proj.name}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>{proj.name}</Typography>
                         {proj.detail && (
                           <Typography variant="caption" color="text.secondary">{proj.detail}</Typography>
                         )}
@@ -665,13 +667,13 @@ export const OffboardingWizard: React.FC = () => {
 
           {(impact?.activeTasks.count ?? 0) > 0 && (
             <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center' }}>
                 <AssignmentOutlinedIcon sx={{ color: 'primary.main', fontSize: 20 }} />
-                <Typography variant="subtitle2" fontWeight={700}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   Active Tasks ({impact!.activeTasks.count})
                 </Typography>
               </Stack>
-              <Typography variant="body2" color="text.secondary" mb={2} lineHeight={1.6}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
                 Bulk-reassign all open tasks to a single person. Leave blank to keep tasks unassigned for manual review.
               </Typography>
               <EmployeeAutocomplete
@@ -699,17 +701,17 @@ export const OffboardingWizard: React.FC = () => {
   const renderStep4 = () => (
     <Card variant="outlined" sx={{ borderRadius: 3 }}>
       <CardContent sx={{ p: 4 }}>
-        <Typography variant="h6" fontWeight={700} mb={0.5}>Leaves & Timesheets</Typography>
-        <Typography variant="body2" color="text.secondary" mb={4} lineHeight={1.7}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Leaves & Timesheets</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, lineHeight: 1.7 }}>
           Choose how to handle open leave requests and draft time entries before the account is closed.
         </Typography>
 
         <Stack spacing={3}>
           {/* Leaves */}
           <Paper variant="outlined" sx={{ p: 3, borderRadius: 2.5 }}>
-            <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+            <Stack direction="row" spacing={1.5} sx={{ mb: 2, alignItems: 'center' }}>
               <EventBusyOutlinedIcon sx={{ color: 'warning.main', fontSize: 22 }} />
-              <Typography variant="subtitle2" fontWeight={700}>Pending Leave Requests</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Pending Leave Requests</Typography>
               <Chip
                 label={impact?.pendingLeaves.count ?? 0}
                 size="small"
@@ -724,8 +726,8 @@ export const OffboardingWizard: React.FC = () => {
                   value="CANCEL_ALL"
                   control={<Radio size="small" />}
                   label={
-                    <Box py={0.5}>
-                      <Typography variant="body2" fontWeight={600}>Cancel all pending requests</Typography>
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Cancel all pending requests</Typography>
                       <Typography variant="caption" color="text.secondary">
                         All PENDING leave requests will be set to CANCELLED.
                       </Typography>
@@ -737,8 +739,8 @@ export const OffboardingWizard: React.FC = () => {
                   value="KEEP"
                   control={<Radio size="small" />}
                   label={
-                    <Box py={0.5}>
-                      <Typography variant="body2" fontWeight={600}>Keep as-is</Typography>
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Keep as-is</Typography>
                       <Typography variant="caption" color="text.secondary">
                         Leave requests remain unchanged for manual review.
                       </Typography>
@@ -752,9 +754,9 @@ export const OffboardingWizard: React.FC = () => {
 
           {/* Timesheets */}
           <Paper variant="outlined" sx={{ p: 3, borderRadius: 2.5 }}>
-            <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+            <Stack direction="row" spacing={1.5} sx={{ mb: 2, alignItems: 'center' }}>
               <AccessTimeOutlinedIcon sx={{ color: 'info.main', fontSize: 22 }} />
-              <Typography variant="subtitle2" fontWeight={700}>Pending Time Entries</Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Pending Time Entries</Typography>
               <Chip
                 label={impact?.pendingTimeEntries.count ?? 0}
                 size="small"
@@ -769,8 +771,8 @@ export const OffboardingWizard: React.FC = () => {
                   value="AUTO_APPROVE"
                   control={<Radio size="small" />}
                   label={
-                    <Box py={0.5}>
-                      <Typography variant="body2" fontWeight={600}>Auto-approve all</Typography>
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Auto-approve all</Typography>
                       <Typography variant="caption" color="text.secondary">
                         All DRAFT and SUBMITTED entries will be marked APPROVED.
                       </Typography>
@@ -782,8 +784,8 @@ export const OffboardingWizard: React.FC = () => {
                   value="AUTO_REJECT"
                   control={<Radio size="small" />}
                   label={
-                    <Box py={0.5}>
-                      <Typography variant="body2" fontWeight={600}>Auto-reject all</Typography>
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Auto-reject all</Typography>
                       <Typography variant="caption" color="text.secondary">
                         All DRAFT and SUBMITTED entries will be marked REJECTED.
                       </Typography>
@@ -795,8 +797,8 @@ export const OffboardingWizard: React.FC = () => {
                   value="KEEP"
                   control={<Radio size="small" />}
                   label={
-                    <Box py={0.5}>
-                      <Typography variant="body2" fontWeight={600}>Keep as-is</Typography>
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Keep as-is</Typography>
                       <Typography variant="caption" color="text.secondary">
                         Time entries remain unchanged for manual review.
                       </Typography>
@@ -825,15 +827,15 @@ export const OffboardingWizard: React.FC = () => {
       {/* Employee summary */}
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="overline" color="text.secondary" display="block" letterSpacing={1.2} mb={2}>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', letterSpacing: 1.2, mb: 2 }}>
             Employee
           </Typography>
-          <Stack direction="row" spacing={2} alignItems="center" mb={3}>
+          <Stack direction="row" spacing={2} sx={{ mb: 3, alignItems: 'center' }}>
             <Avatar sx={{ bgcolor: 'error.main', width: 50, height: 50, fontWeight: 800, fontSize: '1.1rem' }}>
               {selectedEmployee?.firstName?.[0]}{selectedEmployee?.lastName?.[0]}
             </Avatar>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" fontWeight={700} lineHeight={1.3}>
+              <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
                 {selectedEmployee?.firstName} {selectedEmployee?.lastName}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -849,18 +851,18 @@ export const OffboardingWizard: React.FC = () => {
           </Stack>
           <Divider sx={{ mb: 2.5 }} />
           <Grid container spacing={3}>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Last Working Date</Typography>
-              <Typography variant="body1" fontWeight={700}>{effectiveDate}</Typography>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Last Working Date</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>{effectiveDate}</Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Final Status</Typography>
-              <Typography variant="body1" fontWeight={700}>{finalStatus}</Typography>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Final Status</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>{finalStatus}</Typography>
             </Grid>
             {reason && (
-              <Grid item xs={12} sm={4}>
-                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>Reason</Typography>
-                <Typography variant="body1" fontWeight={600}>{reason}</Typography>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Reason</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>{reason}</Typography>
               </Grid>
             )}
           </Grid>
@@ -870,7 +872,7 @@ export const OffboardingWizard: React.FC = () => {
       {/* Transfer summary */}
       <Card variant="outlined" sx={{ borderRadius: 3 }}>
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="overline" color="text.secondary" display="block" letterSpacing={1.2} mb={3}>
+          <Typography variant="overline" color="text.secondary" sx={{ display: 'block', letterSpacing: 1.2, mb: 3 }}>
             What Will Be Transferred
           </Typography>
           <Grid container spacing={2}>
@@ -882,10 +884,10 @@ export const OffboardingWizard: React.FC = () => {
               { label: 'Tasks (bulk)', count: bulkTaskTo ? (impact?.activeTasks.count ?? 0) : 0 },
               { label: 'Memberships closed', count: impact?.projectMemberships.count ?? 0 },
             ].map(({ label, count }) => (
-              <Grid item xs={6} sm={4} key={label}>
+              <Grid size={{ xs: 6, sm: 4 }} key={label}>
                 <Box sx={{ p: 2.5, borderRadius: 2.5, bgcolor: 'action.hover', textAlign: 'center' }}>
-                  <Typography variant="h4" fontWeight={800} lineHeight={1.1}>{count}</Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>{label}</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.1 }}>{count}</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{label}</Typography>
                 </Box>
               </Grid>
             ))}
@@ -915,11 +917,11 @@ export const OffboardingWizard: React.FC = () => {
     <Card variant="outlined" sx={{ textAlign: 'center', borderRadius: 3 }}>
       <CardContent sx={{ p: 8 }}>
         <CheckCircleIcon sx={{ fontSize: 88, color: 'success.main', mb: 3 }} />
-        <Typography variant="h4" fontWeight={800} mb={1.5}>Offboarding Complete</Typography>
-        <Typography color="text.secondary" mb={1} fontSize="1.05rem">
+        <Typography variant="h4" sx={{ fontWeight: 800, mb: 1.5 }}>Offboarding Complete</Typography>
+        <Typography color="text.secondary" sx={{ mb: 1, fontSize: '1.05rem' }}>
           <strong>{selectedEmployee?.firstName} {selectedEmployee?.lastName}</strong> has been successfully offboarded.
         </Typography>
-        <Typography variant="body2" color="text.disabled" mb={5} lineHeight={1.7}>
+        <Typography variant="body2" color="text.disabled" sx={{ mb: 5, lineHeight: 1.7 }}>
           All ownership transfers were committed atomically. The offboarding event has been
           recorded in the audit trail with a full transfer summary.
         </Typography>
@@ -946,11 +948,11 @@ export const OffboardingWizard: React.FC = () => {
           Back
         </Button>
         <Box>
-          <Typography variant="h4" fontWeight={800} lineHeight={1.2}>
+          <Typography variant="h4" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
             Enterprise Offboarding Wizard
           </Typography>
           {selectedEmployee && step > 0 && (
-            <Typography variant="body2" color="text.secondary" mt={0.5}>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               Processing offboarding for{' '}
               <strong>{selectedEmployee.firstName} {selectedEmployee.lastName}</strong>
               {selectedEmployee.employeeCode ? ` (${selectedEmployee.employeeCode})` : ''}
@@ -975,7 +977,7 @@ export const OffboardingWizard: React.FC = () => {
 
       {/* Navigation buttons */}
       {step < 6 && (
-        <Stack direction="row" spacing={2} justifyContent="flex-end" mt={4}>
+        <Stack direction="row" spacing={2} sx={{ mt: 4, justifyContent: 'flex-end' }}>
           {step > 0 && (
             <Button variant="outlined" size="large" onClick={() => setStep((s) => s - 1)} sx={{ px: 3 }}>
               Back

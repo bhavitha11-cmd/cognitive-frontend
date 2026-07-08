@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Box, Card, CardContent, Typography, CircularProgress, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import {
+  Box, Card, CardContent, Typography, CircularProgress,
+  ToggleButton, ToggleButtonGroup, FormControl, InputLabel, Select, MenuItem
+} from '@mui/material';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 
@@ -11,12 +14,18 @@ import type { TreeNode } from '../../../components/HierarchyTree';
 export const OrganizationChartPage: React.FC = () => {
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'employee' | 'role'>('employee');
+  const [selectedRootIndex, setSelectedRootIndex] = useState<number>(0);
 
   useGetEmployees();
   useGetDepartments();
 
   const { data: empTree, isLoading: empLoading } = useGetOrgTree();
   const { data: roleTree, isLoading: roleLoading } = useGetRoleTree();
+
+  // Reset selected root index when switching views
+  useEffect(() => {
+    setSelectedRootIndex(0);
+  }, [viewMode]);
 
   const handleViewModeChange = (_: React.MouseEvent<HTMLElement>, newMode: 'employee' | 'role') => {
     if (newMode) setViewMode(newMode);
@@ -39,7 +48,9 @@ export const OrganizationChartPage: React.FC = () => {
   });
 
   const treeData = viewMode === 'employee' ? empTree : roleTree;
-  const treeNode = treeData && treeData.length > 0 ? adaptTreeNode(treeData[0]) : null;
+  const treeNode = treeData && treeData.length > 0 && selectedRootIndex < treeData.length
+    ? adaptTreeNode(treeData[selectedRootIndex])
+    : null;
 
   return (
     <Box>
@@ -63,6 +74,27 @@ export const OrganizationChartPage: React.FC = () => {
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
+
+      {treeData && treeData.length > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 3 }}>
+          <FormControl size="small" sx={{ minWidth: 240 }}>
+            <InputLabel id="root-node-select-label">Select Root Node</InputLabel>
+            <Select
+              labelId="root-node-select-label"
+              id="root-node-select"
+              value={selectedRootIndex}
+              label="Select Root Node"
+              onChange={(e) => setSelectedRootIndex(Number(e.target.value))}
+            >
+              {treeData.map((node, index) => (
+                <MenuItem key={node.id || index} value={index}>
+                  {node.label || node.name || node.employee_name || `Root ${index + 1}`}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
 
       <Card>
         <CardContent sx={{ p: 3 }}>

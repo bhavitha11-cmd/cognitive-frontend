@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Grid, Card, CardContent, Typography, Box, Divider, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Avatar,
-  TextField
+  Select, MenuItem, FormControl
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -21,8 +21,30 @@ import WidgetErrorBoundary from '../components/WidgetErrorBoundary';
 import { CardSkeleton } from '../components/DashboardSkeletons';
 
 export const EmployeeDashboard: React.FC = () => {
-  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetEmployeeSummary();
-  const { data: charts, refetch: refetchCharts } = useGetEmployeeCharts();
+  // ── Period filter ────────────────────────────────────────────────────────────
+  const monthOptions = useMemo(() => {
+    const opts: { label: string; value: string; from: string; to: string }[] = [];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const to = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const label = i === 0
+        ? `This Month (${d.toLocaleString('default', { month: 'short', year: 'numeric' })})`
+        : d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      opts.push({ label, value: from, from, to });
+    }
+    return opts;
+  }, []);
+
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(monthOptions[0]?.value ?? '');
+  const activePeriod = monthOptions.find((o) => o.value === selectedPeriod) ?? monthOptions[0];
+  const fromDate = activePeriod?.from;
+  const toDate = activePeriod?.to;
+
+  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetEmployeeSummary(fromDate, toDate);
+  const { data: charts, refetch: refetchCharts } = useGetEmployeeCharts(fromDate, toDate);
   const { user } = useAuthStore();
 
   // 1. KPI Metrics
@@ -86,9 +108,26 @@ export const EmployeeDashboard: React.FC = () => {
             </Box>
           </Grid>
           <Grid size={{ xs: 12, md: 6 }} sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <TextField select size="small" defaultValue="May 2025" slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="May 2025">May 2025</option>
-            </TextField>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <Select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                displayEmpty
+                sx={{
+                  color: '#ffffff', bgcolor: '#161f30',
+                  border: '1px solid #222d4a', borderRadius: 1,
+                  '& .MuiSelect-icon': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#161f30', color: '#ffffff', maxHeight: 280 } } }}
+              >
+                {monthOptions.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.875rem' }}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button variant="outlined" size="small" sx={{ borderColor: '#1d243a', color: '#ffffff' }} onClick={handleRefreshData}>
               Refresh Stats
             </Button>

@@ -31,6 +31,7 @@ import { useGetClientsLookup } from '../../clients/services/clientService';
 import { useGetEmployeesLookup, useGetDepartmentsLookup } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
 import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
 // FORM SCHEMA
@@ -74,6 +75,8 @@ type FormInputs = z.infer<typeof schema>;
 
 export const CreateProjectPage: React.FC = () => {
   const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.user);
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
 
   const createProject = useCreateProject();
   const { data: clients = [] } = useGetClientsLookup();
@@ -86,6 +89,7 @@ export const CreateProjectPage: React.FC = () => {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     setError,
     clearErrors,
     formState: { errors, isSubmitting },
@@ -111,6 +115,25 @@ export const CreateProjectPage: React.FC = () => {
       feedbackStatus: 'PENDING',
     },
   });
+
+  // Auto-select department of logged-in user when departments data is fetched
+  React.useEffect(() => {
+    if (currentUser?.departmentId && departments.length > 0) {
+      if (!getValues('departmentId')) {
+        setValue('departmentId', currentUser.departmentId, { shouldValidate: true });
+      }
+    }
+  }, [currentUser, departments, setValue, getValues]);
+
+  // Filter manager options to show only teammates if logged-in user has a team (unless they are super admin)
+  const filteredManagers = React.useMemo(() => {
+    if (!currentUser) return managers;
+    if (isSuperAdmin) return managers;
+    if (currentUser.teamId) {
+      return managers.filter((m) => m.teamId === currentUser.teamId);
+    }
+    return managers;
+  }, [managers, currentUser, isSuperAdmin]);
 
   const plannedStartDate = watch('plannedStartDate');
   const plannedEndDate = watch('plannedEndDate');
@@ -224,8 +247,7 @@ export const CreateProjectPage: React.FC = () => {
         {/* Section 1: Project Identity */}
         <Card sx={{ mb: 3 }}>
           <CardHeader
-            title="Project Identity"
-            titleTypographyProps={{ variant: 'subtitle1', fontWeight: 700 }}
+            title={<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Project Identity</Typography>}
             sx={{ pb: 0 }}
           />
           <Divider sx={{ mt: 1.5 }} />
@@ -356,7 +378,7 @@ export const CreateProjectPage: React.FC = () => {
                     render={({ field }) => (
                       <Select {...field} displayEmpty>
                         <MenuItem value="">-- Unassigned --</MenuItem>
-                        {managers.map((e) => (
+                        {filteredManagers.map((e) => (
                           <MenuItem key={e.id} value={e.id}>
                             {e.displayName}
                           </MenuItem>
@@ -395,8 +417,7 @@ export const CreateProjectPage: React.FC = () => {
         {/* Section 2: Classification & Dates */}
         <Card sx={{ mb: 3 }}>
           <CardHeader
-            title="Classification & Schedule"
-            titleTypographyProps={{ variant: 'subtitle1', fontWeight: 700 }}
+            title={<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Classification & Schedule</Typography>}
             sx={{ pb: 0 }}
           />
           <Divider sx={{ mt: 1.5 }} />
@@ -506,8 +527,7 @@ export const CreateProjectPage: React.FC = () => {
         {/* Section 3: Hours & Finance */}
         <Card sx={{ mb: 3 }}>
           <CardHeader
-            title="Hours & Finance"
-            titleTypographyProps={{ variant: 'subtitle1', fontWeight: 700 }}
+            title={<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Hours & Finance</Typography>}
             sx={{ pb: 0 }}
           />
           <Divider sx={{ mt: 1.5 }} />

@@ -3,7 +3,7 @@ import { Box, Button, Card, Typography, IconButton, Dialog, DialogTitle, DialogC
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 
-import { useGetRoles, useCreateRole, useUpdateRole, useSetRolePermissions } from '../services/hrService';
+import { useGetRoles, useCreateRole, useUpdateRole, useSetRolePermissions, useSetRoleFeaturePermissions } from '../services/hrService';
 import { DataTable } from '../../../components/DataTable';
 import type { Column } from '../../../components/DataTable';
 import { SearchFilters } from '../../../components/SearchFilters';
@@ -18,6 +18,7 @@ export const RoleListPage: React.FC = () => {
   const createMut = useCreateRole();
   const updateMut = useUpdateRole();
   const permMut = useSetRolePermissions();
+  const featurePermMut = useSetRoleFeaturePermissions();
 
   // States
   const [searchQuery, setSearchQuery] = useState('');
@@ -48,13 +49,23 @@ export const RoleListPage: React.FC = () => {
   };
 
   const executeRoleSave = (data: any) => {
-    const { permissions, ...roleData } = data;
+    const { permissions, featurePermissions, ...roleData } = data;
     if (editingRole) {
       console.log('[Frontend] Submitting role update for:', editingRole.id, roleData);
       updateMut.mutate({ id: editingRole.id, data: roleData }, {
         onSuccess: (updatedRole) => {
           console.log('[Frontend] Role updated successfully:', updatedRole);
-          if (permissions) {
+          if (featurePermissions) {
+            console.log('[Frontend] Updating feature permissions for role:', editingRole.id, featurePermissions);
+            featurePermMut.mutate({ roleId: editingRole.id, permissions: featurePermissions }, {
+              onSuccess: () => {
+                console.log('[Frontend] Feature permissions updated successfully for role:', editingRole.id);
+              },
+              onError: (err: any) => {
+                console.error('[Frontend] Failed to update feature permissions:', err?.response?.data || err);
+              },
+            });
+          } else if (permissions) {
             console.log('[Frontend] Updating permissions for role:', editingRole.id, permissions);
             permMut.mutate({ id: editingRole.id, permissions }, {
               onSuccess: () => {
@@ -76,7 +87,14 @@ export const RoleListPage: React.FC = () => {
       createMut.mutate(roleData, {
         onSuccess: (newRole) => {
           console.log('[Frontend] Role created successfully:', newRole);
-          if (permissions && newRole?.id) {
+          if (featurePermissions && newRole?.id) {
+            console.log('[Frontend] Assigning feature permissions to new role:', newRole.id, featurePermissions);
+            featurePermMut.mutate({ roleId: newRole.id, permissions: featurePermissions }, {
+              onSuccess: () => {
+                console.log('[Frontend] Feature permissions assigned successfully to new role:', newRole.id);
+              }
+            });
+          } else if (permissions && newRole?.id) {
             console.log('[Frontend] Assigning permissions to new role:', newRole.id, permissions);
             permMut.mutate({ id: newRole.id, permissions }, {
               onSuccess: () => {

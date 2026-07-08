@@ -5,7 +5,9 @@ import type {
   DashboardStats, PlanVsActualData, UtilizationData, DepartmentLoad, OverdueTask, ClientPerfData, ScopeDist,
   CalendarEvent, PlanVsActualProject, EmployeeUtil, ExecutiveSummary, ExecutiveCharts, ExecutiveAlerts,
   ExecutiveRecentActivities, ProjectSummary, ProjectCharts, TeamLeadSummary, TeamLeadCharts, TeamMemberAttendance,
-  EmployeeSummary, EmployeeCharts, EmployeePerformanceRow, PendingScheduleReviewWidgetData
+  EmployeeSummary, EmployeeCharts, EmployeePerformanceRow, PendingScheduleReviewWidgetData,
+  TeamPerformanceRow, ExecutiveTeamPerformanceResponse, ClientPerformanceRow, ExecutiveClientPerformanceResponse,
+  ProjectListRow, ExecutiveProjectListResponse, TaskSummaryRow, ExecutiveTaskSummaryResponse
 } from '../types';
 
 interface ApiResponse<T> {
@@ -383,6 +385,98 @@ export const useGetExecutiveRecentActivities = () => {
   });
 };
 
+// --- New Executive Drilldown Hooks ---
+export const useGetExecutiveTeamPerformance = (fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'team-performance', fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveTeamPerformanceResponse>>('/dashboard-analytics/executive/team-performance', { params });
+      return res.data.data?.teams ?? [];
+    },
+  });
+};
+
+export const useGetExecutiveClientPerformance = (fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'client-performance', fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveClientPerformanceResponse>>('/dashboard-analytics/executive/client-performance', { params });
+      return res.data.data?.clients ?? [];
+    },
+  });
+};
+
+export const useGetExecutiveIndividualPerformance = (departmentId?: string, teamId?: string, fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'individual-performance', departmentId, teamId, fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (departmentId) params.department_id = departmentId;
+      if (teamId) params.team_id = teamId;
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<{ rankings: EmployeePerformanceRow[] }>>('/dashboard-analytics/executive/individual-performance', { params });
+      return res.data.data?.rankings ?? [];
+    },
+  });
+};
+
+export const useGetExecutiveProjectList = (departmentId?: string, teamId?: string, fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'project-list', departmentId, teamId, fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (departmentId) params.department_id = departmentId;
+      if (teamId) params.team_id = teamId;
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveProjectListResponse>>('/dashboard-analytics/executive/project-list', { params });
+      return res.data.data?.projects ?? [];
+    },
+  });
+};
+
+export const useGetExecutiveTaskSummary = (departmentId?: string, teamId?: string, fromDate?: string, toDate?: string) => {
+  const enabled = useCanViewAnalytics();
+  return useQuery({
+    queryKey: ['dashboard', 'executive', 'task-summary', departmentId, teamId, fromDate, toDate],
+    enabled,
+    staleTime: 30000,
+    gcTime: 300000,
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (departmentId) params.department_id = departmentId;
+      if (teamId) params.team_id = teamId;
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<ExecutiveTaskSummaryResponse>>('/dashboard-analytics/executive/task-summary', { params });
+      return res.data.data?.tasks ?? [];
+    },
+  });
+};
+
 // --- New Project Dashboard Hooks ---
 export const useGetProjectSummary = (projectId?: string) => {
   return useQuery({
@@ -422,8 +516,10 @@ export const useGetProjectCharts = (projectId?: string) => {
 
 // --- New Team Leader Dashboard Hooks ---
 export const useGetTeamLeadSummary = () => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('Dashboard', 'view'));
   return useQuery({
     queryKey: ['dashboard', 'team-lead', 'summary'],
+    enabled,
     staleTime: 15000,
     gcTime: 300000,
     retry: 1,
@@ -439,8 +535,10 @@ export const useGetTeamLeadSummary = () => {
 };
 
 export const useGetTeamLeadCharts = () => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('Dashboard', 'view'));
   return useQuery({
     queryKey: ['dashboard', 'team-lead', 'charts'],
+    enabled,
     staleTime: 15000,
     gcTime: 300000,
     retry: 1,
@@ -456,8 +554,10 @@ export const useGetTeamLeadCharts = () => {
 };
 
 export const useGetTeamLeadAttendance = () => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('Dashboard', 'view'));
   return useQuery({
     queryKey: ['dashboard', 'team-lead', 'attendance'],
+    enabled,
     staleTime: 0,
     gcTime: 0,
     retry: 1,
@@ -473,9 +573,11 @@ export const useGetTeamLeadAttendance = () => {
 };
 
 // --- New Employee Dashboard Hooks ---
-export const useGetEmployeeSummary = () => {
+export const useGetEmployeeSummary = (fromDate?: string, toDate?: string) => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('Dashboard', 'view'));
   return useQuery({
-    queryKey: ['dashboard', 'employee', 'summary'],
+    queryKey: ['dashboard', 'employee', 'summary', fromDate, toDate],
+    enabled,
     staleTime: 5000,
     gcTime: 300000,
     retry: 1,
@@ -484,15 +586,20 @@ export const useGetEmployeeSummary = () => {
     refetchOnMount: false,
     refetchOnReconnect: true,
     queryFn: async () => {
-      const res = await api.get<ApiResponse<EmployeeSummary>>('/dashboard-analytics/employee/summary');
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<EmployeeSummary>>('/dashboard-analytics/employee/summary', { params });
       return res.data.data;
     },
   });
 };
 
-export const useGetEmployeeCharts = () => {
+export const useGetEmployeeCharts = (fromDate?: string, toDate?: string) => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('Dashboard', 'view'));
   return useQuery({
-    queryKey: ['dashboard', 'employee', 'charts'],
+    queryKey: ['dashboard', 'employee', 'charts', fromDate, toDate],
+    enabled,
     staleTime: 5000,
     gcTime: 300000,
     retry: 1,
@@ -501,7 +608,10 @@ export const useGetEmployeeCharts = () => {
     refetchOnMount: false,
     refetchOnReconnect: true,
     queryFn: async () => {
-      const res = await api.get<ApiResponse<EmployeeCharts>>('/dashboard-analytics/employee/charts');
+      const params: Record<string, string> = {};
+      if (fromDate) params.from_date = fromDate;
+      if (toDate) params.to_date = toDate;
+      const res = await api.get<ApiResponse<EmployeeCharts>>('/dashboard-analytics/employee/charts', { params });
       return res.data.data;
     },
   });
@@ -509,8 +619,10 @@ export const useGetEmployeeCharts = () => {
 
 // --- New Employee Performance Dashboard Hooks ---
 export const useGetPerformanceRankings = (departmentId?: string, teamId?: string, fromDate?: string, toDate?: string) => {
+  const enabled = useAuthStore((s) => s.isSuperAdmin() || s.hasPermission('HR', 'view'));
   return useQuery({
     queryKey: ['dashboard', 'performance', 'rankings', departmentId, teamId, fromDate, toDate],
+    enabled,
     staleTime: 60000,
     gcTime: 300000,
     retry: 1,

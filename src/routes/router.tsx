@@ -61,7 +61,7 @@ export const router = createBrowserRouter([
           {
             path: 'executive',
             element: (
-              <ProtectedRoute module="Reports" action="view">
+              <ProtectedRoute module="Analytics" action="view">
                 {lazyLoad(() => import('../modules/dashboard/pages/ExecutiveDashboard'), 'dashboard')}
               </ProtectedRoute>
             ),
@@ -73,18 +73,34 @@ export const router = createBrowserRouter([
           {
             path: 'team-leader',
             element: (
-              <ProtectedRoute module="Reports" action="view">
+              <ProtectedRoute module="Dashboard" action="view">
                 {lazyLoad(() => import('../modules/dashboard/pages/TeamLeaderDashboard'), 'dashboard')}
               </ProtectedRoute>
             ),
           },
           {
             path: 'employee',
-            element: lazyLoad(() => import('../modules/dashboard/pages/EmployeeDashboard'), 'dashboard'),
+            element: (
+              <ProtectedRoute module="Dashboard" action="view">
+                {lazyLoad(() => import('../modules/dashboard/pages/EmployeeDashboard'), 'dashboard')}
+              </ProtectedRoute>
+            ),
           },
           {
             path: 'employee-performance',
-            element: lazyLoad(() => import('../modules/dashboard/pages/EmployeePerformanceDashboard'), 'dashboard'),
+            element: (
+              <ProtectedRoute module="HR" action="view">
+                {lazyLoad(() => import('../modules/dashboard/pages/EmployeePerformanceDashboard'), 'dashboard')}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'employee-load',
+            element: (
+              <ProtectedRoute module="Dashboard" action="view">
+                {lazyLoad(() => import('../modules/dashboard/pages/EmployeeLoadPage'), 'dashboard')}
+              </ProtectedRoute>
+            ),
           },
         ],
       },

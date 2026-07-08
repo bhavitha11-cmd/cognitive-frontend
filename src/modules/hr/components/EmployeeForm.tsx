@@ -42,7 +42,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   departmentId: z.string().min(1, 'Department is required'),
   designationId: z.string().optional(),
   roleIds: z.array(z.string()).min(1, 'At least one role must be assigned'),
-  reportingManagerId: z.string().min(1, 'Reporting Manager is required'),
+  reportingManagerId: z.string().optional().or(z.literal('')),
   dateOfJoining: z.string().min(1, 'Date of Joining is required'),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']),
   status: z.enum(['ACTIVE', 'PROBATION', 'NOTICE_PERIOD', 'ON_LEAVE', 'SUSPENDED', 'RESIGNED', 'TERMINATED']),
@@ -52,7 +52,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   sendWelcomeEmail: z.boolean(),
 
   emergencyContactName: z.string().min(1, 'Emergency contact name is required'),
-  emergencyContactPhone: z.string().min(1, 'Emergency contact phone is required').regex(/^\+?\d{7,15}$/, 'Invalid phone number format (7 to 15 digits)'),
+  emergencyContactPhone: z.string().length(10, 'Emergency contact phone must be exactly 10 digits').regex(/^\d{10}$/, 'Emergency contact phone must contain numeric characters only'),
   address: z.string().min(1, 'Address is required'),
   isDepartmentHead: z.boolean().optional(),
   teamId: z.string().min(1, 'Team is required'),
@@ -71,16 +71,14 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
   const departments = useHRStore((state) => state.departments);
   const roles = useHRStore((state) => state.roles);
 
-  // Reporting-Manager picker: auth-only reference lookup, not the full
-  // Employees:view-gated list (and not the paginated main-table store slice).
   const { data: employeesLookup = [] } = useGetEmployeesLookup();
-  const managerOptions = employeesLookup.filter((e) => !initialValues || e.id !== initialValues.id);
 
   const isEditing = !!initialValues;
 
   const {
     control,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<EmployeeFormInputs>({
     resolver: zodResolver(getEmployeeSchema(isEditing)),
@@ -115,6 +113,46 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       teamId: initialValues?.teamId || '',
       isTeamLead: initialValues?.roleInTeam === 'LEAD',
     },
+  });
+
+  const selectedRoleIds = watch('roleIds') || [];
+
+  // Helper to trace ancestor role IDs
+  const getAncestorRoleIds = (roleId: string): Set<string> => {
+    const ancestors = new Set<string>();
+    let currentId = roleId;
+    const visited = new Set<string>();
+    
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const role = roles.find((r) => r.id === currentId);
+      if (role && role.reportsTo) {
+        ancestors.add(role.reportsTo);
+        currentId = role.reportsTo;
+      } else {
+        break;
+      }
+    }
+    return ancestors;
+  };
+
+  // Get union of ancestor role IDs for all selected roles
+  const allowedManagerRoleIds = new Set<string>();
+  selectedRoleIds.forEach((rid) => {
+    getAncestorRoleIds(rid).forEach((aid) => {
+      allowedManagerRoleIds.add(aid);
+    });
+  });
+
+  const managerOptions = employeesLookup.filter((e) => {
+    if (initialValues && e.id === initialValues.id) return false;
+    
+    if (selectedRoleIds.length > 0) {
+      if (allowedManagerRoleIds.size > 0) {
+        return e.roleIds?.some((rid) => allowedManagerRoleIds.has(rid));
+      }
+    }
+    return true;
   });
 
   const { data: teams = [] } = useGetTeamsLookup();
@@ -337,66 +375,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       </Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth size="small" error={!!errors.departmentId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department *</FormLabel>
-            <Controller
-              name="departmentId"
-              control={control}
-              render={({ field }) => (
-                <Select {...field} displayEmpty>
-                  <MenuItem value="">-- Select Department --</MenuItem>
-                  {departments.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            />
-            {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
-          </FormControl>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth size="small" error={!!errors.teamId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team *</FormLabel>
-            <Controller
-              name="teamId"
-              control={control}
-              render={({ field }) => (
-                <Select {...field} displayEmpty>
-                  <MenuItem value="">-- Select Team --</MenuItem>
-                  {teams.map((t) => (
-                    <MenuItem key={t.id} value={t.id}>
-                      {t.team_name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            />
-            {errors.teamId && <FormHelperText>{errors.teamId.message}</FormHelperText>}
-          </FormControl>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <FormControl fullWidth size="small" error={!!errors.reportingManagerId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Reporting Manager *</FormLabel>
-            <Controller
-              name="reportingManagerId"
-              control={control}
-              render={({ field }) => (
-                <Select {...field} displayEmpty>
-                  <MenuItem value="">-- Select Reporting Manager --</MenuItem>
-                  {managerOptions.map((m) => (
-                    <MenuItem key={m.id} value={m.id}>
-                      {m.displayName}
-                    </MenuItem>
-                  ))}
-                </Select>
-              )}
-            />
-            {errors.reportingManagerId && <FormHelperText>{errors.reportingManagerId.message}</FormHelperText>}
-          </FormControl>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.roleIds}>
             <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Assigned Roles *</FormLabel>
             <Controller
@@ -431,6 +409,69 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
               )}
             />
             {errors.roleIds && <FormHelperText>{errors.roleIds.message}</FormHelperText>}
+          </FormControl>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <FormControl fullWidth size="small" error={!!errors.departmentId}>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department *</FormLabel>
+            <Controller
+              name="departmentId"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} displayEmpty>
+                  <MenuItem value="">-- Select Department --</MenuItem>
+                  {departments.map((d) => (
+                    <MenuItem key={d.id} value={d.id}>
+                      {d.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+            {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
+          </FormControl>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <FormControl fullWidth size="small" error={!!errors.teamId}>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team *</FormLabel>
+            <Controller
+              name="teamId"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} displayEmpty>
+                  <MenuItem value="">-- Select Team --</MenuItem>
+                  {teams.map((t) => (
+                    <MenuItem key={t.id} value={t.id}>
+                      {t.team_name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+            {errors.teamId && <FormHelperText>{errors.teamId.message}</FormHelperText>}
+          </FormControl>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <FormControl fullWidth size="small" error={!!errors.reportingManagerId}>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Reporting Manager</FormLabel>
+            <Controller
+              name="reportingManagerId"
+              control={control}
+              render={({ field }) => (
+                <Select {...field} displayEmpty>
+                  <MenuItem value="">-- Select Reporting Manager --</MenuItem>
+                  {managerOptions.map((m) => (
+                    <MenuItem key={m.id} value={m.id}>
+                      {m.displayName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+            />
+            {errors.reportingManagerId && <FormHelperText>{errors.reportingManagerId.message}</FormHelperText>}
           </FormControl>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -526,6 +567,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
                 error={!!errors.emergencyContactPhone}
                 helperText={errors.emergencyContactPhone?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
+                inputProps={{ maxLength: 10 }}
               />
             )}
           />

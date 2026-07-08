@@ -268,9 +268,10 @@ export const useGetDailySummary = (employeeId?: string, summaryDate?: string) =>
 // BREAKS HOOKS
 // ==========================================
 
-export const useGetActiveBreak = () => {
+export const useGetActiveBreak = (enabled = true) => {
   return useQuery<EmployeeBreak | null>({
     queryKey: ['breaks', 'active'],
+    enabled,
     queryFn: async () => {
       const response = await api.get('/breaks/active');
       const data = response.data?.data?.active_break || response.data?.active_break || null;

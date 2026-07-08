@@ -318,6 +318,9 @@ interface EditProjectDialogProps {
 }
 
 const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, onClose }) => {
+  const currentUser = useAuthStore((state) => state.user);
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
+
   const updateProject = useUpdateProject();
   const { data: clientsData } = useGetClients({ limit: 200, isActive: true });
   const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
@@ -326,6 +329,15 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
 
   const clients = clientsData?.clients || [];
   const managers = employeesData?.employees || [];
+
+  const filteredManagers = React.useMemo(() => {
+    if (!currentUser) return managers;
+    if (isSuperAdmin) return managers;
+    if (currentUser.teamId) {
+      return managers.filter((m) => m.teamId === currentUser.teamId);
+    }
+    return managers;
+  }, [managers, currentUser, isSuperAdmin]);
 
   const {
     control,
@@ -595,7 +607,7 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
                   render={({ field }) => (
                     <Select {...field} displayEmpty>
                       <MenuItem value="">-- Unassigned --</MenuItem>
-                      {managers.map((e) => (
+                      {filteredManagers.map((e) => (
                         <MenuItem key={e.id} value={e.id}>
                           {e.firstName} {e.lastName}
                           {e.designationName ? ` — ${e.designationName}` : ''}

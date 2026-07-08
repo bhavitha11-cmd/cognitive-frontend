@@ -13,6 +13,27 @@ export interface PermissionDetail {
   can_activate: boolean;
 }
 
+export interface FeaturePermissionDetail {
+  feature_key: string;
+  feature_name: string;
+  module_key: string;
+  module_name: string;
+  route: string | null;
+  menu_visible: boolean;
+  view_scope: string;
+  create_scope: string;
+  update_scope: string;
+  delete_scope: string;
+}
+
+export interface ModulePermissionDetail {
+  module_key: string;
+  module_name: string;
+  icon: string | null;
+  display_order: number;
+  features: FeaturePermissionDetail[];
+}
+
 export interface AuthUser {
   firstName: string;
   lastName: string;
@@ -20,6 +41,8 @@ export interface AuthUser {
   employeeId: string;
   employeeCode: string;
   username: string;
+  departmentId?: string;
+  teamId?: string;
 }
 
 export type DataAccessLevel = 'FULL' | 'MANAGED' | 'TEAM' | 'SELF';
@@ -36,13 +59,14 @@ interface AuthState {
   roles: string[];
   roleCodes: string[];
   permissions: PermissionDetail[];
+  modulePermissions: ModulePermissionDetail[];
   dataAccessLevel: DataAccessLevel;
   isAuthenticated: boolean;
 
   // Computed
   isSuperAdmin: () => boolean;
-  hasPermission: (module: string, action: string) => boolean;
-  hasModuleAccess: (module: string) => boolean;
+  hasPermission: (moduleOrFeature: string, action: string) => boolean;
+  hasModuleAccess: (moduleOrFeature: string) => boolean;
 
   // Actions
   login: (token: string, employee: any, profile: any) => void;
@@ -61,6 +85,7 @@ export const useAuthStore = create<AuthState>()(
       roles: [],
       roleCodes: [],
       permissions: [],
+      modulePermissions: [],
       dataAccessLevel: 'SELF' as DataAccessLevel,
       isAuthenticated: false,
 
@@ -71,20 +96,73 @@ export const useAuthStore = create<AuthState>()(
         return roleCodes.some((code) => SUPER_ADMIN_CODES.has(code));
       },
 
-      hasPermission: (module: string, action: string) => {
+      hasPermission: (moduleOrFeature: string, action: string) => {
         const state = get();
         // Super admins have all permissions
         if (state.isSuperAdmin()) return true;
 
+        // Legacy module name mappings
+        const LEGACY_MODULE_MAP: Record<string, string> = {
+          'HR': 'employees',
+          'Clients': 'clients',
+          'Finance': 'settings',
+          'Projects': 'projects',
+          'Inventory': 'settings',
+          'Settings': 'settings',
+          'Reports': 'reports',
+          'Timesheets': 'work_center',
+          'Tasks': 'tasks',
+          'Attendance': 'attendance',
+          'Leave': 'my_leaves',
+          'Analytics': 'advanced_dashboard',
+          'Dashboard': 'my_dashboard',
+          'CalendarSettings': 'calendar_configuration',
+          'TaskTemplate': 'task_title_library',
+          'Productivity': 'work_center',
+        };
+
+        const targetKey = LEGACY_MODULE_MAP[moduleOrFeature] || moduleOrFeature;
+        
+        // Normalize action to scope field
+        const ACTION_MAP: Record<string, string> = {
+          'can_view': 'view_scope',
+          'view': 'view_scope',
+          'can_create': 'create_scope',
+          'create': 'create_scope',
+          'can_edit': 'update_scope',
+          'edit': 'update_scope',
+          'update': 'update_scope',
+          'can_activate': 'delete_scope',
+          'activate': 'delete_scope',
+          'delete': 'delete_scope',
+        };
+        const scopeField = ACTION_MAP[action] || 'view_scope';
+
+        // Scan module permissions for a matching feature
+        for (const mod of state.modulePermissions) {
+          const feature = mod.features.find(
+            (f) => f.feature_key.toLowerCase() === targetKey.toLowerCase()
+          );
+          if (feature) {
+            const scope = (feature as any)[scopeField];
+            return scope && scope !== 'NONE';
+          }
+        }
+
+        // Fallback to legacy permissions list if modulePermissions is not yet loaded
         const actionKey = action.startsWith('can_') ? action : `can_${action}`;
-        const perm = state.permissions.find(
-          (p) => p.module_name.toLowerCase() === module.toLowerCase()
+        const legacyPerm = state.permissions.find(
+          (p) => p.module_name.toLowerCase() === moduleOrFeature.toLowerCase()
         );
-        return perm ? !!(perm as any)[actionKey] : false;
+        if (legacyPerm) {
+          return !!(legacyPerm as any)[actionKey];
+        }
+
+        return false;
       },
 
-      hasModuleAccess: (module: string) => {
-        return get().hasPermission(module, 'view');
+      hasModuleAccess: (moduleOrFeature: string) => {
+        return get().hasPermission(moduleOrFeature, 'view');
       },
 
       // ── Actions ────────────────────────────────────────────────────────────
@@ -97,11 +175,14 @@ export const useAuthStore = create<AuthState>()(
           employeeId: employee.id || profile?.id || profile?.employee_id || '',
           employeeCode: employee.employee_code || '',
           username: employee.username || '',
+          departmentId: employee.department_id || employee.departmentId || profile?.department_id || profile?.departmentId || undefined,
+          teamId: employee.team_id || employee.teamId || profile?.team_id || profile?.teamId || undefined,
         };
 
         const roles: string[] = profile?.roles || [];
         const roleCodes: string[] = profile?.role_codes || [];
         const permissions: PermissionDetail[] = profile?.permissions || [];
+        const modulePermissions: ModulePermissionDetail[] = profile?.module_permissions || [];
         const dataAccessLevel: DataAccessLevel = profile?.data_access_level || 'SELF';
 
         // Backward compatibility: write to old localStorage keys
@@ -115,6 +196,7 @@ export const useAuthStore = create<AuthState>()(
           roles,
           roleCodes,
           permissions,
+          modulePermissions,
           dataAccessLevel,
           isAuthenticated: true,
         });
@@ -134,6 +216,7 @@ export const useAuthStore = create<AuthState>()(
           roles: [],
           roleCodes: [],
           permissions: [],
+          modulePermissions: [],
           dataAccessLevel: 'SELF',
           isAuthenticated: false,
         });
@@ -181,6 +264,8 @@ export const useAuthStore = create<AuthState>()(
             employeeId: employee.id || profile?.id || profile?.employee_id || '',
             employeeCode: employee.employee_code || '',
             username: employee.username || '',
+            departmentId: employee.department_id || employee.departmentId || profile?.department_id || profile?.departmentId || undefined,
+            teamId: employee.team_id || employee.teamId || profile?.team_id || profile?.teamId || undefined,
           };
 
           set({
@@ -189,6 +274,7 @@ export const useAuthStore = create<AuthState>()(
             roles: profile?.roles || [],
             roleCodes: profile?.role_codes || [],
             permissions: profile?.permissions || [],
+            modulePermissions: profile?.module_permissions || [],
             dataAccessLevel: profile?.data_access_level || 'SELF',
             isAuthenticated: true,
           });
@@ -205,8 +291,10 @@ export const useAuthStore = create<AuthState>()(
               lastName: profile.last_name || '',
               email: profile.email || '',
               employeeId: profile.id || profile.employee_id || '',
-              employeeCode: profile.employee_code || '',
               username: profile.username || '',
+              employeeCode: profile.employee_code || '',
+              departmentId: profile.department_id || profile.departmentId || undefined,
+              teamId: profile.team_id || profile.teamId || undefined,
             };
 
             localStorage.setItem('cognitive_profile', JSON.stringify(profile));
@@ -216,6 +304,7 @@ export const useAuthStore = create<AuthState>()(
               roles: profile.roles || [],
               roleCodes: profile.role_codes || [],
               permissions: profile.permissions || [],
+              modulePermissions: profile.module_permissions || [],
               dataAccessLevel: profile.data_access_level || 'SELF',
             });
           }
@@ -232,6 +321,7 @@ export const useAuthStore = create<AuthState>()(
         roles: state.roles,
         roleCodes: state.roleCodes,
         permissions: state.permissions,
+        modulePermissions: state.modulePermissions,
         dataAccessLevel: state.dataAccessLevel,
         isAuthenticated: state.isAuthenticated,
       }),

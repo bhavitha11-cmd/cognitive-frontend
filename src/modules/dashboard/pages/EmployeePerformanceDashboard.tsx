@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Grid, Card, CardContent, Typography, Box, Divider, TextField, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, LinearProgress
+  Grid, Card, CardContent, Typography, Box, Divider, Button,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, LinearProgress,
+  Select, MenuItem, FormControl
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -18,15 +19,42 @@ import {
 
 import { useGetPerformanceRankings } from '../services/dashboardService';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useGetDepartmentsLookup, useGetTeamsLookup } from '../../hr/services/hrService';
 
 export const EmployeePerformanceDashboard: React.FC = () => {
   const { hasPermission } = useAuthStore();
   const canViewPerformance = hasPermission('HR', 'view') || hasPermission('Analytics', 'view');
 
+  // ── Month options (last 12 months) ────────────────────────────────────────────
+  const monthOptions = useMemo(() => {
+    const opts: { label: string; value: string; from: string; to: string }[] = [
+      { label: 'All Months', value: '', from: '', to: '' },
+    ];
+    const today = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const to = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const label = i === 0
+        ? `This Month (${d.toLocaleString('default', { month: 'short', year: 'numeric' })})`
+        : d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      opts.push({ label, value: from, from, to });
+    }
+    return opts;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [departmentId, setDepartmentId] = useState<string>('');
   const [teamId, setTeamId] = useState<string>('');
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
+
+  const activePeriod = monthOptions.find((o) => o.value === selectedMonth);
+  const fromDate = activePeriod?.from || '';
+  const toDate = activePeriod?.to || '';
+
+  // ── Department & Team lookups ──────────────────────────────────────────
+  const { data: departments = [] } = useGetDepartmentsLookup();
+  const { data: teams = [] } = useGetTeamsLookup(departmentId || undefined);
 
   const { data: rankings = [], refetch } = useGetPerformanceRankings(
     departmentId || undefined,
@@ -188,16 +216,71 @@ export const EmployeePerformanceDashboard: React.FC = () => {
               <Typography variant="caption" sx={{ color: '#94a3b8' }}>Track, Analyze and Improve Employee Performance</Typography>
             </Box>
           </Grid>
-          <Grid size={{ xs: 12, md: 8 }} sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <TextField select size="small" value={fromDate || ''} onChange={(e) => setFromDate(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="">All Months</option>
-            </TextField>
-            <TextField select size="small" value={departmentId || ''} onChange={(e) => setDepartmentId(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="">All Departments</option>
-            </TextField>
-            <TextField select size="small" value={teamId || ''} onChange={(e) => setTeamId(e.target.value)} slotProps={{ select: { native: true }, input: { sx: { color: '#ffffff', bgcolor: '#161f30', borderColor: '#222d4a' } } }}>
-              <option value="">All Teams</option>
-            </TextField>
+          <Grid size={{ xs: 12, md: 8 }} sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Month Filter */}
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                displayEmpty
+                sx={{
+                  color: '#ffffff', bgcolor: '#161f30',
+                  border: '1px solid #222d4a', borderRadius: 1,
+                  '& .MuiSelect-icon': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#161f30', color: '#ffffff', maxHeight: 280 } } }}
+              >
+                {monthOptions.map((opt) => (
+                  <MenuItem key={opt.value || 'all'} value={opt.value} sx={{ fontSize: '0.875rem' }}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Department Filter */}
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={departmentId}
+                onChange={(e) => { setDepartmentId(e.target.value); setTeamId(''); }}
+                displayEmpty
+                sx={{
+                  color: '#ffffff', bgcolor: '#161f30',
+                  border: '1px solid #222d4a', borderRadius: 1,
+                  '& .MuiSelect-icon': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#161f30', color: '#ffffff', maxHeight: 280 } } }}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.875rem' }}>All Departments</MenuItem>
+                {departments.map((d) => (
+                  <MenuItem key={d.id} value={d.id} sx={{ fontSize: '0.875rem' }}>{d.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Team Filter (cascades from department) */}
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <Select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                displayEmpty
+                sx={{
+                  color: '#ffffff', bgcolor: '#161f30',
+                  border: '1px solid #222d4a', borderRadius: 1,
+                  '& .MuiSelect-icon': { color: '#94a3b8' },
+                  '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                }}
+                MenuProps={{ PaperProps: { sx: { bgcolor: '#161f30', color: '#ffffff', maxHeight: 280 } } }}
+              >
+                <MenuItem value="" sx={{ fontSize: '0.875rem' }}>All Teams</MenuItem>
+                {teams.map((t) => (
+                  <MenuItem key={t.id} value={t.id} sx={{ fontSize: '0.875rem' }}>{t.team_name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <Button variant="outlined" startIcon={<DownloadIcon />} size="small" sx={{ borderColor: '#1d243a', color: '#ffffff' }} onClick={() => refetch()}>
               Refresh Data
             </Button>
