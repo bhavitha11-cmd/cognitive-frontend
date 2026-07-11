@@ -554,6 +554,7 @@ export const AttendancePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
       queryClient.invalidateQueries({ queryKey: ['attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['productivity'] });
       showSnack('Clocked in successfully.');
     },
     onError: (err) => showSnack(parseError(err), 'error'),
@@ -568,6 +569,7 @@ export const AttendancePage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
       queryClient.invalidateQueries({ queryKey: ['attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['productivity'] });
       showSnack('Clocked out successfully.');
     },
     onError: (err) => showSnack(parseError(err), 'error'),
@@ -721,6 +723,7 @@ export const AttendancePage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
         queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
         queryClient.invalidateQueries({ queryKey: ['breaks'] });
+        queryClient.invalidateQueries({ queryKey: ['productivity'] });
         showSnack('Break started successfully.');
       },
       onError: (err) => showSnack(parseError(err), 'error'),
@@ -736,6 +739,7 @@ export const AttendancePage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
         queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
         queryClient.invalidateQueries({ queryKey: ['breaks'] });
+        queryClient.invalidateQueries({ queryKey: ['productivity'] });
         showSnack('Break ended successfully.');
       },
       onError: (err) => showSnack(parseError(err), 'error'),

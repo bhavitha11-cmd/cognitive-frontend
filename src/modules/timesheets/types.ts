@@ -103,6 +103,8 @@ export interface LeaveRequest {
   hrNotes?: string
   approvalSteps?: any[]
   documentUrl?: string
+  isHalfDay: boolean
+  halfDaySession?: string
 }
 
 export interface LeaveRequestCreate {
@@ -111,4 +113,6 @@ export interface LeaveRequestCreate {
   toDate: string
   reason?: string
   documentUrl?: string
+  isHalfDay?: boolean
+  halfDaySession?: string
 }

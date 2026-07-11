@@ -306,7 +306,7 @@ export const TeamLeaderDashboard: React.FC = () => {
               </>
             )}
             <Divider sx={{ borderColor: '#1d243a', my: 1 }} />
-            <Link sx={{ textAlign: 'center', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, color: '#4299e1' }} onClick={() => navigate('/timesheets/approvals')}>
+            <Link sx={{ textAlign: 'center', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, color: '#4299e1' }} onClick={() => navigate('/timesheets/leave-approval')}>
               Go to Approval <ArrowForwardIcon sx={{ fontSize: 10 }} />
             </Link>
           </Card>

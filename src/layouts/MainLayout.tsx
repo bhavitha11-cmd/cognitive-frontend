@@ -387,7 +387,7 @@ export const MainLayout: React.FC = () => {
       name: 'Timesheets',
       icon: <ScheduleOutlinedIcon />,
       children: [
-        { name: 'Work Center', path: '/timesheets/active', icon: <AssignmentOutlinedIcon fontSize="small" /> },
+        { name: 'Data Center', path: '/timesheets/active', icon: <AssignmentOutlinedIcon fontSize="small" /> },
         { name: 'Weekly Timesheet', path: '/timesheets/weekly', icon: <CalendarViewWeekOutlinedIcon fontSize="small" /> },
         { name: 'Session History', path: '/timesheets', icon: <ListAltOutlinedIcon fontSize="small" /> },
         { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlinedIcon fontSize="small" /> },

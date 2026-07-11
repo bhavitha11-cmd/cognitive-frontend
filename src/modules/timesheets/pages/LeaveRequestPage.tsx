@@ -15,6 +15,8 @@ import {
   DialogTitle,
   Fab,
   FormControl,
+  FormControlLabel,
+  FormLabel,
   FormHelperText,
   Grid,
   InputLabel,
@@ -31,6 +33,9 @@ import {
   TextField,
   Tooltip,
   Typography,
+  Checkbox,
+  Radio,
+  RadioGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
@@ -57,13 +62,23 @@ const applyLeaveSchema = z
     fromDate: z.string().min(1, 'From date is required'),
     toDate: z.string().min(1, 'To date is required'),
     reason: z.string().optional(),
+    isHalfDay: z.boolean().default(false),
+    halfDaySession: z.enum(['FIRST_HALF', 'SECOND_HALF']).nullable().optional(),
   })
   .refine(
     (data) => {
+      if (data.isHalfDay) return true;
       if (!data.fromDate || !data.toDate) return true;
       return new Date(data.toDate) >= new Date(data.fromDate);
     },
     { message: 'To date must be on or after from date', path: ['toDate'] }
+  )
+  .refine(
+    (data) => {
+      if (data.isHalfDay && !data.halfDaySession) return false;
+      return true;
+    },
+    { message: 'Session selection is required for half-day leaves', path: ['halfDaySession'] }
   );
 
 type ApplyLeaveFormValues = z.infer<typeof applyLeaveSchema>;
@@ -209,6 +224,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
     watch,
     reset,
     setError,
+    setValue,
     formState: { errors },
   } = useForm<ApplyLeaveFormValues>({
     resolver: zodResolver(applyLeaveSchema),
@@ -217,14 +233,23 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
       fromDate: '',
       toDate: '',
       reason: '',
+      isHalfDay: false,
+      halfDaySession: null,
     },
   });
 
   const watchedType = watch('leaveTypeId');
   const watchedFrom = watch('fromDate');
   const watchedTo = watch('toDate');
+  const watchedIsHalfDay = watch('isHalfDay');
 
-  const days = calcDays(watchedFrom, watchedTo);
+  React.useEffect(() => {
+    if (watchedIsHalfDay && watchedFrom) {
+      setValue('toDate', watchedFrom, { shouldValidate: true });
+    }
+  }, [watchedIsHalfDay, watchedFrom, setValue]);
+
+  const days = watchedIsHalfDay ? 0.5 : calcDays(watchedFrom, watchedTo);
 
   const selectedLeaveType = useMemo(
     () => leaveTypes.find((lt) => lt.id === watchedType),
@@ -275,6 +300,8 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
         toDate: values.toDate,
         reason: values.reason || undefined,
         documentUrl,
+        isHalfDay: values.isHalfDay,
+        halfDaySession: values.isHalfDay ? values.halfDaySession || undefined : undefined,
       };
 
       applyLeave.mutate(payload, {
@@ -373,6 +400,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                     type="date"
                     size="small"
                     fullWidth
+                    disabled={watchedIsHalfDay}
                     error={!!errors.toDate}
                     helperText={errors.toDate?.message}
                     slotProps={{ inputLabel: { shrink: true } }}
@@ -380,6 +408,59 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                 )}
               />
             </Grid>
+
+            {/* Half Day Checkbox */}
+            <Grid size={{ xs: 12 }}>
+              <Controller
+                name="isHalfDay"
+                control={control}
+                render={({ field: { value, onChange } }) => (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={value}
+                        onChange={(e) => {
+                          onChange(e.target.checked);
+                        }}
+                      />
+                    }
+                    label="Apply for Half Day"
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Half Day Session Radio Group */}
+            {watchedIsHalfDay && (
+              <Grid size={{ xs: 12 }}>
+                <FormControl component="fieldset" error={!!errors.halfDaySession}>
+                  <FormLabel component="legend" sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                    Select Half Day Session *
+                  </FormLabel>
+                  <Controller
+                    name="halfDaySession"
+                    control={control}
+                    render={({ field }) => (
+                      <RadioGroup {...field} row>
+                        <FormControlLabel
+                          value="FIRST_HALF"
+                          control={<Radio size="small" />}
+                          label="First Half"
+                        />
+                        <FormControlLabel
+                          value="SECOND_HALF"
+                          control={<Radio size="small" />}
+                          label="Second Half"
+                        />
+                      </RadioGroup>
+                    )}
+                  />
+                  {errors.halfDaySession && (
+                    <FormHelperText>{errors.halfDaySession.message}</FormHelperText>
+                  )}
+                </FormControl>
+              </Grid>
+            )}
 
             {/* Auto-calculated days */}
             {days > 0 && (
@@ -678,6 +759,11 @@ export const LeaveRequestPage: React.FC = () => {
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {req.totalDays}
                         </Typography>
+                        {req.isHalfDay && (
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            ({req.halfDaySession === 'FIRST_HALF' ? 'First Half' : 'Second Half'})
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 180 }}>
                         <Tooltip title={req.reason ?? ''} placement="top">
@@ -768,7 +854,7 @@ export const LeaveRequestPage: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        {req.status === 'PENDING' && (
+                        {(req.status === 'PENDING' || req.status === 'APPROVED') && (
                           <Tooltip title="Cancel request">
                             <Button
                               size="small"

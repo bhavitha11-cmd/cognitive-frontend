@@ -60,6 +60,8 @@ const mapLeaveRequest = (d: any): LeaveRequest => ({
   hrNotes: d.hr_notes || undefined,
   approvalSteps: d.approval_steps || [],
   documentUrl: d.document_url || undefined,
+  isHalfDay: d.is_half_day,
+  halfDaySession: d.half_day_session || undefined,
 });
 
 const mapLeaveRequestToBackend = (data: LeaveRequestCreate) => ({
@@ -68,6 +70,8 @@ const mapLeaveRequestToBackend = (data: LeaveRequestCreate) => ({
   to_date: data.toDate,
   reason: data.reason || null,
   document_url: data.documentUrl || null,
+  is_half_day: data.isHalfDay ?? false,
+  half_day_session: data.halfDaySession || null,
 });
 
 // ==========================================

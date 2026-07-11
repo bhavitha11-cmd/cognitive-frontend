@@ -131,6 +131,7 @@ export const WorkCenterPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['work-sessions', 'my'] });
         queryClient.invalidateQueries({ queryKey: ['work-sessions', 'daily-summary'] });
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        queryClient.invalidateQueries({ queryKey: ['productivity'] });
       }
     };
 
@@ -281,6 +282,124 @@ export const WorkCenterPage: React.FC = () => {
   const { data: idleReasons = [] } = useGetIdleReasons();
   const classifyMutation = useClassifyIdleSegment();
 
+  // Ticking local KPIs in real-time
+  const [now, setNow] = useState(Date.now());
+  const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (productivityData) {
+      setLastFetchTime(Date.now());
+    }
+  }, [productivityData]);
+
+  const tickingKpis = useMemo(() => {
+    if (!productivityData?.kpis) return null;
+
+    const elapsedSeconds = Math.max(0, Math.floor((now - lastFetchTime) / 1000));
+    const activeTicking = isClockedIn && !isClockedOut;
+
+    let presenceSec = productivityData.kpis.presence_time.raw_seconds;
+    let breakSec = productivityData.kpis.break_time.raw_seconds;
+    let orgSec = productivityData.kpis.organization_time.raw_seconds;
+    let productiveSec = productivityData.kpis.productive_time.raw_seconds;
+    let idleSec = productivityData.kpis.idle_time.raw_seconds;
+    let remainingSec = productivityData.kpis.remaining_productive_time.raw_seconds;
+
+    if (activeTicking && elapsedSeconds > 0) {
+      presenceSec += elapsedSeconds;
+      if (isOnBreak) {
+        breakSec += elapsedSeconds;
+      } else {
+        orgSec += elapsedSeconds;
+        if (activeSession) {
+          productiveSec += elapsedSeconds;
+        } else {
+          idleSec += elapsedSeconds;
+        }
+        remainingSec = Math.max(0, remainingSec - elapsedSeconds);
+      }
+    }
+
+    const round = (num: number, dec: number) => {
+      const factor = Math.pow(10, dec);
+      return Math.round(num * factor) / factor;
+    };
+
+    const prodPct = orgSec > 0 ? (productiveSec / orgSec * 100) : 0;
+    const orgUtil = presenceSec > 0 ? (orgSec / presenceSec * 100) : 0;
+    const attUtil = presenceSec > 0 ? (productiveSec / presenceSec * 100) : 0;
+    const breakPct = presenceSec > 0 ? (breakSec / presenceSec * 100) : 0;
+    const idlePct = presenceSec > 0 ? (idleSec / presenceSec * 100) : 0;
+
+    const updatedKpis = { ...productivityData.kpis };
+
+    const updateKpi = (key: keyof typeof productivityData.kpis, rawSecs: number, formattedVal?: string) => {
+      const orig = productivityData.kpis[key];
+      updatedKpis[key] = {
+        ...orig,
+        raw_seconds: rawSecs,
+        formatted: formattedVal !== undefined ? formattedVal : fmtDuration(rawSecs),
+        hours: round(rawSecs / 3600, 2),
+        minutes: round(rawSecs / 60, 2),
+      };
+    };
+
+    updateKpi('presence_time', presenceSec);
+    updateKpi('break_time', breakSec);
+    updateKpi('organization_time', orgSec);
+    updateKpi('productive_time', productiveSec);
+    updateKpi('idle_time', idleSec);
+    updateKpi('remaining_productive_time', remainingSec);
+
+    if (remainingSec === 0) {
+      updatedKpis.remaining_productive_time.status = 'success';
+      updatedKpis.remaining_productive_time.color = '#10B981';
+      updatedKpis.remaining_productive_time.tooltip = 'Productivity target achieved!';
+    }
+
+    const updatePctKpi = (key: keyof typeof productivityData.kpis, pct: number) => {
+      const orig = productivityData.kpis[key];
+      let status = orig.status;
+      let color = orig.color;
+
+      if (key === 'productivity_percentage') {
+        if (pct >= 80) { status = 'success'; color = '#10B981'; }
+        else if (pct >= 60) { status = 'warning'; color = '#F59E0B'; }
+        else { status = 'danger'; color = '#EF4444'; }
+      } else if (key === 'organization_utilization') {
+        if (pct >= 80) { status = 'success'; color = '#10B981'; }
+        else { status = 'warning'; color = '#F59E0B'; }
+      } else if (key === 'attendance_utilization') {
+        if (pct >= 75) { status = 'success'; color = '#10B981'; }
+        else { status = 'warning'; color = '#F59E0B'; }
+      }
+
+      updatedKpis[key] = {
+        ...orig,
+        percentage: round(pct, 2),
+        formatted: `${round(pct, 1)}%`,
+        status,
+        color,
+        tooltip: orig.tooltip.replace(/[\d.]+%/, `${round(pct, 1)}%`),
+      };
+    };
+
+    updatePctKpi('productivity_percentage', prodPct);
+    updatePctKpi('organization_utilization', orgUtil);
+    updatePctKpi('attendance_utilization', attUtil);
+    updatePctKpi('break_percentage', breakPct);
+    updatePctKpi('idle_percentage', idlePct);
+
+    return updatedKpis;
+  }, [productivityData, now, lastFetchTime, isClockedIn, isClockedOut, isOnBreak, activeSession]);
+
   // Active timer for the cockpit display (live elapsed time)
   const activeTime = activeSession ? fmtDuration(sessionSeconds) : '00:00:00';
 
@@ -394,6 +513,7 @@ export const WorkCenterPage: React.FC = () => {
           setPendingOvertimeTask(null);
           broadcastChange();
           queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['productivity'] });
         },
         onError: (err) => {
           alert("Failed to start session: " + parseError(err));
@@ -409,6 +529,7 @@ export const WorkCenterPage: React.FC = () => {
         onSuccess: () => {
           broadcastChange();
           queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['productivity'] });
         },
         onError: (err) => {
           alert("Failed to pause: " + parseError(err));
@@ -442,6 +563,7 @@ export const WorkCenterPage: React.FC = () => {
       onSuccess: () => {
         broadcastChange();
         queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['productivity'] });
       },
       onError: (err) => {
         alert("Failed to resume: " + parseError(err));
@@ -478,6 +600,7 @@ export const WorkCenterPage: React.FC = () => {
           broadcastChange();
           queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
           queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['productivity'] });
         },
         onError: (err) => {
           alert("Failed to complete task session: " + parseError(err));
@@ -494,6 +617,7 @@ export const WorkCenterPage: React.FC = () => {
         setStaleSession(null);
         broadcastChange();
         queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['productivity'] });
       },
     });
   };
@@ -517,6 +641,7 @@ export const WorkCenterPage: React.FC = () => {
             setPendingOvertimeTask(null);
             broadcastChange();
             queryClient.invalidateQueries({ queryKey: ['work-sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['productivity'] });
           },
           onError: (err) => {
             alert("Failed to start session: " + parseError(err));
@@ -536,7 +661,7 @@ export const WorkCenterPage: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            Work Center
+            Data Center
           </Typography>
           <Typography variant="body2" color="textSecondary">
             Your real-time engineering cockpit for tasks, sessions, and daily capacity.
@@ -556,7 +681,7 @@ export const WorkCenterPage: React.FC = () => {
         <Box sx={{ mb: 4 }}>
           {/* Primary KPI Row */}
           <Grid container spacing={2} sx={{ mb: 2 }}>
-            {([
+            {tickingKpis && ([
               { key: 'presence_time', label: 'Presence Time' },
               { key: 'organization_time', label: 'Org Time' },
               { key: 'productive_time', label: 'Productive Time' },
@@ -564,7 +689,8 @@ export const WorkCenterPage: React.FC = () => {
               { key: 'idle_time', label: 'Idle Time' },
               { key: 'remaining_productive_time', label: 'Remaining' },
             ] as { key: keyof typeof productivityData.kpis; label: string }[]).map(({ key, label }) => {
-              const kpi: KPIDetail = productivityData.kpis[key];
+              const kpi: KPIDetail = tickingKpis[key];
+              if (!kpi) return null;
               return (
                 <Grid size={{ xs: 6, sm: 4, md: 2 }} key={key}>
                   <Tooltip title={kpi.tooltip} arrow>
@@ -615,14 +741,15 @@ export const WorkCenterPage: React.FC = () => {
 
           {/* Ratio KPI Row */}
           <Grid container spacing={2}>
-            {([
+            {tickingKpis && ([
               { key: 'productivity_percentage', label: 'Productivity %' },
               { key: 'organization_utilization', label: 'Org Utilization %' },
               { key: 'attendance_utilization', label: 'Attendance Util %' },
               { key: 'break_percentage', label: 'Break %' },
               { key: 'idle_percentage', label: 'Idle %' },
             ] as { key: keyof typeof productivityData.kpis; label: string }[]).map(({ key, label }) => {
-              const kpi: KPIDetail = productivityData.kpis[key];
+              const kpi: KPIDetail = tickingKpis[key];
+              if (!kpi) return null;
               return (
                 <Grid size={{ xs: 6, sm: 4, md: 'auto' }} sx={{ flexGrow: 1 }} key={key}>
                   <Tooltip title={kpi.tooltip} arrow>
