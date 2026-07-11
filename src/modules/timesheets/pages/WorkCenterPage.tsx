@@ -23,6 +23,7 @@ import {
   Stack,
   TextField,
   Typography,
+  InputAdornment,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -33,6 +34,7 @@ import WarningIcon from '@mui/icons-material/Warning';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SearchIcon from '@mui/icons-material/Search';
 
 import { api, parseError } from '../../../utils/api';
 import {
@@ -110,6 +112,10 @@ export const WorkCenterPage: React.FC = () => {
   const [pendingOvertimeTask, setPendingOvertimeTask] = useState<{ taskId: string; projectId: string; sessionType?: 'REGULAR' | 'REWORK' } | null>(null);
   const [staleModalOpen, setStaleModalOpen] = useState(false);
   const [staleSession, setStaleSession] = useState<any>(null);
+
+  // Search and filter states for assigned tasks
+  const [searchQuery, setSearchQuery] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'REMAINING' | 'COMPLETED' | 'ALL'>('REMAINING');
 
   // Group collapses
   const [priorityCollapses, setPriorityCollapses] = useState<Record<string, boolean>>({
@@ -438,16 +444,41 @@ export const WorkCenterPage: React.FC = () => {
     );
   };
 
+  // Filter and Search Assigned Tasks
+  const filteredTasks = useMemo(() => {
+    return assignedTasks.filter((task) => {
+      // 1. Search Query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const codeMatch = task.taskCode?.toLowerCase().includes(query);
+        const titleMatch = task.title?.toLowerCase().includes(query);
+        const projectMatch = task.projectName?.toLowerCase().includes(query);
+        if (!codeMatch && !titleMatch && !projectMatch) {
+          return false;
+        }
+      }
+
+      // 2. Status Filter
+      if (taskStatusFilter === 'REMAINING') {
+        return task.status !== 'COMPLETED';
+      }
+      if (taskStatusFilter === 'COMPLETED') {
+        return task.status === 'COMPLETED';
+      }
+      return true; // 'ALL'
+    });
+  }, [assignedTasks, searchQuery, taskStatusFilter]);
+
   // Group Assigned Tasks by Priority
   const groupedTasks = useMemo(() => {
-    const groups: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'COMPLETED', typeof assignedTasks> = {
+    const groups: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'COMPLETED', typeof filteredTasks> = {
       CRITICAL: [],
       HIGH: [],
       MEDIUM: [],
       LOW: [],
       COMPLETED: [],
     };
-    assignedTasks.forEach((task) => {
+    filteredTasks.forEach((task) => {
       if (task.status === 'COMPLETED') {
         groups.COMPLETED.push(task);
         return;
@@ -460,7 +491,7 @@ export const WorkCenterPage: React.FC = () => {
       }
     });
     return groups;
-  }, [assignedTasks]);
+  }, [filteredTasks]);
 
   // Current Running Task Object Lookup
   const runningTask = useMemo(() => {
@@ -1165,8 +1196,63 @@ export const WorkCenterPage: React.FC = () => {
       ) : assignedTasks.length === 0 ? (
         <Alert severity="info">No tasks are currently assigned to you.</Alert>
       ) : (
-        <Stack spacing={2.5}>
-          {Object.entries(groupedTasks).map(([priority, list]) => {
+        <>
+          {/* Filters Stack */}
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2}
+            sx={{ mb: 3, alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <TextField
+              placeholder="Search by task title, code, or project..."
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ width: { xs: '100%', sm: 320 } }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Stack direction="row" spacing={1} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+              <Button
+                variant={taskStatusFilter === 'REMAINING' ? 'contained' : 'outlined'}
+                color="primary"
+                size="small"
+                onClick={() => setTaskStatusFilter('REMAINING')}
+                sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
+              >
+                Remaining Tasks
+              </Button>
+              <Button
+                variant={taskStatusFilter === 'COMPLETED' ? 'contained' : 'outlined'}
+                color="success"
+                size="small"
+                onClick={() => setTaskStatusFilter('COMPLETED')}
+                sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
+              >
+                Completed Tasks
+              </Button>
+              <Button
+                variant={taskStatusFilter === 'ALL' ? 'contained' : 'outlined'}
+                color="secondary"
+                size="small"
+                onClick={() => setTaskStatusFilter('ALL')}
+                sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
+              >
+                All Tasks
+              </Button>
+            </Stack>
+          </Stack>
+
+          {filteredTasks.length === 0 ? (
+            <Alert severity="info">No tasks match your search or filter criteria.</Alert>
+          ) : (
+            <Stack spacing={2.5}>
+              {Object.entries(groupedTasks).map(([priority, list]) => {
             if (list.length === 0) return null;
             const isOpen = priorityCollapses[priority];
             return (
@@ -1362,6 +1448,8 @@ export const WorkCenterPage: React.FC = () => {
           })}
         </Stack>
       )}
+    </>
+  )}
 
       {/* MODAL 1: Task Switching Confirmation */}
       <ConfirmationDialog

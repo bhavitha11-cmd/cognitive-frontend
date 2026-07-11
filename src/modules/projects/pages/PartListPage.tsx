@@ -242,7 +242,7 @@ const editSchema = z
     description: z.string().optional(),
     clientId: z.string().min(1, 'Client is required'),
     projectManagerId: z.string().optional(),
-    departmentId: z.string().min(1, 'Department is required'),
+    departmentId: z.string().optional(),
     status: z.string(),
     statusReason: z.string().optional(),
     priority: z.string(),
@@ -317,7 +317,7 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
         description: part.description || '',
         clientId: part.clientId,
         projectManagerId: part.projectManagerId || '',
-        departmentId: part.departmentId,
+        departmentId: part.departmentId || undefined,
         status: part.status,
         statusReason: part.statusReason || '',
         priority: part.priority,
@@ -352,7 +352,7 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
     return 0;
   }, [plannedStartDate, plannedEndDate, holidays]);
 
-  const isCapacityExceeded = estimatedHours > availableCapacity;
+  const isCapacityExceeded = !!(plannedStartDate && plannedEndDate) && estimatedHours > availableCapacity;
 
   React.useEffect(() => {
     if (plannedStartDate && plannedEndDate && estimatedHours > 0) {
@@ -393,7 +393,7 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
           description: data.description?.trim() || undefined,
           clientId: data.clientId,
           projectManagerId: data.projectManagerId || undefined,
-          departmentId: data.departmentId,
+          departmentId: data.departmentId || undefined,
           status: data.status,
           statusReason: data.statusReason || undefined,
           priority: data.priority,
@@ -413,7 +413,6 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
     }
   };
 
-  const isDeptDisabled = !!part && (part.taskCount ?? 0) > 0;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -480,28 +479,7 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
               />
             </Grid>
 
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size="small" error={!!errors.departmentId} disabled={isDeptDisabled}>
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                  Department *
-                </Typography>
-                <Controller
-                  name="departmentId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field} displayEmpty>
-                      <MenuItem value="" disabled>-- Select Department --</MenuItem>
-                      {departments.map((d) => (
-                        <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                      ))}
-                    </Select>
-                  )}
-                />
-                {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size="small" error={!!errors.clientId}>
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Client *
@@ -522,7 +500,7 @@ const EditPartDialog: React.FC<EditPartDialogProps> = ({ part, open, onClose }) 
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size="small">
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Project Manager
@@ -1038,6 +1016,8 @@ export const PartListPage: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -1077,6 +1057,8 @@ export const PartListPage: React.FC = () => {
                   </TableCell>
                   <TableCell>{formatDate(part.plannedStartDate)}</TableCell>
                   <TableCell>{formatDate(part.plannedEndDate)}</TableCell>
+                  <TableCell>{formatDate(part.actualStartDate)}</TableCell>
+                  <TableCell>{formatDate(part.actualEndDate)}</TableCell>
                   <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <RowActions
                       part={part}
@@ -1092,7 +1074,7 @@ export const PartListPage: React.FC = () => {
 
               {parts.length === 0 && !partsLoading && (
                 <TableRow>
-                  <TableCell colSpan={13} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={15} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">No parts found.</Typography>
                   </TableCell>
                 </TableRow>

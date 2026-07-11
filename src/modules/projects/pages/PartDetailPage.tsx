@@ -201,6 +201,15 @@ const PartDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+            Actual Dates
+          </Typography>
+          <Typography variant="body1">
+            {part.actualStartDate ?? '—'} &rarr; {part.actualEndDate ?? '—'}
+          </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
             Hours
           </Typography>
           <Typography variant="body1">

@@ -552,6 +552,8 @@ export const ProjectListPage: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -607,6 +609,12 @@ export const ProjectListPage: React.FC = () => {
                   {/* End Date */}
                   <TableCell>{formatDate(project.plannedEndDate)}</TableCell>
 
+                  {/* Actual Start Date */}
+                  <TableCell>{formatDate(project.actualStartDate)}</TableCell>
+
+                  {/* Actual End Date */}
+                  <TableCell>{formatDate(project.actualEndDate)}</TableCell>
+
                   {/* Actions */}
                   <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <RowActions
@@ -623,7 +631,7 @@ export const ProjectListPage: React.FC = () => {
 
               {projects.length === 0 && !projectsLoading && (
                 <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={13} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">No projects found.</Typography>
                   </TableCell>
                 </TableRow>

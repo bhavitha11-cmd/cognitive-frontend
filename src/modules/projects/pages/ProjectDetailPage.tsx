@@ -132,6 +132,15 @@ const ProjectDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
+            Actual Project Date Range
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {project.actualStartDate ?? '—'} &rarr; {project.actualEndDate ?? '—'}
+          </Typography>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
             Total Effort Hours
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -186,6 +195,8 @@ const ProjectDetailPage: React.FC = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Part Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Planned Start</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Planned End</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Actual Start</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Actual End</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Planned Hours</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Actual Hours</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Progress</TableCell>
@@ -197,13 +208,15 @@ const ProjectDetailPage: React.FC = () => {
                 {parts.map((part) => (
                   <TableRow key={part.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                     <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
-                      {part.partNumber}
+                       {part.partNumber}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>
                       {part.partName}
                     </TableCell>
                     <TableCell>{part.plannedStartDate ?? '—'}</TableCell>
                     <TableCell>{part.plannedEndDate ?? '—'}</TableCell>
+                    <TableCell>{part.actualStartDate ?? '—'}</TableCell>
+                    <TableCell>{part.actualEndDate ?? '—'}</TableCell>
                     <TableCell align="right">{part.estimatedHours}h</TableCell>
                     <TableCell align="right">{part.actualHours}h</TableCell>
                     <TableCell>

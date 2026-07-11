@@ -56,7 +56,7 @@ const formSchema = z
     description: z.string().optional(),
     clientId: z.string().min(1, 'Client is required'),
     projectManagerId: z.string().optional(),
-    departmentId: z.string().min(1, 'Department is required'),
+    departmentId: z.string().optional(),
     status: z.string(),
     priority: z.string(),
     isBillable: z.boolean(),
@@ -146,7 +146,7 @@ export const CreateProjectPage: React.FC = () => {
       description: '',
       clientId: '',
       projectManagerId: '',
-      departmentId: '',
+      departmentId: undefined,
       status: 'Yet To Start',
       priority: 'MEDIUM',
       isBillable: true,
@@ -181,7 +181,7 @@ export const CreateProjectPage: React.FC = () => {
     return 0;
   }, [plannedStartDate, plannedEndDate, holidays]);
 
-  const isCapacityExceeded = estimatedHours > availableCapacity;
+  const isCapacityExceeded = !!(plannedStartDate && plannedEndDate) && estimatedHours > availableCapacity;
 
   useEffect(() => {
     if (plannedStartDate && plannedEndDate && estimatedHours > 0) {
@@ -225,7 +225,7 @@ export const CreateProjectPage: React.FC = () => {
           description: data.description?.trim() || undefined,
           clientId: data.clientId,
           projectManagerId: data.projectManagerId || undefined,
-          departmentId: data.departmentId,
+          departmentId: data.departmentId || undefined,
           status: data.status,
           priority: data.priority,
           isBillable: data.isBillable,
@@ -245,7 +245,7 @@ export const CreateProjectPage: React.FC = () => {
           description: data.newProjectDescription?.trim() || undefined,
           clientId: data.clientId,
           projectManagerId: data.projectManagerId || undefined,
-          departmentId: data.departmentId,
+          departmentId: data.departmentId || undefined,
           status: 'Yet To Start',
           parts: [
             {
@@ -255,7 +255,7 @@ export const CreateProjectPage: React.FC = () => {
               description: data.description?.trim() || undefined,
               clientId: data.clientId,
               projectManagerId: data.projectManagerId || undefined,
-              departmentId: data.departmentId,
+              departmentId: data.departmentId || undefined,
               status: data.status,
               priority: data.priority,
               isBillable: data.isBillable,
@@ -448,27 +448,6 @@ export const CreateProjectPage: React.FC = () => {
                     )}
                   />
                   {errors.clientId && <FormHelperText>{errors.clientId.message}</FormHelperText>}
-                </FormControl>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size="small" error={!!errors.departmentId}>
-                  <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                    Department *
-                  </Typography>
-                  <Controller
-                    name="departmentId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} displayEmpty>
-                        <MenuItem value="" disabled>-- Select Department --</MenuItem>
-                        {departments.map((d) => (
-                          <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
                 </FormControl>
               </Grid>
 
