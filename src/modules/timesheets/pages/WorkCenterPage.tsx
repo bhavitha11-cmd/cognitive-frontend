@@ -117,6 +117,7 @@ export const WorkCenterPage: React.FC = () => {
     HIGH: true,
     MEDIUM: true,
     LOW: false,
+    COMPLETED: false,
   });
 
   // Setup BroadcastChannel for Multi-tab synchronization
@@ -320,13 +321,18 @@ export const WorkCenterPage: React.FC = () => {
 
   // Group Assigned Tasks by Priority
   const groupedTasks = useMemo(() => {
-    const groups: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW', typeof assignedTasks> = {
+    const groups: Record<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'COMPLETED', typeof assignedTasks> = {
       CRITICAL: [],
       HIGH: [],
       MEDIUM: [],
       LOW: [],
+      COMPLETED: [],
     };
     assignedTasks.forEach((task) => {
+      if (task.status === 'COMPLETED') {
+        groups.COMPLETED.push(task);
+        return;
+      }
       const prio = (task.priority || 'MEDIUM').toUpperCase() as keyof typeof groups;
       if (groups[prio]) {
         groups[prio].push(task);
@@ -1050,7 +1056,8 @@ export const WorkCenterPage: React.FC = () => {
                     bgcolor:
                       priority === 'CRITICAL' ? 'error.light' :
                       priority === 'HIGH' ? 'warning.light' :
-                      priority === 'MEDIUM' ? 'info.light' : 'background.paper',
+                      priority === 'MEDIUM' ? 'info.light' :
+                      priority === 'COMPLETED' ? 'success.light' : 'background.paper',
                     cursor: 'pointer',
                     userSelect: 'none',
                   }}
@@ -1061,11 +1068,12 @@ export const WorkCenterPage: React.FC = () => {
                         color:
                           priority === 'CRITICAL' ? 'error.main' :
                           priority === 'HIGH' ? 'warning.main' :
-                          priority === 'MEDIUM' ? 'primary.main' : 'text.secondary',
+                          priority === 'MEDIUM' ? 'primary.main' :
+                          priority === 'COMPLETED' ? 'success.main' : 'text.secondary',
                       }}
                     />
                     <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                      {priority} PRIORITIES ({list.length})
+                      {priority === 'COMPLETED' ? 'COMPLETED TASKS' : `${priority} PRIORITIES`} ({list.length})
                     </Typography>
                   </Stack>
                   {isOpen ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
@@ -1183,6 +1191,16 @@ export const WorkCenterPage: React.FC = () => {
                                     >
                                       Start Rework
                                     </Button>
+                                  ) : task.status === 'COMPLETED' ? (
+                                    <Button
+                                      variant="outlined"
+                                      color="success"
+                                      size="small"
+                                      startIcon={<CheckCircleIcon />}
+                                      disabled
+                                    >
+                                      Completed
+                                    </Button>
                                   ) : (
                                     <Button
                                       variant="outlined"
@@ -1190,7 +1208,7 @@ export const WorkCenterPage: React.FC = () => {
                                       size="small"
                                       startIcon={<PlayArrowIcon />}
                                       onClick={() => handleStartTask(task.id, task.projectId, 'REGULAR')}
-                                      disabled={task.status === 'COMPLETED' || !isClockedIn || isClockedOut || isOnBreak}
+                                      disabled={!isClockedIn || isClockedOut || isOnBreak}
                                     >
                                       Start Task
                                     </Button>

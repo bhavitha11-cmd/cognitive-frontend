@@ -54,6 +54,39 @@ export interface ProjectCreate {
 
 export interface ProjectUpdate extends Partial<ProjectCreate> {}
 
+export interface ParentProject {
+  id: string;
+  name: string;
+  description?: string;
+  clientId: string;
+  clientName?: string;
+  projectManagerId?: string;
+  projectManagerName?: string;
+  departmentId: string;
+  departmentName?: string;
+  departmentCode?: string;
+  isActive: boolean;
+  partCount: number;
+  status: string;
+  progress: number;
+  plannedStartDate?: string;
+  plannedEndDate?: string;
+  actualStartDate?: string;
+  actualEndDate?: string;
+  estimatedHours: number;
+  actualHours: number;
+  parts: Project[];
+}
+
+export interface ParentProjectCreate {
+  name: string;
+  description?: string;
+  clientId: string;
+  projectManagerId?: string;
+  departmentId: string;
+  parts: ProjectCreate[];
+}
+
 export interface ProjectListResponse {
   projects: Project[];
   total: number;
@@ -68,3 +101,4 @@ export interface ProjectListParams {
   clientId?: string;
   status?: string;
 }
+

@@ -33,7 +33,7 @@ import {
   useUpdateTask,
   useGetTasks,
 } from '../services/taskService';
-import { useGetProjects, useGetHolidays } from '../../projects/services/projectService';
+import { useGetParts, useGetHolidays } from '../../projects/services/projectService';
 import { useGetEmployeesLookup, useGetDepartmentsLookup, useGetTeamsLookup } from '../../hr/services/hrService';
 import type { TaskCreate } from '../types';
 import { parseError } from '../../../utils/api';
@@ -118,8 +118,8 @@ export const CreateTaskPage: React.FC = () => {
   const { data: taskToEdit, isLoading: taskLoading } = useGetTask(id || '');
 
   // Project options — fetch all active projects for the dropdown
-  const { data: projectData, isLoading: projectsLoading } = useGetProjects({ limit: 500 });
-  const projects = projectData?.projects ?? [];
+  const { data: partsData, isLoading: projectsLoading } = useGetParts({ limit: 500 });
+  const projects = partsData?.parts ?? [];
 
   // Active employees for task assignment (auth-only reference lookup)
   const { data: activeEmployees = [] } = useGetEmployeesLookup();
@@ -199,14 +199,17 @@ export const CreateTaskPage: React.FC = () => {
 
   const watchedTeamId = watch('teamId');
 
-  // Filter employees to show only those belonging to the selected department.
-  // (The employee lookup DTO only carries department_id, not team_id, so
-  // narrowing by team is no longer possible here — department is the closest
-  // available scope, and department is already a required field on this form.)
+  // Filter employees to show only those belonging to the selected team.
+  // Fall back to department filtering if no team is selected.
   const filteredEmployees = React.useMemo(() => {
-    if (!selectedDeptId) return activeEmployees;
-    return activeEmployees.filter((e) => e.departmentId === selectedDeptId);
-  }, [selectedDeptId, activeEmployees]);
+    if (watchedTeamId) {
+      return activeEmployees.filter((e) => e.teamId === watchedTeamId);
+    }
+    if (selectedDeptId) {
+      return activeEmployees.filter((e) => e.departmentId === selectedDeptId);
+    }
+    return activeEmployees;
+  }, [watchedTeamId, selectedDeptId, activeEmployees]);
 
   // Reset assignee if selected team changes
   useEffect(() => {

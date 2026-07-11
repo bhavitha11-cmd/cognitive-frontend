@@ -29,7 +29,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useGetProject } from '../../projects/services/projectService';
+import { useGetPart } from '../../projects/services/projectService';
 import { useGetGanttData, useGetProjectDependencies, useCreateDependency, useDeleteDependency } from '../services/planningService';
 
 const statusBarColor: Record<string, string> = {
@@ -52,7 +52,7 @@ const ProjectTimelinePage: React.FC = () => {
   const [depTaskId, setDepTaskId] = useState('');
   const [depDependsOnTaskId, setDepDependsOnTaskId] = useState('');
 
-  const { data: project, isLoading: projectLoading, isError: projectError } = useGetProject(id ?? '');
+  const { data: project, isLoading: projectLoading, isError: projectError } = useGetPart(id ?? '');
   const { data: ganttData, isLoading: ganttLoading, isError: ganttError } = useGetGanttData(id ?? '');
   const { data: dependencies, isLoading: depsLoading } = useGetProjectDependencies(id ?? '');
   const createDepMutation = useCreateDependency();
@@ -147,7 +147,7 @@ const ProjectTimelinePage: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(`/projects/${id}`)} variant="outlined" size="small">
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(`/parts/${id}`)} variant="outlined" size="small">
           Back
         </Button>
         <Typography variant="h5" sx={{ fontWeight: 700, flexGrow: 1 }}>

@@ -28,35 +28,9 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import FilterListIcon from '@mui/icons-material/FilterList';
 
-import { useGetAllLeaveRequests, useApproveLeave } from '../services/leaveService';
-import type { LeaveRequest } from '../types';
+import { useGetPendingApprovals, useActionApprovalStep } from '../../settings/services/approvalService';
+import type { PendingApprovalInstance } from '../../settings/services/approvalService';
 import { parseError } from '../../../utils/api';
-
-// ==========================================
-// STATUS CONFIG
-// ==========================================
-
-const STATUS_CONFIG: Record<
-  LeaveRequest['status'],
-  { label: string; color: 'warning' | 'success' | 'error' | 'default' }
-> = {
-  PENDING: { label: 'Pending', color: 'warning' },
-  APPROVED: { label: 'Approved', color: 'success' },
-  REJECTED: { label: 'Rejected', color: 'error' },
-  CANCELLED: { label: 'Cancelled', color: 'default' },
-};
-
-const fmtDate = (d?: string) => {
-  if (!d) return '—';
-  const date = new Date(d.includes('T') ? d : d + 'T12:00:00');
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-
-const fmtDateShort = (d?: string) => {
-  if (!d) return '—';
-  const date = new Date(d.includes('T') ? d : d + 'T12:00:00');
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-};
 
 // ==========================================
 // REJECT DIALOG
@@ -70,7 +44,7 @@ type RejectFormValues = z.infer<typeof rejectSchema>;
 
 interface RejectDialogProps {
   open: boolean;
-  request: LeaveRequest | null;
+  request: PendingApprovalInstance | null;
   onClose: () => void;
   onConfirm: (id: string, reason: string) => void;
   isPending: boolean;
@@ -106,14 +80,12 @@ const RejectDialog: React.FC<RejectDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>Reject Leave Request</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>Reject Approval Request</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <DialogContent sx={{ pt: 1 }}>
           {request && (
             <Alert severity="info" sx={{ mb: 2, py: 0.5 }}>
-              <strong>{request.employeeName ?? 'Employee'}</strong> — {request.leaveTypeName}{' '}
-              ({fmtDateShort(request.fromDate)} – {fmtDateShort(request.toDate)},{' '}
-              {request.totalDays} day{request.totalDays !== 1 ? 's' : ''})
+              <strong>{request.requesterName ?? 'Employee'}</strong> — {request.detailsSummary}
             </Alert>
           )}
           <Controller
@@ -130,7 +102,7 @@ const RejectDialog: React.FC<RejectDialogProps> = ({
                 error={!!errors.rejectionReason}
                 helperText={errors.rejectionReason?.message}
                 slotProps={{ inputLabel: { shrink: true } }}
-                placeholder="Explain why this leave request is being rejected…"
+                placeholder="Explain why this request is being rejected…"
               />
             )}
           />
@@ -159,9 +131,9 @@ const RejectDialog: React.FC<RejectDialogProps> = ({
 // ==========================================
 
 const QUICK_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'this_month', label: 'This Month' },
+  { value: 'all', label: 'All Modules' },
+  { value: 'LEAVE', label: 'Leaves' },
+  { value: 'TIMESHEET', label: 'Timesheets' },
 ];
 
 // ==========================================
@@ -169,13 +141,9 @@ const QUICK_FILTERS = [
 // ==========================================
 
 export const LeaveApprovalPage: React.FC = () => {
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
-
-  const [quickFilter, setQuickFilter] = useState<string>('PENDING');
+  const [quickFilter, setQuickFilter] = useState<string>('all');
   const [employeeSearch, setEmployeeSearch] = useState('');
-
-  const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<PendingApprovalInstance | null>(null);
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -186,55 +154,50 @@ export const LeaveApprovalPage: React.FC = () => {
   const showSnack = (message: string, severity: 'success' | 'error' = 'success') =>
     setSnackbar({ open: true, message, severity });
 
-  const queryParams = useMemo(() => {
-    if (quickFilter === 'PENDING') return { status: 'PENDING', year: currentYear };
-    if (quickFilter === 'all') return { year: currentYear };
-    return { year: currentYear };
-  }, [quickFilter, currentYear]);
+  const { data: pendingApprovals = [], isLoading, refetch } = useGetPendingApprovals();
+  const actionMutation = useActionApprovalStep();
 
-  const { data: requests = [], isLoading } = useGetAllLeaveRequests(queryParams);
-  const approveLeave = useApproveLeave();
+  // Client-side filter for module type and employee search
+  const filteredApprovals = useMemo(() => {
+    let data = [...pendingApprovals];
 
-  // Client-side filter for "this_month" and employee search
-  const filteredRequests = useMemo(() => {
-    let data = [...requests];
-
-    if (quickFilter === 'this_month') {
-      data = data.filter((r) => {
-        const d = new Date(r.fromDate);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      });
+    if (quickFilter !== 'all') {
+      data = data.filter((r) => r.moduleType === quickFilter);
     }
 
     if (employeeSearch.trim()) {
       const q = employeeSearch.trim().toLowerCase();
       data = data.filter(
         (r) =>
-          r.employeeName?.toLowerCase().includes(q) ||
-          r.employeeCode?.toLowerCase().includes(q)
+          r.requesterName?.toLowerCase().includes(q) ||
+          r.requesterCode?.toLowerCase().includes(q)
       );
     }
 
     return data;
-  }, [requests, quickFilter, employeeSearch, currentMonth, currentYear]);
+  }, [pendingApprovals, quickFilter, employeeSearch]);
 
-  const handleApprove = (req: LeaveRequest) => {
-    approveLeave.mutate(
-      { id: req.id, action: 'APPROVED' },
+  const handleApprove = (req: PendingApprovalInstance) => {
+    actionMutation.mutate(
+      { instanceId: req.id, action: 'APPROVED' },
       {
-        onSuccess: () => showSnack(`Leave approved for ${req.employeeName ?? 'employee'}.`),
+        onSuccess: () => {
+          showSnack(`Request approved successfully.`);
+          refetch();
+        },
         onError: (err) => showSnack(parseError(err), 'error'),
       }
     );
   };
 
   const handleRejectConfirm = (id: string, reason: string) => {
-    approveLeave.mutate(
-      { id, action: 'REJECTED', rejectionReason: reason },
+    actionMutation.mutate(
+      { instanceId: id, action: 'REJECTED', comments: reason },
       {
         onSuccess: () => {
-          showSnack('Leave request rejected.');
+          showSnack('Request rejected.');
           setRejectTarget(null);
+          refetch();
         },
         onError: (err) => {
           showSnack(parseError(err), 'error');
@@ -244,7 +207,7 @@ export const LeaveApprovalPage: React.FC = () => {
     );
   };
 
-  const pendingCount = requests.filter((r) => r.status === 'PENDING').length;
+  const pendingCount = pendingApprovals.length;
 
   return (
     <Box>
@@ -253,7 +216,7 @@ export const LeaveApprovalPage: React.FC = () => {
         <Box>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              Leave Approvals
+              Inbox Approvals
             </Typography>
             {pendingCount > 0 && (
               <Chip
@@ -265,7 +228,7 @@ export const LeaveApprovalPage: React.FC = () => {
             )}
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Review and action employee leave requests
+            Review and action your pending approval queue resolved by configuration rules.
           </Typography>
         </Box>
       </Box>
@@ -308,13 +271,13 @@ export const LeaveApprovalPage: React.FC = () => {
         {isLoading ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              Loading leave requests…
+              Loading requests…
             </Typography>
           </Box>
-        ) : filteredRequests.length === 0 ? (
+        ) : filteredApprovals.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              No leave requests found.
+              No pending approval requests found.
             </Typography>
           </Box>
         ) : (
@@ -324,12 +287,10 @@ export const LeaveApprovalPage: React.FC = () => {
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   {[
                     'Employee',
-                    'Leave Type',
-                    'From',
-                    'To',
-                    'Days',
-                    'Reason',
-                    'Applied On',
+                    'Module',
+                    'Workflow Detail',
+                    'Level',
+                    'Approver Role Target',
                     'Status',
                     'Actions',
                   ].map((h) => (
@@ -343,110 +304,77 @@ export const LeaveApprovalPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredRequests.map((req) => {
-                  const statusCfg = STATUS_CONFIG[req.status];
+                {filteredApprovals.map((req) => {
                   const isActioning =
-                    approveLeave.isPending &&
-                    (approveLeave.variables as any)?.id === req.id;
+                    actionMutation.isPending &&
+                    (actionMutation.variables as any)?.instanceId === req.id;
                   return (
                     <TableRow key={req.id} hover>
                       <TableCell>
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {req.employeeName ?? '—'}
+                            {req.requesterName ?? '—'}
                           </Typography>
-                          {req.employeeCode && (
+                          {req.requesterCode && (
                             <Typography variant="caption" color="text.secondary">
-                              {req.employeeCode}
+                              {req.requesterCode}
                             </Typography>
                           )}
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2">{req.leaveTypeName ?? '—'}</Typography>
+                        <Chip label={req.moduleType} size="small" variant="outlined" color="primary" />
                       </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{fmtDate(req.fromDate)}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{fmtDate(req.toDate)}</Typography>
+                      <TableCell sx={{ maxWidth: 240 }}>
+                        <Typography variant="body2" color="text.primary">
+                          {req.detailsSummary || '—'}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {req.totalDays}
+                          Level {req.level}
                         </Typography>
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 160 }}>
-                        <Tooltip title={req.reason ?? ''} placement="top">
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            sx={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              maxWidth: 140,
-                            }}
-                          >
-                            {req.reason || '—'}
-                          </Typography>
-                        </Tooltip>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                          {fmtDate(req.appliedAt)}
-                        </Typography>
+                        <Typography variant="body2">{req.approverRoleName ?? '—'}</Typography>
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={statusCfg.label}
+                          label={req.status}
                           size="small"
-                          color={statusCfg.color}
+                          color="warning"
                           sx={{ fontWeight: 600 }}
                         />
-                        {req.rejectionReason && (
-                          <Tooltip title={req.rejectionReason} placement="top">
-                            <Typography
-                              variant="caption"
-                              color="error.main"
-                              sx={{ display: 'block', cursor: 'help', mt: 0.25 }}
-                            >
-                              See reason
-                            </Typography>
-                          </Tooltip>
-                        )}
                       </TableCell>
                       <TableCell>
-                        {req.status === 'PENDING' && (
-                          <Stack direction="row" spacing={0.5}>
-                            <Tooltip title="Approve">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="success"
-                                startIcon={<CheckCircleOutlinedIcon fontSize="small" />}
-                                disabled={isActioning}
-                                onClick={() => handleApprove(req)}
-                                sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
-                              >
-                                Approve
-                              </Button>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                startIcon={<CancelOutlinedIcon fontSize="small" />}
-                                disabled={isActioning}
-                                onClick={() => setRejectTarget(req)}
-                                sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
-                              >
-                                Reject
-                              </Button>
-                            </Tooltip>
-                          </Stack>
-                        )}
+                        <Stack direction="row" spacing={0.5}>
+                          <Tooltip title="Approve">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="success"
+                              startIcon={<CheckCircleOutlinedIcon fontSize="small" />}
+                              disabled={isActioning}
+                              onClick={() => handleApprove(req)}
+                              sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
+                            >
+                              Approve
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Reject">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              startIcon={<CancelOutlinedIcon fontSize="small" />}
+                              disabled={isActioning}
+                              onClick={() => setRejectTarget(req)}
+                              sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
+                            >
+                              Reject
+                            </Button>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   );
@@ -463,7 +391,7 @@ export const LeaveApprovalPage: React.FC = () => {
         request={rejectTarget}
         onClose={() => setRejectTarget(null)}
         onConfirm={handleRejectConfirm}
-        isPending={approveLeave.isPending}
+        isPending={actionMutation.isPending}
       />
 
       {/* Snackbar */}

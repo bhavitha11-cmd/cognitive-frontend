@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../utils/api';
-import type { Project, ProjectCreate, ProjectUpdate, ProjectListParams } from '../types';
+import type { Project, ProjectCreate, ProjectUpdate, ProjectListParams, ParentProject, ParentProjectCreate } from '../types';
 
 // ==========================================
 // MAPPERS
 // ==========================================
 
-const mapBackendProjectToFrontend = (p: any): Project => ({
+export const mapBackendProjectToFrontend = (p: any): Project => ({
   id: p.id,
   partNumber: p.part_number,
   name: p.name,
@@ -39,7 +39,7 @@ const mapBackendProjectToFrontend = (p: any): Project => ({
   createdAt: p.created_at || undefined,
 });
 
-const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
+export const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
   part_number: data.partNumber,
   name: data.name,
   part_name: data.partName,
@@ -60,12 +60,45 @@ const mapFrontendProjectToBackend = (data: ProjectCreate) => ({
   status_reason: data.statusReason || null,
 });
 
+export const mapBackendParentProjectToFrontend = (p: any): ParentProject => ({
+  id: p.id,
+  name: p.name,
+  description: p.description || undefined,
+  clientId: p.client_id,
+  clientName: p.client_name || undefined,
+  projectManagerId: p.project_manager_id || undefined,
+  projectManagerName: p.project_manager_name || undefined,
+  departmentId: p.department_id,
+  departmentName: p.department_name || undefined,
+  departmentCode: p.department_code || undefined,
+  isActive: p.is_active ?? true,
+  partCount: p.part_count ?? 0,
+  status: p.status,
+  progress: p.progress ?? 0.0,
+  plannedStartDate: p.planned_start_date || undefined,
+  plannedEndDate: p.planned_end_date || undefined,
+  actualStartDate: p.actual_start_date || undefined,
+  actualEndDate: p.actual_end_date || undefined,
+  estimatedHours: p.estimated_hours ?? 0.0,
+  actualHours: p.actual_hours ?? 0.0,
+  parts: (p.parts || []).map(mapBackendProjectToFrontend),
+});
+
+export const mapFrontendParentProjectToBackend = (data: ParentProjectCreate) => ({
+  name: data.name,
+  description: data.description || null,
+  client_id: data.clientId,
+  project_manager_id: data.projectManagerId || null,
+  department_id: data.departmentId,
+  parts: (data.parts || []).map(mapFrontendProjectToBackend),
+});
+
 // ==========================================
-// HOOKS
+// PROJECT HOOKS (Parent Projects)
 // ==========================================
 
 export const useGetProjects = (params?: ProjectListParams) => {
-  return useQuery<{ projects: Project[]; total: number }>({
+  return useQuery<{ projects: ParentProject[]; total: number }>({
     queryKey: ['projects', params],
     queryFn: async () => {
       const queryParams: Record<string, any> = {};
@@ -76,30 +109,19 @@ export const useGetProjects = (params?: ProjectListParams) => {
       if (params?.status) queryParams.status = params.status;
       const response = await api.get('/projects', { params: queryParams });
       const data = response.data?.data || {};
-      const projects = (data.projects || []).map(mapBackendProjectToFrontend);
+      const projects = (data.projects || []).map(mapBackendParentProjectToFrontend);
       return { projects, total: data.total ?? projects.length };
     },
   });
 };
 
 export const useGetProject = (id: string) => {
-  return useQuery<Project>({
+  return useQuery<ParentProject>({
     queryKey: ['projects', id],
     queryFn: async () => {
       const response = await api.get(`/projects/${id}`);
       const raw = response.data?.data?.project || response.data?.data || response.data;
-      return mapBackendProjectToFrontend(raw);
-    },
-    enabled: !!id,
-  });
-};
-
-export const useGetProjectStats = (id: string) => {
-  return useQuery<any>({
-    queryKey: ['projects', id, 'stats'],
-    queryFn: async () => {
-      const response = await api.get(`/projects/${id}/stats`);
-      return response.data?.data?.stats || response.data?.data || response.data;
+      return mapBackendParentProjectToFrontend(raw);
     },
     enabled: !!id,
   });
@@ -108,11 +130,11 @@ export const useGetProjectStats = (id: string) => {
 export const useCreateProject = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: ProjectCreate) => {
-      const payload = mapFrontendProjectToBackend(data);
+    mutationFn: async (data: ParentProjectCreate) => {
+      const payload = mapFrontendParentProjectToBackend(data);
       const response = await api.post('/projects', payload);
       const raw = response.data?.data?.project || response.data?.data || response.data;
-      return mapBackendProjectToFrontend(raw);
+      return mapBackendParentProjectToFrontend(raw);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -120,7 +142,121 @@ export const useCreateProject = () => {
   });
 };
 
+export const useCreatePart = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const payload = {
+        parent_project_id: data.parentProjectId,
+        part_number: data.partNumber,
+        name: data.name,
+        part_name: data.partName,
+        description: data.description || null,
+        client_id: data.clientId,
+        project_manager_id: data.projectManagerId || null,
+        department_id: data.departmentId,
+        status: data.status || 'Yet To Start',
+        priority: data.priority || 'MEDIUM',
+        is_billable: data.isBillable !== undefined ? data.isBillable : true,
+        planned_start_date: data.plannedStartDate || null,
+        planned_end_date: data.plannedEndDate || null,
+        estimated_hours: Number(data.estimatedHours || 0),
+        contract_hours: data.contractHours ? Number(data.contractHours) : null,
+        invoice_status: data.invoiceStatus || 'PENDING',
+        tok_form: data.tokForm || null,
+        feedback_status: data.feedbackStatus || 'PENDING',
+      };
+      const response = await api.post('/parts', payload);
+      return response.data?.data?.part;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['parts'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+};
+
 export const useUpdateProject = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<ParentProjectCreate> & { isActive?: boolean } }) => {
+      const payload: Record<string, any> = {};
+      if (data.name !== undefined) payload.name = data.name;
+      if (data.description !== undefined) payload.description = data.description || null;
+      if (data.clientId !== undefined) payload.client_id = data.clientId;
+      if (data.projectManagerId !== undefined) payload.project_manager_id = data.projectManagerId || null;
+      if (data.departmentId !== undefined) payload.department_id = data.departmentId;
+      if (data.isActive !== undefined) payload.is_active = data.isActive;
+      const response = await api.put(`/projects/${id}`, payload);
+      const raw = response.data?.data?.project || response.data?.data || response.data;
+      return mapBackendParentProjectToFrontend(raw);
+    },
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['projects', variables.id] });
+    },
+  });
+};
+
+export const useDeleteProject = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/projects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+};
+
+// ==========================================
+// PART HOOKS (Previously Project Hooks)
+// ==========================================
+
+export const useGetParts = (params?: ProjectListParams & { parentProjectId?: string }) => {
+  return useQuery<{ parts: Project[]; total: number }>({
+    queryKey: ['parts', params],
+    queryFn: async () => {
+      const queryParams: Record<string, any> = {};
+      if (params?.skip !== undefined) queryParams.skip = params.skip;
+      if (params?.limit !== undefined) queryParams.limit = params.limit;
+      if (params?.search) queryParams.search = params.search;
+      if (params?.clientId) queryParams.client_id = params.clientId;
+      if (params?.status) queryParams.status = params.status;
+      if (params?.parentProjectId) queryParams.parent_project_id = params.parentProjectId;
+      const response = await api.get('/parts', { params: queryParams });
+      const data = response.data?.data || {};
+      const parts = (data.projects || []).map(mapBackendProjectToFrontend);
+      return { parts, total: data.total ?? parts.length };
+    },
+  });
+};
+
+export const useGetPart = (id: string) => {
+  return useQuery<Project & { parentProjectId?: string }>({
+    queryKey: ['parts', id],
+    queryFn: async () => {
+      const response = await api.get(`/parts/${id}`);
+      const raw = response.data?.data?.project || response.data?.data || response.data;
+      return mapBackendProjectToFrontend(raw);
+    },
+    enabled: !!id,
+  });
+};
+
+export const useGetPartStats = (id: string) => {
+  return useQuery<any>({
+    queryKey: ['parts', id, 'stats'],
+    queryFn: async () => {
+      const response = await api.get(`/parts/${id}/stats`);
+      return response.data?.data?.stats || response.data?.data || response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useUpdatePart = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: ProjectUpdate }) => {
@@ -143,43 +279,47 @@ export const useUpdateProject = () => {
       if (data.tokForm !== undefined) payload.tok_form = data.tokForm || null;
       if (data.feedbackStatus !== undefined) payload.feedback_status = data.feedbackStatus;
       if (data.statusReason !== undefined) payload.status_reason = data.statusReason || null;
-      const response = await api.put(`/projects/${id}`, payload);
+      const response = await api.put(`/parts/${id}`, payload);
       const raw = response.data?.data?.project || response.data?.data || response.data;
       return mapBackendProjectToFrontend(raw);
     },
     onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['parts'] });
+      queryClient.invalidateQueries({ queryKey: ['parts', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['projects', variables.id] });
     },
   });
 };
 
-export const useUpdateProjectStatus = () => {
+export const useUpdatePartStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status, reason }: { id: string; status: string; reason?: string }) => {
-      const response = await api.patch(`/projects/${id}/status`, { status, reason });
+      const response = await api.patch(`/parts/${id}/status`, { status, reason });
       const raw = response.data?.data?.project || response.data?.data || response.data;
       return mapBackendProjectToFrontend(raw);
     },
     onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['parts'] });
+      queryClient.invalidateQueries({ queryKey: ['parts', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['projects', variables.id] });
     },
   });
 };
 
-export const useDeleteProject = () => {
+export const useDeletePart = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await api.delete(`/projects/${id}`);
+      await api.delete(`/parts/${id}`);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['parts'] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 };
+
 
 export const useGetHolidays = () => {
   return useQuery<string[]>({

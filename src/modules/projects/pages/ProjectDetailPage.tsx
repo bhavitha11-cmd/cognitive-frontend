@@ -11,12 +11,14 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
+  LinearProgress,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
-import { useGetProject, useGetProjectStats } from '../services/projectService';
+import LaunchIcon from '@mui/icons-material/Launch';
+import { useGetProject } from '../services/projectService';
 
 const statusColor: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   'Yet To Start': 'default',
@@ -26,21 +28,13 @@ const statusColor: Record<string, 'default' | 'info' | 'warning' | 'success' | '
   'Cancelled': 'error',
 };
 
-const priorityColor: Record<string, 'default' | 'info' | 'warning' | 'error' | 'success'> = {
-  LOW: 'default',
-  MEDIUM: 'info',
-  HIGH: 'warning',
-  CRITICAL: 'error',
-};
-
 const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: project, isLoading, isError } = useGetProject(id ?? '');
-  const { data: stats, isLoading: statsLoading } = useGetProjectStats(id ?? '');
 
-  if (isLoading || statsLoading) {
+  if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
         <CircularProgress />
@@ -59,6 +53,8 @@ const ProjectDetailPage: React.FC = () => {
     );
   }
 
+  const parts = project.parts || [];
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {/* Header */}
@@ -69,57 +65,15 @@ const ProjectDetailPage: React.FC = () => {
           variant="outlined"
           size="small"
         >
-          Back
+          Back to Projects
         </Button>
-        <Button
-          variant="outlined"
-          startIcon={<BarChartOutlinedIcon />}
-          onClick={() => navigate(`/planning/projects/${id}/timeline`)}
-          size="small"
-        >
-          Gantt Timeline
-        </Button>
-        <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {project.name}
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {project.partNumber}
-            </Typography>
-          </Box>
-
-          {/* Department-wise Hours Breakdown (Horizontal Widgets Row) */}
-          {stats?.department_stats && stats.department_stats.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, pl: 3, borderLeft: '1px solid', borderColor: 'divider' }}>
-              {stats.department_stats.map((dept: any) => (
-                <Box
-                  key={dept.department_category}
-                  sx={{
-                    bgcolor: 'grey.50',
-                    border: '1px solid',
-                    borderColor: 'grey.200',
-                    borderRadius: '6px',
-                    px: 1.5,
-                    py: 0.5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minWidth: 90,
-                  }}
-                >
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', textTransform: 'uppercase', fontSize: '0.68rem', letterSpacing: 0.5 }}>
-                    {dept.department_category}
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.72rem', mt: 0.25 }}>
-                    {dept.planned_hours}h <span style={{ fontWeight: 400 }}>plan</span>
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.72rem' }}>
-                    {dept.actual_hours}h <span style={{ fontWeight: 400 }}>actual</span>
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )}
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {project.name}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Project Overview (Read-Only Rollup Summary)
+          </Typography>
         </Box>
         <Chip
           label={project.status}
@@ -127,22 +81,16 @@ const ProjectDetailPage: React.FC = () => {
           size="small"
           sx={{ fontWeight: 600 }}
         />
-        <Chip
-          label={project.priority}
-          color={priorityColor[project.priority] ?? 'default'}
-          size="small"
-          variant="outlined"
-        />
       </Box>
 
       {/* Details Grid */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2, mb: 4 }}>
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
             Client
           </Typography>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            {project.clientName ?? project.clientId}
+            {project.clientName ?? '—'}
           </Typography>
         </Paper>
 
@@ -157,15 +105,6 @@ const ProjectDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Part Name
-          </Typography>
-          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            {project.partName || '—'}
-          </Typography>
-        </Paper>
-
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
             Department
           </Typography>
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
@@ -175,73 +114,54 @@ const ProjectDetailPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Billable
+            Total Parts
           </Typography>
-          <Chip
-            label={project.isBillable ? 'Yes' : 'No'}
-            color={project.isBillable ? 'success' : 'default'}
-            size="small"
-          />
+          <Typography variant="body1" sx={{ fontWeight: 700 }}>
+            {project.partCount}
+          </Typography>
         </Paper>
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Planned Dates
+            Project Date Range
           </Typography>
-          <Typography variant="body1">
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
             {project.plannedStartDate ?? '—'} &rarr; {project.plannedEndDate ?? '—'}
           </Typography>
         </Paper>
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Hours
+            Total Effort Hours
           </Typography>
-          <Typography variant="body1">
-            <strong>{project.actualHours}h</strong> actual / {project.estimatedHours}h estimated
-          </Typography>
-        </Paper>
-
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Tasks
-          </Typography>
-          <Typography variant="body1">
-            <strong>{project.completedTaskCount}</strong> / {project.taskCount} completed
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            <strong>{project.actualHours}h</strong> actual / {project.estimatedHours}h planned
           </Typography>
         </Paper>
 
-        <Paper variant="outlined" sx={{ p: 2 }}>
+        <Paper variant="outlined" sx={{ p: 2, gridColumn: { md: 'span 2' } }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Invoice Status
+            Overall Project Progress
           </Typography>
-          <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            {project.invoiceStatus}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
+            <LinearProgress
+              variant="determinate"
+              value={project.progress}
+              sx={{ flexGrow: 1, height: 8, borderRadius: 4 }}
+              color={project.progress >= 100 ? 'success' : 'primary'}
+            />
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {Math.round(project.progress)}%
+            </Typography>
+          </Box>
         </Paper>
       </Box>
 
-      {/* Teams Involved Summary */}
-      <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
-        <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-          Teams Involved ({stats?.total_teams_involved ?? 0})
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-          {stats?.teams_involved && stats.teams_involved.length > 0 ? (
-            stats.teams_involved.map((t: string) => (
-              <Chip key={t} label={t} size="small" color="primary" variant="outlined" />
-            ))
-          ) : (
-            <Typography variant="body2" color="textSecondary">No teams involved yet.</Typography>
-          )}
-        </Box>
-      </Paper>
-
       {/* Description */}
       {project.description && (
-        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+        <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
           <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-            Description
+            Project Description
           </Typography>
           <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
             {project.description}
@@ -249,48 +169,82 @@ const ProjectDetailPage: React.FC = () => {
         </Paper>
       )}
 
-      {/* Team Effort Breakdown Table */}
-      {stats?.team_stats && stats.team_stats.length > 0 && (
-        <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-            Team Effort Breakdown
-          </Typography>
-          <Box sx={{ overflowX: 'auto' }}>
+      {/* Parts Table */}
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+          Associated Parts ({parts.length})
+        </Typography>
+
+        {parts.length === 0 ? (
+          <Alert severity="info">No parts defined for this project yet.</Alert>
+        ) : (
+          <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>Team Name</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Tasks</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Planned (hrs)</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Actual (hrs)</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Completed (hrs)</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Remaining (hrs)</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Completion %</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Part Number</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Part Name</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Planned Start</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Planned End</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Planned Hours</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Actual Hours</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Progress</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {stats.team_stats.map((row: any) => (
-                  <TableRow key={row.team_name} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                    <TableCell component="th" scope="row" sx={{ fontWeight: 500 }}>
-                      {row.team_name}
+                {parts.map((part) => (
+                  <TableRow key={part.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace' }}>
+                      {part.partNumber}
                     </TableCell>
-                    <TableCell align="right">{row.task_count}</TableCell>
-                    <TableCell align="right">{row.planned_hours}</TableCell>
-                    <TableCell align="right">{row.actual_hours}</TableCell>
-                    <TableCell align="right">{row.completed_hours}</TableCell>
-                    <TableCell align="right">{row.remaining_hours}</TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {row.completion_pct}%
-                      </Typography>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {part.partName}
+                    </TableCell>
+                    <TableCell>{part.plannedStartDate ?? '—'}</TableCell>
+                    <TableCell>{part.plannedEndDate ?? '—'}</TableCell>
+                    <TableCell align="right">{part.estimatedHours}h</TableCell>
+                    <TableCell align="right">{part.actualHours}h</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 80 }}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={part.progress}
+                          sx={{ width: 40, height: 6, borderRadius: 3 }}
+                          color={part.progress >= 100 ? 'success' : 'primary'}
+                        />
+                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                          {Math.round(part.progress)}%
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={part.status}
+                        size="small"
+                        color={statusColor[part.status] ?? 'default'}
+                        sx={{ fontSize: '0.68rem', height: 20, fontWeight: 600 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Button
+                        size="small"
+                        variant="contained"
+                        startIcon={<LaunchIcon />}
+                        onClick={() => navigate(`/parts/${part.id}`)}
+                        sx={{ py: 0.25, px: 1, textTransform: 'none', fontSize: '0.75rem' }}
+                      >
+                        View Tasks
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </Box>
-        </Paper>
-      )}
+          </TableContainer>
+        )}
+      </Paper>
     </Box>
   );
 };

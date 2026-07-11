@@ -27,7 +27,7 @@ import EditCalendarIcon from '@mui/icons-material/EditCalendar';
 import { parseError } from '../../../utils/api';
 import { useGetMySessions } from '../services/workSessionService';
 import { useGetTasks } from '../../tasks/services/taskService';
-import { useGetProjects } from '../../projects/services/projectService';
+import { useGetParts } from '../../projects/services/projectService';
 
 // ==========================================
 // HELPERS
@@ -79,7 +79,7 @@ export const TimesheetListPage: React.FC = () => {
 
   // Queries
   const { data: tasksData } = useGetTasks({ limit: 300 });
-  const { data: projectsData } = useGetProjects({ limit: 100 });
+  const { data: projectsData } = useGetParts({ limit: 100 });
 
   const tasksMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -89,7 +89,7 @@ export const TimesheetListPage: React.FC = () => {
 
   const projectsMap = useMemo(() => {
     const map = new Map<string, any>();
-    projectsData?.projects?.forEach((p) => map.set(p.id, p));
+    projectsData?.parts?.forEach((p) => map.set(p.id, p));
     return map;
   }, [projectsData]);
 
@@ -116,7 +116,7 @@ export const TimesheetListPage: React.FC = () => {
 
   // Project select options derived from projects loaded
   const projectOptions = useMemo(() => {
-    return projectsData?.projects ?? [];
+    return projectsData?.parts ?? [];
   }, [projectsData]);
 
   const totalHours = useMemo(() => {

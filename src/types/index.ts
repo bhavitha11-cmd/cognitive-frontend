@@ -1,6 +1,6 @@
 // Re-export module-level types so the rest of the app can import from '@/types'
 export type { Client, ClientCreate, ClientUpdate } from '../modules/clients/types';
-export type { Project, ProjectCreate } from '../modules/projects/types';
+export type { Project, ProjectCreate, ParentProject, ParentProjectCreate } from '../modules/projects/types';
 export type { Task, TaskCreate, TaskAssignment, ScopeOfWork } from '../modules/tasks/types';
 
 // ---------------------------------------------------------------------------

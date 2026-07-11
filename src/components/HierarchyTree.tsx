@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Collapse, IconButton, Typography, Avatar, Card } from '@mui/material';
+import { Box, IconButton, Typography, Avatar, Card } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 
@@ -25,17 +25,9 @@ const TreeNodeComponent: React.FC<{
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <Box sx={{ pl: depth === 0 ? 0 : 4, borderLeft: depth === 0 ? 'none' : '1px dashed #cbd5e1', ml: depth === 0 ? 0 : 2, my: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {/* Node Card Display */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {hasChildren ? (
-          <IconButton size="small" onClick={() => setExpanded(!expanded)} sx={{ p: 0.5 }}>
-            {expanded ? <KeyboardArrowDownIcon fontSize="small" /> : <KeyboardArrowRightIcon fontSize="small" />}
-          </IconButton>
-        ) : (
-          <Box sx={{ width: 28 }} /> // alignment spacer
-        )}
-
+      <Box sx={{ display: 'flex', alignItems: 'center', position: 'relative', pb: hasChildren && expanded ? 2.5 : 0 }}>
         <Card
           onClick={() => onNodeClick && onNodeClick(node.id)}
           sx={{
@@ -45,51 +37,108 @@ const TreeNodeComponent: React.FC<{
             alignItems: 'center',
             gap: 1.5,
             cursor: onNodeClick ? 'pointer' : 'default',
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: 2,
             bgcolor: 'background.paper',
             '&:hover': onNodeClick ? {
               borderColor: 'primary.main',
-              boxShadow: 2,
+              boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+              transform: 'translateY(-2px)',
             } : {},
+            transition: 'all 0.2s ease-in-out',
             flexGrow: 0,
-            minWidth: 220,
+            minWidth: 200,
+            maxWidth: 260,
+            zIndex: 2,
           }}
         >
           {node.avatar ? (
-            <Avatar src={node.avatar} sx={{ width: 28, height: 28, fontSize: '0.75rem' }} />
+            <Avatar src={node.avatar} sx={{ width: 32, height: 32, fontSize: '0.875rem' }} />
           ) : (
-            <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', bgcolor: 'primary.main' }}>
+            <Avatar sx={{ width: 32, height: 32, fontSize: '0.875rem', bgcolor: 'primary.main', fontWeight: 600 }}>
               {node.label.charAt(0)}
             </Avatar>
           )}
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8125rem' }}>
+          <Box sx={{ textAlign: 'left' }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.2 }}>
               {node.label}
             </Typography>
             {node.subLabel && (
-              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontSize: '0.6875rem' }}>
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontSize: '0.75rem', mt: 0.25 }}>
                 {node.subLabel}
               </Typography>
             )}
           </Box>
         </Card>
+
+        {hasChildren && (
+          <IconButton 
+            size="small" 
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }} 
+            sx={{ 
+              position: 'absolute',
+              bottom: 8, // Center vertically on the link line
+              left: '50%',
+              transform: 'translateX(-50%)',
+              bgcolor: 'background.paper',
+              border: '1.5px solid #cbd5e1',
+              boxShadow: 1,
+              width: 20,
+              height: 20,
+              p: 0,
+              zIndex: 3,
+              '&:hover': {
+                bgcolor: 'action.hover',
+                borderColor: 'primary.main',
+              }
+            }}
+          >
+            {expanded ? <KeyboardArrowDownIcon sx={{ fontSize: 14 }} /> : <KeyboardArrowRightIcon sx={{ fontSize: 14 }} />}
+          </IconButton>
+        )}
       </Box>
 
-      {/* Collapsible Children Nodes */}
-      {hasChildren && (
-        <Collapse in={expanded} timeout="auto" unmountOnExit>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
-            {node.children!.map((child) => (
-              <TreeNodeComponent
-                key={child.id}
-                node={child}
-                depth={depth + 1}
-                onNodeClick={onNodeClick}
-              />
-            ))}
-          </Box>
-        </Collapse>
+      {/* Children row */}
+      {hasChildren && expanded && (
+        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 3, pt: 0 }}>
+          {node.children!.map((child, index) => {
+            const isFirst = index === 0;
+            const isLast = index === node.children!.length - 1;
+            const isOnly = node.children!.length === 1;
+
+            return (
+              <Box key={child.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                {/* Horizontal line at top of child wrapper */}
+                {!isOnly && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: isFirst ? '50%' : 0,
+                      right: isLast ? '50%' : 0,
+                      height: '2px',
+                      bgcolor: '#cbd5e1',
+                    }}
+                  />
+                )}
+                {/* Vertical connector line for child */}
+                <Box
+                  sx={{
+                    width: '2px',
+                    height: '20px',
+                    bgcolor: '#cbd5e1',
+                    mb: 1.5,
+                  }}
+                />
+                <TreeNodeComponent node={child} depth={depth + 1} onNodeClick={onNodeClick} />
+              </Box>
+            );
+          })}
+        </Box>
       )}
     </Box>
   );
@@ -97,8 +146,10 @@ const TreeNodeComponent: React.FC<{
 
 export const HierarchyTree: React.FC<HierarchyTreeProps> = ({ data, onNodeClick }) => {
   return (
-    <Box sx={{ py: 1 }}>
-      <TreeNodeComponent node={data} depth={0} onNodeClick={onNodeClick} />
+    <Box sx={{ py: 2, overflowX: 'auto', width: '100%' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', minWidth: 'max-content', px: 4 }}>
+        <TreeNodeComponent node={data} depth={0} onNodeClick={onNodeClick} />
+      </Box>
     </Box>
   );
 };

@@ -42,6 +42,7 @@ import {
   useGetLeaveRequests,
   useApplyLeave,
   useCancelLeave,
+  useUploadLeaveDocument,
 } from '../services/leaveService';
 import type { LeaveRequest, LeaveRequestCreate } from '../types';
 import { parseError } from '../../../utils/api';
@@ -197,12 +198,17 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
   const { data: leaveTypes = [] } = useGetLeaveTypes();
   const { data: balances = [] } = useGetMyLeaveBalances();
   const applyLeave = useApplyLeave();
+  const uploadDoc = useUploadLeaveDocument();
+
+  const [selectedFile, setSelectedFile] = useState<globalThis.File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const {
     control,
     handleSubmit,
     watch,
     reset,
+    setError,
     formState: { errors },
   } = useForm<ApplyLeaveFormValues>({
     resolver: zodResolver(applyLeaveSchema),
@@ -220,6 +226,15 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
 
   const days = calcDays(watchedFrom, watchedTo);
 
+  const selectedLeaveType = useMemo(
+    () => leaveTypes.find((lt) => lt.id === watchedType),
+    [leaveTypes, watchedType]
+  );
+
+  const isExtraLeave = useMemo(() => {
+    return selectedLeaveType?.requiresDocument ?? false;
+  }, [selectedLeaveType]);
+
   const selectedBalance = useMemo(
     () => balances.find((b) => b.leaveTypeId === watchedType),
     [balances, watchedType]
@@ -228,23 +243,51 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
   const insufficientBalance = selectedBalance !== undefined && days > 0 && days > selectedBalance.remaining;
 
   const handleClose = () => {
+    setSelectedFile(null);
+    setUploadError(null);
     reset();
     onClose();
   };
 
-  const onSubmit = (values: ApplyLeaveFormValues) => {
-    const payload: LeaveRequestCreate = {
-      leaveTypeId: values.leaveTypeId,
-      fromDate: values.fromDate,
-      toDate: values.toDate,
-      reason: values.reason || undefined,
-    };
-    applyLeave.mutate(payload, {
-      onSuccess: () => {
-        reset();
-        onSuccess();
-      },
-    });
+  const onSubmit = async (values: ApplyLeaveFormValues) => {
+    if (isExtraLeave) {
+      if (!values.reason || !values.reason.trim()) {
+        setError('reason', { type: 'manual', message: 'Reason is mandatory for extra leaves' });
+        return;
+      }
+      if (!selectedFile) {
+        setUploadError('Document upload is mandatory for extra leaves');
+        return;
+      }
+    }
+
+    setUploadError(null);
+
+    try {
+      let documentUrl: string | undefined = undefined;
+      if (selectedFile) {
+        documentUrl = await uploadDoc.mutateAsync(selectedFile);
+      }
+
+      const payload: LeaveRequestCreate = {
+        leaveTypeId: values.leaveTypeId,
+        fromDate: values.fromDate,
+        toDate: values.toDate,
+        reason: values.reason || undefined,
+        documentUrl,
+      };
+
+      applyLeave.mutate(payload, {
+        onSuccess: () => {
+          setSelectedFile(null);
+          setUploadError(null);
+          reset();
+          onSuccess();
+        },
+      });
+    } catch (err: any) {
+      setUploadError(parseError(err));
+    }
   };
 
   return (
@@ -271,7 +314,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                           const bal = balances.find((b) => b.leaveTypeId === lt.id);
                           return (
                             <MenuItem key={lt.id} value={lt.id}>
-                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                 <Box
                                   sx={{
                                     width: 10,
@@ -362,16 +405,50 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Reason (optional)"
+                    label={isExtraLeave ? 'Reason *' : 'Reason (optional)'}
                     size="small"
                     fullWidth
                     multiline
                     rows={3}
+                    error={!!errors.reason}
+                    helperText={errors.reason?.message}
                     slotProps={{ inputLabel: { shrink: true } }}
                   />
                 )}
               />
             </Grid>
+
+            {/* Document Upload for Extra Leaves */}
+            {isExtraLeave && (
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Verification Document *
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  <Button variant="outlined" component="label" size="small" sx={{ textTransform: 'none' }}>
+                    Upload File
+                    <input
+                      type="file"
+                      hidden
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setSelectedFile(e.target.files[0]);
+                          setUploadError(null);
+                        }
+                      }}
+                    />
+                  </Button>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedFile ? selectedFile.name : 'No file selected'}
+                  </Typography>
+                </Box>
+                {uploadError && (
+                  <FormHelperText error sx={{ mt: 0.5 }}>
+                    {uploadError}
+                  </FormHelperText>
+                )}
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -382,9 +459,9 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             type="submit"
             variant="contained"
             size="small"
-            disabled={applyLeave.isPending}
+            disabled={applyLeave.isPending || uploadDoc.isPending}
           >
-            {applyLeave.isPending ? 'Submitting…' : 'Submit Application'}
+            {applyLeave.isPending || uploadDoc.isPending ? 'Submitting…' : 'Submit Application'}
           </Button>
         </DialogActions>
       </form>
@@ -618,9 +695,27 @@ export const LeaveRequestPage: React.FC = () => {
                           </Typography>
                         </Tooltip>
                         {req.rejectionReason && (
-                          <Typography variant="caption" color="error.main">
+                          <Typography variant="caption" color="error.main" display="block">
                             Reason: {req.rejectionReason}
                           </Typography>
+                        )}
+                        {req.documentUrl && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Button
+                              variant="text"
+                              size="small"
+                              href={`${(import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1').replace('/api/v1', '')}${req.documentUrl}`}
+                              target="_blank"
+                              sx={{
+                                textTransform: 'none',
+                                fontSize: '0.7rem',
+                                p: 0,
+                                minWidth: 0,
+                              }}
+                            >
+                              Attachment 📎
+                            </Button>
+                          </Box>
                         )}
                       </TableCell>
                       <TableCell>
@@ -628,8 +723,44 @@ export const LeaveRequestPage: React.FC = () => {
                           label={statusCfg.label}
                           size="small"
                           color={statusCfg.color}
-                          sx={{ fontWeight: 600 }}
+                          sx={{ fontWeight: 600, mb: 0.5 }}
                         />
+                        {req.status === 'PENDING' && req.approvalSteps && req.approvalSteps.length > 0 && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: '2px', alignItems: 'center' }}>
+                              {req.approvalSteps.map((step: any, sIdx: number) => {
+                                let label = `${step.level}. ${step.approver_role_name || 'Approver'}`;
+                                if (step.assigned_approver_name) {
+                                  label += ` (${step.assigned_approver_name})`;
+                                }
+                                let color = 'default';
+                                if (step.status === 'APPROVED') color = 'success';
+                                else if (step.status === 'PENDING') color = 'warning';
+                                else if (step.status === 'REJECTED') color = 'error';
+                                else if (step.status === 'SKIPPED') color = 'info';
+
+                                return (
+                                  <React.Fragment key={step.id}>
+                                    <Tooltip title={`Status: ${step.status}`}>
+                                      <Chip
+                                        label={label}
+                                        size="small"
+                                        variant={step.status === 'PENDING' ? 'filled' : 'outlined'}
+                                        color={color as any}
+                                        sx={{ fontSize: '0.65rem', height: '18px' }}
+                                      />
+                                    </Tooltip>
+                                    {sIdx < req.approvalSteps!.length - 1 && (
+                                      <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'text.secondary' }}>
+                                        ➔
+                                      </Typography>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </Stack>
+                          </Box>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>

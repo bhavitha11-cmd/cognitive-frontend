@@ -23,6 +23,7 @@ const mapLeaveType = (d: any): LeaveType => ({
   color: d.color ?? '#1976d2',
   description: d.description || undefined,
   isActive: d.is_active,
+  requiresDocument: d.requires_document,
 });
 
 const mapLeaveBalance = (d: any): LeaveBalance => ({
@@ -57,6 +58,8 @@ const mapLeaveRequest = (d: any): LeaveRequest => ({
   approvedAt: d.approved_at || undefined,
   rejectionReason: d.rejection_reason || undefined,
   hrNotes: d.hr_notes || undefined,
+  approvalSteps: d.approval_steps || [],
+  documentUrl: d.document_url || undefined,
 });
 
 const mapLeaveRequestToBackend = (data: LeaveRequestCreate) => ({
@@ -64,6 +67,7 @@ const mapLeaveRequestToBackend = (data: LeaveRequestCreate) => ({
   from_date: data.fromDate,
   to_date: data.toDate,
   reason: data.reason || null,
+  document_url: data.documentUrl || null,
 });
 
 // ==========================================
@@ -193,6 +197,73 @@ export const useGetLeaveBalance = (employeeId: string, year?: number) => {
       const response = await api.get('/leaves/balances', { params });
       const items = response.data?.data?.balances || response.data?.data || response.data || [];
       return Array.isArray(items) ? items.map(mapLeaveBalance) : [];
+    },
+  });
+};
+
+export const useUploadLeaveDocument = () => {
+  return useMutation({
+    mutationFn: async (file: globalThis.File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await api.post('/leaves/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data?.data?.url as string;
+    },
+  });
+};
+
+export const useCreateLeaveType = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Omit<LeaveType, 'id' | 'isActive'>) => {
+      const payload = {
+        code: data.code,
+        name: data.name,
+        days_per_year: data.daysPerYear,
+        is_paid: data.isPaid,
+        is_carry_forward: data.isCarryForward,
+        max_carry_forward_days: data.maxCarryForwardDays,
+        requires_approval: data.requiresApproval,
+        requires_document: data.requiresDocument,
+        color: data.color,
+        description: data.description || null,
+      };
+      const response = await api.post('/leaves/types', payload);
+      return mapLeaveType(response.data?.data?.leave_type || response.data?.data || response.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-types-all'] });
+    },
+  });
+};
+
+export const useUpdateLeaveType = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<LeaveType> & { id: string }) => {
+      const payload: Record<string, any> = {};
+      if (data.code !== undefined) payload.code = data.code;
+      if (data.name !== undefined) payload.name = data.name;
+      if (data.daysPerYear !== undefined) payload.days_per_year = data.daysPerYear;
+      if (data.isPaid !== undefined) payload.is_paid = data.isPaid;
+      if (data.isCarryForward !== undefined) payload.is_carry_forward = data.isCarryForward;
+      if (data.maxCarryForwardDays !== undefined) payload.max_carry_forward_days = data.maxCarryForwardDays;
+      if (data.requiresApproval !== undefined) payload.requires_approval = data.requiresApproval;
+      if (data.requiresDocument !== undefined) payload.requires_document = data.requiresDocument;
+      if (data.color !== undefined) payload.color = data.color;
+      if (data.description !== undefined) payload.description = data.description || null;
+      if (data.isActive !== undefined) payload.is_active = data.isActive;
+
+      const response = await api.put(`/leaves/types/${id}`, payload);
+      return mapLeaveType(response.data?.data?.leave_type || response.data?.data || response.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-types-all'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances-my'] });
     },
   });
 };

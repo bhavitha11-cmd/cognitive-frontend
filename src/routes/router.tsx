@@ -145,6 +145,20 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Parts
+      {
+        path: 'parts',
+        children: [
+          {
+            path: '',
+            element: lazyLoad(() => import('../modules/projects/pages/PartListPage'), 'table'),
+          },
+          {
+            path: ':id',
+            element: lazyLoad(() => import('../modules/projects/pages/PartDetailPage'), 'dashboard'),
+          },
+        ],
+      },
       // Tasks
       {
         path: 'tasks',

@@ -494,8 +494,15 @@ export const AttendancePage: React.FC = () => {
   const [missedTime, setMissedTime] = useState('');
   const [missedReason, setMissedReason] = useState('');
 
+  // Missed clock-in request dialog
+  const [missedClockinDialogOpen, setMissedClockinDialogOpen] = useState(false);
+  const [missedClockinDate, setMissedClockinDate] = useState('');
+  const [missedClockinTime, setMissedClockinTime] = useState('');
+  const [missedClockinReason, setMissedClockinReason] = useState('');
+
   // Admin: pending requests panel visibility
   const [showPendingRequests, setShowPendingRequests] = useState(false);
+  const [showPendingClockinRequests, setShowPendingClockinRequests] = useState(false);
 
   const handleClockInConfirm = () => {
     setClockInConfirmOpen(false);
@@ -631,6 +638,72 @@ export const AttendancePage: React.FC = () => {
       attendance_date: missedDate,
       requested_clock_out: isoDateTime,
       reason: missedReason.trim(),
+    });
+  };
+
+  // --- Missed clock-in request mutation ---
+  const submitMissedClockinRequest = useMutation({
+    mutationFn: async (payload: { attendance_date: string; requested_clock_in: string; reason: string }) => {
+      const response = await api.post('/attendance/missed-clockin-request', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      setMissedClockinDialogOpen(false);
+      setMissedClockinDate('');
+      setMissedClockinTime('');
+      setMissedClockinReason('');
+      showSnack('Missed clock-in request submitted. Awaiting admin approval.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  // --- Admin: pending missed clock-in requests ---
+  const { data: pendingClockinRequestsData, refetch: refetchPendingClockin } = useQuery({
+    queryKey: ['missed-clockin-requests', 'PENDING'],
+    queryFn: async () => {
+      const response = await api.get('/attendance/missed-clockin-requests', { params: { status: 'PENDING' } });
+      return response.data?.data?.requests ?? [];
+    },
+    enabled: showPendingClockinRequests,
+  });
+  const pendingClockinRequests: any[] = pendingClockinRequestsData ?? [];
+
+  const approveMissedClockinRequest = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+      const response = await api.post(`/attendance/missed-clockin-requests/${id}/approve`, { review_notes: notes });
+      return response.data;
+    },
+    onSuccess: () => {
+      refetchPendingClockin();
+      queryClient.invalidateQueries({ queryKey: ['attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['attendance-my', selectedDate] });
+      showSnack('Request approved. Attendance updated.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  const rejectMissedClockinRequest = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+      const response = await api.post(`/attendance/missed-clockin-requests/${id}/reject`, { review_notes: notes });
+      return response.data;
+    },
+    onSuccess: () => {
+      refetchPendingClockin();
+      showSnack('Request rejected.');
+    },
+    onError: (err) => showSnack(parseError(err), 'error'),
+  });
+
+  const handleSubmitMissedClockinRequest = () => {
+    if (!missedClockinDate || !missedClockinTime || !missedClockinReason.trim()) return;
+    const [year, month, day] = missedClockinDate.split('-').map(Number);
+    const [hours, minutes] = missedClockinTime.split(':').map(Number);
+    const localDate = new Date(year, month - 1, day, hours, minutes, 0);
+    const isoDateTime = localDate.toISOString();
+    submitMissedClockinRequest.mutate({
+      attendance_date: missedClockinDate,
+      requested_clock_in: isoDateTime,
+      reason: missedClockinReason.trim(),
     });
   };
 
@@ -825,6 +898,19 @@ export const AttendancePage: React.FC = () => {
                       sx={{ fontWeight: 600 }}
                     />
                   )}
+                  {/* Report missed clock-in for a past day */}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    color="info"
+                    startIcon={<AccessTimeIcon />}
+                    onClick={() => {
+                      setMissedClockinDate(selectedDate !== today ? selectedDate : '');
+                      setMissedClockinDialogOpen(true);
+                    }}
+                  >
+                    Forgot to Clock In?
+                  </Button>
                   {/* Report missed clock-out for a past day */}
                   <Button
                     variant="outlined"
@@ -908,6 +994,97 @@ export const AttendancePage: React.FC = () => {
           />
         </Grid>
       </Grid>
+
+      {/* Admin: Missed Clock-In Requests Panel */}
+      <Card sx={{ mb: 3 }}>
+        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <AccessTimeIcon sx={{ color: 'info.main', fontSize: 20 }} />
+              <Typography variant="subtitle1" fontWeight={600}>
+                Missed Clock-In Requests
+              </Typography>
+              {pendingClockinRequests.length > 0 && (
+                <Chip label={pendingClockinRequests.length} color="info" size="small" sx={{ fontWeight: 700, height: 20, fontSize: '0.7rem' }} />
+              )}
+            </Stack>
+            <Button size="small" variant="outlined" onClick={() => setShowPendingClockinRequests((v) => !v)}>
+              {showPendingClockinRequests ? 'Hide' : 'View Pending'}
+            </Button>
+          </Stack>
+        </Box>
+        {showPendingClockinRequests && (
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Divider sx={{ mb: 2 }} />
+            {pendingClockinRequests.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                No pending requests.
+              </Typography>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>Employee</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Requested Clock-In</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Reason</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Submitted</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {pendingClockinRequests.map((req: any) => (
+                      <TableRow key={req.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{req.employee_name || '—'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{req.employee_code || ''}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2">{req.attendance_date}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={600}>{fmtTime(req.requested_clock_in)}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 200 }}>
+                          <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>{req.reason}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(req.created_at).toLocaleDateString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              disabled={approveMissedClockinRequest.isPending}
+                              onClick={() => approveMissedClockinRequest.mutate({ id: req.id })}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              disabled={rejectMissedClockinRequest.isPending}
+                              onClick={() => rejectMissedClockinRequest.mutate({ id: req.id, notes: 'Rejected by admin' })}
+                            >
+                              Reject
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
+      </Card>
 
       {/* Admin: Missed Clock-Out Requests Panel */}
       <Card sx={{ mb: 3 }}>
@@ -999,6 +1176,59 @@ export const AttendancePage: React.FC = () => {
           </Box>
         )}
       </Card>
+
+      {/* Missed Clock-In Request Dialog (Employee) */}
+      <Dialog open={missedClockinDialogOpen} onClose={() => setMissedClockinDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Report Missed Clock-In</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2, fontSize: '0.875rem' }}>
+            Enter the date and the time you actually started work. Your request will go to the admin for approval before the attendance record is updated.
+          </DialogContentText>
+          <Stack spacing={2.5}>
+            <TextField
+              label="Date you forgot to clock in"
+              type="date"
+              size="small"
+              fullWidth
+              value={missedClockinDate}
+              onChange={(e) => setMissedClockinDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              inputProps={{ max: today }}
+            />
+            <TextField
+              label="Time you actually arrived (your local time)"
+              type="time"
+              size="small"
+              fullWidth
+              value={missedClockinTime}
+              onChange={(e) => setMissedClockinTime(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              label="Reason"
+              size="small"
+              fullWidth
+              multiline
+              rows={3}
+              value={missedClockinReason}
+              onChange={(e) => setMissedClockinReason(e.target.value)}
+              placeholder="e.g. Arrived on time but system was down, forgot to clock in, technical issues…"
+              inputProps={{ maxLength: 500 }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setMissedClockinDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={!missedClockinDate || !missedClockinTime || !missedClockinReason.trim() || submitMissedClockinRequest.isPending}
+            onClick={handleSubmitMissedClockinRequest}
+          >
+            {submitMissedClockinRequest.isPending ? 'Submitting…' : 'Submit Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Missed Clock-Out Request Dialog (Employee) */}
       <Dialog open={missedDialogOpen} onClose={() => setMissedDialogOpen(false)} maxWidth="xs" fullWidth>

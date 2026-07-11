@@ -290,6 +290,7 @@ export const RoleListPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         formId="role-form"
         submitText={editingRole ? 'Update Role' : 'Create Role'}
+        maxWidth="lg"
       >
         <RoleForm
           key={editingRole?.id ?? 'new'}

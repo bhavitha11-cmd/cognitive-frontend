@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,7 +22,6 @@ import {
   TableRow,
   Tooltip,
   Typography,
-  // Dialog imports
   Dialog,
   DialogTitle,
   DialogContent,
@@ -31,31 +30,27 @@ import {
   Alert,
   Grid,
   FormControl,
-  FormControlLabel,
-  FormHelperText,
   Select,
-  Switch,
   TextField,
-  InputAdornment,
+  FormHelperText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 
 import { SearchFilters } from '../../../components/SearchFilters';
 import {
   useGetProjects,
-  useUpdateProjectStatus,
   useUpdateProject,
-  useGetHolidays,
+  useDeleteProject,
 } from '../services/projectService';
 import { useGetClients } from '../../clients/services/clientService';
 import { useGetEmployees, useGetDepartments } from '../../hr/services/hrService';
 import { parseError } from '../../../utils/api';
-import { calculateWorkingHours, calculateEndDate } from '../../../utils/projectScheduler';
-import type { Project } from '../types';
+import type { ParentProject } from '../types';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
@@ -70,39 +65,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
   'Cancelled':    { bg: '#fee2e2', color: '#991b1b', label: 'Cancelled' },
 };
 
-const PRIORITY_COLORS: Record<string, { bg: string; color: string; label: string }> = {
-  LOW:      { bg: '#dbeafe', color: '#1e40af', label: 'Low' },
-  MEDIUM:   { bg: '#ffedd5', color: '#9a3412', label: 'Medium' },
-  HIGH:     { bg: '#fee2e2', color: '#b91c1c', label: 'High' },
-  CRITICAL: { bg: '#fecdd3', color: '#7f1d1d', label: 'Critical' },
-};
-
-const StatusChip: React.FC<{
-  status: string;
-  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
-  interactive?: boolean;
-}> = ({ status, onClick, interactive }) => {
+const StatusChip: React.FC<{ status: string }> = ({ status }) => {
   const cfg = STATUS_COLORS[status] || { bg: '#e2e8f0', color: '#475569', label: status };
-  return (
-    <Chip
-      label={cfg.label}
-      size="small"
-      onClick={interactive ? onClick : undefined}
-      sx={{
-        bgcolor: cfg.bg,
-        color: cfg.color,
-        fontWeight: 600,
-        fontSize: '0.7rem',
-        height: 22,
-        cursor: interactive ? 'pointer' : 'default',
-        '&:hover': interactive ? { opacity: 0.85 } : {},
-      }}
-    />
-  );
-};
-
-const PriorityChip: React.FC<{ priority: string }> = ({ priority }) => {
-  const cfg = PRIORITY_COLORS[priority] || { bg: '#e2e8f0', color: '#475569', label: priority };
   return (
     <Chip
       label={cfg.label}
@@ -122,23 +86,23 @@ const PriorityChip: React.FC<{ priority: string }> = ({ priority }) => {
 // ROW ACTIONS MENU
 // ==========================================
 
-const STATUS_TRANSITIONS: Record<string, string[]> = {
-  'Yet To Start': ['In Progress', 'On Hold', 'Completed', 'Cancelled'],
-  'In Progress':  ['Yet To Start', 'On Hold', 'Completed', 'Cancelled'],
-  'On Hold':      ['Yet To Start', 'In Progress', 'Completed', 'Cancelled'],
-  'Completed':    ['Yet To Start', 'In Progress', 'On Hold', 'Cancelled'],
-  'Cancelled':    ['Yet To Start', 'In Progress', 'On Hold', 'Completed'],
-};
-
 interface RowActionsProps {
-  project: Project;
-  onStatusChange: (project: Project, status: string) => void;
+  project: ParentProject;
   onView: (id: string) => void;
-  onEdit: (project: Project) => void;
+  onEdit: (project: ParentProject) => void;
+  onDelete: (project: ParentProject) => void;
   canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onView, onEdit, canEdit = true }) => {
+const RowActions: React.FC<RowActionsProps> = ({
+  project,
+  onView,
+  onEdit,
+  onDelete,
+  canEdit = true,
+  canDelete = true,
+}) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
@@ -148,8 +112,6 @@ const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onView
   };
 
   const handleClose = () => setAnchorEl(null);
-
-  const transitions = STATUS_TRANSITIONS[project.status] || [];
 
   return (
     <>
@@ -187,78 +149,19 @@ const RowActions: React.FC<RowActionsProps> = ({ project, onStatusChange, onView
             Edit
           </MenuItem>
         )}
-        {transitions.map((s) => (
+        {canDelete && (
           <MenuItem
-            key={s}
-            dense
             onClick={() => {
               handleClose();
-              onStatusChange(project, s);
+              onDelete(project);
             }}
-          >
-            <StatusChip status={s} />
-            <Typography variant="caption" sx={{ ml: 1 }}>
-              Move to {STATUS_COLORS[s]?.label || s}
-            </Typography>
-          </MenuItem>
-        ))}
-
-      </Menu>
-    </>
-  );
-};
-
-// ==========================================
-// STATUS CHANGE POPOVER (inline chip click)
-// ==========================================
-
-interface StatusPopoverProps {
-  project: Project;
-  onStatusChange: (project: Project, status: string) => void;
-}
-
-const StatusChangeChip: React.FC<StatusPopoverProps> = ({ project, onStatusChange }) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const transitions = STATUS_TRANSITIONS[project.status] || [];
-
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (transitions.length > 0) {
-      setAnchorEl(e.currentTarget as HTMLElement);
-    }
-  };
-
-  const handleClose = () => setAnchorEl(null);
-
-  return (
-    <>
-      <StatusChip
-        status={project.status}
-        onClick={handleClick}
-        interactive={transitions.length > 0}
-      />
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-        onClick={(e) => e.stopPropagation()}
-        slotProps={{ paper: { sx: { minWidth: 140 } } }}
-      >
-        <Typography variant="caption" sx={{ px: 1.5, py: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
-          Change status
-        </Typography>
-        {transitions.map((s) => (
-          <MenuItem
-            key={s}
             dense
-            onClick={() => {
-              handleClose();
-              onStatusChange(project, s);
-            }}
+            sx={{ color: 'error.main' }}
           >
-            <StatusChip status={s} />
+            <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+            Delete
           </MenuItem>
-        ))}
+        )}
       </Menu>
     </>
   );
@@ -268,206 +171,86 @@ const StatusChangeChip: React.FC<StatusPopoverProps> = ({ project, onStatusChang
 // EDIT PROJECT DIALOG
 // ==========================================
 
-const editProjectSchema = z
-  .object({
-    partNumber: z.string().min(1, 'Part Number is required.'),
-    name: z.string().min(3, 'Package Name must be at least 3 characters'),
-    partName: z.string().min(1, 'Part Name is required.'),
-    description: z.string().optional(),
-    clientId: z.string().min(1, 'Client is required'),
-    projectManagerId: z.string().optional(),
-    departmentId: z.string().min(1, 'Department is required.'),
-    status: z.string().min(1),
-    originalStatus: z.string().optional(),
-    statusReason: z.string().optional(),
-    priority: z.string().min(1),
-    isBillable: z.boolean(),
-    plannedStartDate: z.string().optional(),
-    plannedEndDate: z.string().optional(),
-    estimatedHours: z.coerce.number().min(0, 'Estimated hours must be 0 or more'),
-    contractHours: z.coerce.number().min(0).optional(),
-    invoiceStatus: z.string().min(1),
-    tokForm: z.string().optional(),
-    feedbackStatus: z.string().min(1),
-  })
-  .refine(
-    (data) => {
-      if (data.plannedStartDate && data.plannedEndDate) {
-        return new Date(data.plannedEndDate) >= new Date(data.plannedStartDate);
-      }
-      return true;
-    },
-    { message: 'Planned end date cannot be before the start date', path: ['plannedEndDate'] }
-  )
-  .refine(
-    (data) => {
-      if (data.status === 'Cancelled' || (data.originalStatus === 'Cancelled' && data.status !== 'Cancelled')) {
-        return !!data.statusReason && data.statusReason.trim().length > 0;
-      }
-      return true;
-    },
-    { message: 'Reason is required for this status change.', path: ['statusReason'] }
-  );
+const editSchema = z.object({
+  name: z.string().min(3, 'Project name must be at least 3 characters'),
+  description: z.string().optional(),
+  clientId: z.string().min(1, 'Client is required'),
+  projectManagerId: z.string().optional(),
+  departmentId: z.string().min(1, 'Department is required'),
+});
 
-type EditProjectFormInputs = z.infer<typeof editProjectSchema>;
+type EditProjectFormInputs = z.infer<typeof editSchema>;
 
 interface EditProjectDialogProps {
-  project: Project | null;
+  project: ParentProject | null;
   open: boolean;
   onClose: () => void;
 }
 
 const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, onClose }) => {
-  const currentUser = useAuthStore((state) => state.user);
-  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
-
   const updateProject = useUpdateProject();
-  const { data: clientsData } = useGetClients({ limit: 200, isActive: true });
-  const { data: employeesData } = useGetEmployees({ limit: 200, accountStatus: 'ACTIVE' });
-  const { data: departments = [] } = useGetDepartments();
-  const { data: holidays = [] } = useGetHolidays();
+  const { data: clientsData } = useGetClients({ limit: 200 });
+  const { data: employeesData } = useGetEmployees({ limit: 200 });
+  const { data: departmentsData } = useGetDepartments({ limit: 100 });
 
   const clients = clientsData?.clients || [];
   const managers = employeesData?.employees || [];
+  const departments = departmentsData || [];
 
-  const filteredManagers = React.useMemo(() => {
-    if (!currentUser) return managers;
+  const currentUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
+
+  const filteredManagers = useMemo(() => {
     if (isSuperAdmin) return managers;
-    if (currentUser.teamId) {
-      return managers.filter((m) => m.teamId === currentUser.teamId);
-    }
-    return managers;
-  }, [managers, currentUser, isSuperAdmin]);
+    const currentEmpId = currentUser?.employeeId;
+    return managers.filter(
+      (m) => m.id === currentEmpId || m.reportingManagerId === currentEmpId
+    );
+  }, [managers, isSuperAdmin, currentUser]);
 
   const {
     control,
     handleSubmit,
-    watch,
-    setValue,
-    setError,
-    clearErrors,
-    reset,
     formState: { errors, isSubmitting },
+    reset,
   } = useForm<EditProjectFormInputs>({
-    resolver: zodResolver(editProjectSchema) as any,
+    resolver: zodResolver(editSchema),
   });
 
   React.useEffect(() => {
     if (project) {
       reset({
-        partNumber: project.partNumber || '',
-        name: project.name || '',
-        partName: project.partName || '',
+        name: project.name,
         description: project.description || '',
-        clientId: project.clientId || '',
+        clientId: project.clientId,
         projectManagerId: project.projectManagerId || '',
-        departmentId: project.departmentId || '',
-        status: project.status || 'Yet To Start',
-        originalStatus: project.status || 'Yet To Start',
-        statusReason: project.statusReason || '',
-        priority: project.priority || 'MEDIUM',
-        isBillable: project.isBillable ?? true,
-        plannedStartDate: project.plannedStartDate ? project.plannedStartDate.split('T')[0] : '',
-        plannedEndDate: project.plannedEndDate ? project.plannedEndDate.split('T')[0] : '',
-        estimatedHours: project.estimatedHours ?? 0,
-        contractHours: project.contractHours ?? undefined,
-        invoiceStatus: project.invoiceStatus || 'PENDING',
-        tokForm: project.tokForm || '',
-        feedbackStatus: project.feedbackStatus || 'PENDING',
+        departmentId: project.departmentId,
       });
     }
   }, [project, reset]);
 
-  const plannedStartDate = watch('plannedStartDate');
-  const plannedEndDate = watch('plannedEndDate');
-  const estimatedHours = watch('estimatedHours');
-  const status = watch('status');
-  const originalStatus = watch('originalStatus');
-  const showReasonField = status === 'Cancelled' || (originalStatus === 'Cancelled' && status !== 'Cancelled');
-
-  // Auto-calculate Planned End Date when Start Date or Estimated Hours change
-  React.useEffect(() => {
-    if (plannedStartDate && estimatedHours > 0) {
-      const computedEndDate = calculateEndDate(plannedStartDate, estimatedHours, holidays);
-      setValue('plannedEndDate', computedEndDate, { shouldValidate: true });
-    }
-  }, [plannedStartDate, estimatedHours, holidays, setValue]);
-
-  // Calculate available capacity dynamically in real time
-  const availableCapacity = React.useMemo(() => {
-    if (plannedStartDate && plannedEndDate) {
-      return calculateWorkingHours(plannedStartDate, plannedEndDate, holidays);
-    }
-    return 0;
-  }, [plannedStartDate, plannedEndDate, holidays]);
-
-  const isCapacityExceeded = estimatedHours > availableCapacity;
-
-  // Real-time capacity error handling
-  React.useEffect(() => {
-    if (plannedStartDate && plannedEndDate && estimatedHours > 0) {
-      if (isCapacityExceeded) {
-        setError('estimatedHours', {
-          type: 'manual',
-          message: 'Estimated hours exceed available working hours between selected dates.',
-        });
-      } else {
-        clearErrors('estimatedHours');
-      }
-    } else {
-      clearErrors('estimatedHours');
-    }
-  }, [isCapacityExceeded, plannedStartDate, plannedEndDate, estimatedHours, setError, clearErrors]);
-
   const onSubmit = async (data: EditProjectFormInputs) => {
     if (!project) return;
-
-    if (data.plannedStartDate && data.plannedEndDate) {
-      const capacity = calculateWorkingHours(data.plannedStartDate, data.plannedEndDate, holidays);
-      if (data.estimatedHours > capacity) {
-        setError('estimatedHours', {
-          type: 'manual',
-          message: 'Estimated hours exceed available working hours between selected dates.',
-        });
-        return;
-      }
-    }
-
     try {
       await updateProject.mutateAsync({
         id: project.id,
         data: {
-          partNumber: data.partNumber.trim().toUpperCase(),
           name: data.name.trim(),
-          partName: data.partName.trim(),
           description: data.description?.trim() || undefined,
           clientId: data.clientId,
           projectManagerId: data.projectManagerId || undefined,
           departmentId: data.departmentId,
-          status: data.status,
-          statusReason: data.statusReason || undefined,
-          priority: data.priority,
-          isBillable: data.isBillable,
-          plannedStartDate: data.plannedStartDate || undefined,
-          plannedEndDate: data.plannedEndDate || undefined,
-          estimatedHours: data.estimatedHours,
-          contractHours: data.contractHours || undefined,
-          invoiceStatus: data.invoiceStatus,
-          tokForm: data.tokForm?.trim() || undefined,
-          feedbackStatus: data.feedbackStatus,
         },
       });
       onClose();
     } catch (_err) {
-      // error displayed via updateProject.error
+      // Handled by updateProject.error
     }
   };
 
-  const isDeptDisabled = !!project && (project.taskCount ?? 0) > 0;
-
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>Edit Project</DialogTitle>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700 }}>Edit Project Metadata</DialogTitle>
       <DialogContent dividers sx={{ py: 3 }}>
         {updateProject.error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -475,41 +258,16 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
           </Alert>
         )}
         <form id="edit-project-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          {/* Section 1: Project Identity */}
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>
-            Project Identity
-          </Typography>
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            {/* Part Number */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Controller
-                name="partNumber"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Part Number *"
-                    placeholder="e.g. 2025-001"
-                    fullWidth
-                    size="small"
-                    error={!!errors.partNumber}
-                    helperText={errors.partNumber?.message || 'Auto-uppercased on save'}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Package Name */}
-            <Grid size={{ xs: 12, sm: 4 }}>
+          <Grid container spacing={3}>
+            {/* Project Name */}
+            <Grid size={{ xs: 12 }}>
               <Controller
                 name="name"
                 control={control}
                 render={({ field }) => (
                   <TextField
                     {...field}
-                    label="Package Name *"
-                    placeholder="e.g. 97 PARTS PACKAGE"
+                    label="Project Name *"
                     fullWidth
                     size="small"
                     error={!!errors.name}
@@ -520,56 +278,8 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
               />
             </Grid>
 
-            {/* Part Name */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Controller
-                name="partName"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Part Name *"
-                    placeholder="e.g. BRACKET"
-                    fullWidth
-                    size="small"
-                    error={!!errors.partName}
-                    helperText={errors.partName?.message}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Department */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size="small" error={!!errors.departmentId} disabled={isDeptDisabled}>
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                  Department *
-                </Typography>
-                <Controller
-                  name="departmentId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field} displayEmpty>
-                      <MenuItem value="" disabled>
-                        -- Select Department --
-                      </MenuItem>
-                      {departments.map((d: any) => (
-                        <MenuItem key={d.id} value={d.id}>
-                          {d.name} {d.code ? `(${d.code})` : ''}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  )}
-                />
-                <FormHelperText>
-                  {errors.departmentId?.message || (isDeptDisabled ? "Locked: Project has active tasks" : "")}
-                </FormHelperText>
-              </FormControl>
-            </Grid>
-
             {/* Client */}
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12 }}>
               <FormControl fullWidth size="small" error={!!errors.clientId}>
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Client *
@@ -579,14 +289,9 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
                   control={control}
                   render={({ field }) => (
                     <Select {...field} displayEmpty>
-                      <MenuItem value="" disabled>
-                        -- Select Client --
-                      </MenuItem>
+                      <MenuItem value="" disabled>-- Select Client --</MenuItem>
                       {clients.map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.name}
-                          {c.clientCode ? ` (${c.clientCode})` : ''}
-                        </MenuItem>
+                        <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
                       ))}
                     </Select>
                   )}
@@ -595,8 +300,30 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
               </FormControl>
             </Grid>
 
+            {/* Department */}
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth size="small" error={!!errors.departmentId}>
+                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
+                  Department *
+                </Typography>
+                <Controller
+                  name="departmentId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select {...field} displayEmpty>
+                      <MenuItem value="" disabled>-- Select Department --</MenuItem>
+                      {departments.map((d) => (
+                        <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+                {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
+              </FormControl>
+            </Grid>
+
             {/* Project Manager */}
-            <Grid size={{ xs: 12, sm: 4 }}>
+            <Grid size={{ xs: 12 }}>
               <FormControl fullWidth size="small">
                 <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
                   Project Manager
@@ -607,11 +334,8 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
                   render={({ field }) => (
                     <Select {...field} displayEmpty>
                       <MenuItem value="">-- Unassigned --</MenuItem>
-                      {filteredManagers.map((e) => (
-                        <MenuItem key={e.id} value={e.id}>
-                          {e.firstName} {e.lastName}
-                          {e.designationName ? ` — ${e.designationName}` : ''}
-                        </MenuItem>
+                      {filteredManagers.map((m) => (
+                        <MenuItem key={m.id} value={m.id}>{m.firstName} {m.lastName}</MenuItem>
                       ))}
                     </Select>
                   )}
@@ -628,261 +352,9 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
                   <TextField
                     {...field}
                     label="Description"
-                    placeholder="Describe the project scope and deliverables..."
+                    placeholder="Describe the project scope..."
                     multiline
-                    rows={2}
-                    fullWidth
-                    size="small"
-                    error={!!errors.description}
-                    helperText={errors.description?.message}
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                )}
-              />
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Section 2: Classification & Schedule */}
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>
-            Classification & Schedule
-          </Typography>
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            {/* Status */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small">
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                  Status
-                </Typography>
-                <Controller
-                  name="status"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field}>
-                      <MenuItem value="Yet To Start">Yet To Start</MenuItem>
-                      <MenuItem value="In Progress">In Progress</MenuItem>
-                      <MenuItem value="On Hold">On Hold</MenuItem>
-                      <MenuItem value="Completed">Completed</MenuItem>
-                      <MenuItem value="Cancelled">Cancelled</MenuItem>
-                    </Select>
-                  )}
-                />
-              </FormControl>
-            </Grid>
-
-            {/* Priority */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small">
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                  Priority
-                </Typography>
-                <Controller
-                  name="priority"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field}>
-                      <MenuItem value="LOW">Low</MenuItem>
-                      <MenuItem value="MEDIUM">Medium</MenuItem>
-                      <MenuItem value="HIGH">High</MenuItem>
-                      <MenuItem value="CRITICAL">Critical</MenuItem>
-                    </Select>
-                  )}
-                />
-              </FormControl>
-            </Grid>
-
-            {/* Planned Start Date */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Controller
-                name="plannedStartDate"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    type="date"
-                    label="Planned Start Date"
-                    fullWidth
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                    error={!!errors.plannedStartDate}
-                    helperText={errors.plannedStartDate?.message}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Planned End Date */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Controller
-                name="plannedEndDate"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    type="date"
-                    label="Planned End Date"
-                    fullWidth
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                    error={!!errors.plannedEndDate}
-                    helperText={errors.plannedEndDate?.message}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Live Capacity Info Text */}
-            {plannedStartDate && plannedEndDate && (
-              <Grid size={{ xs: 12 }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    color: isCapacityExceeded ? 'error.main' : 'success.main',
-                  }}
-                >
-                  Available Capacity: {availableCapacity} Hours | Estimated Effort: {estimatedHours} Hours
-                </Typography>
-              </Grid>
-            )}
-
-            {/* Status Change Reason Prompt */}
-            {showReasonField && (
-              <Grid size={{ xs: 12 }}>
-                <Controller
-                  name="statusReason"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Reason for Status Change *"
-                      placeholder="Provide a reason for cancelling or activating this project..."
-                      fullWidth
-                      size="small"
-                      error={!!errors.statusReason}
-                      helperText={errors.statusReason?.message || 'Required when cancelling or reviving a project'}
-                      slotProps={{ inputLabel: { shrink: true } }}
-                    />
-                  )}
-                />
-              </Grid>
-            )}
-          </Grid>
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Section 3: Hours & Finance */}
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>
-            Hours & Finance
-          </Typography>
-          <Grid container spacing={3}>
-            {/* Estimated Hours */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Controller
-                name="estimatedHours"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    type="number"
-                    label="Estimated Hours"
-                    fullWidth
-                    size="small"
-                    error={!!errors.estimatedHours}
-                    helperText={errors.estimatedHours?.message}
-                    slotProps={{
-                      inputLabel: { shrink: true },
-                      input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> },
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Contract Hours */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Controller
-                name="contractHours"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    type="number"
-                    label="Contract Hours"
-                    fullWidth
-                    size="small"
-                    error={!!errors.contractHours}
-                    helperText={errors.contractHours?.message || 'Leave blank if same as estimated'}
-                    slotProps={{
-                      inputLabel: { shrink: true },
-                      input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> },
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Is Billable */}
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <Controller
-                name="isBillable"
-                control={control}
-                render={({ field }) => (
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={field.value}
-                        onChange={(e) => field.onChange(e.target.checked)}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          Billable Project
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Hours are charged to client
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Invoice Status */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small">
-                <Typography variant="caption" sx={{ mb: 0.5, display: 'block', fontWeight: 600 }}>
-                  Invoice Status
-                </Typography>
-                <Controller
-                  name="invoiceStatus"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field}>
-                      <MenuItem value="PENDING">Pending</MenuItem>
-                      <MenuItem value="INVOICED">Invoiced</MenuItem>
-                      <MenuItem value="PARTIALLY_INVOICED">Partially Invoiced</MenuItem>
-                      <MenuItem value="NOT_APPLICABLE">Not Applicable</MenuItem>
-                    </Select>
-                  )}
-                />
-              </FormControl>
-            </Grid>
-
-            {/* TOK Form */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Controller
-                name="tokForm"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="TOK Form Reference"
-                    placeholder="e.g. TOK-2025-001"
+                    rows={3}
                     fullWidth
                     size="small"
                     slotProps={{ inputLabel: { shrink: true } }}
@@ -894,28 +366,78 @@ const EditProjectDialog: React.FC<EditProjectDialogProps> = ({ project, open, on
         </form>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button
-          variant="outlined"
-          color="inherit"
-          onClick={onClose}
-          disabled={isSubmitting || updateProject.isPending}
-        >
-          Cancel
-        </Button>
+        <Button onClick={onClose} disabled={isSubmitting}>Cancel</Button>
         <Button
           type="submit"
           form="edit-project-form"
           variant="contained"
           color="primary"
           startIcon={<SaveIcon />}
-          disabled={isSubmitting || updateProject.isPending || isCapacityExceeded}
+          disabled={isSubmitting || updateProject.isPending}
         >
-          {updateProject.isPending ? 'Saving...' : 'Save Changes'}
+          Save Changes
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
+
+// ==========================================
+// DELETE CONFIRM DIALOG
+// ==========================================
+
+interface DeleteDialogProps {
+  open: boolean;
+  project: ParentProject | null;
+  onClose: () => void;
+}
+
+const DeleteProjectDialog: React.FC<DeleteDialogProps> = ({ open, project, onClose }) => {
+  const deleteProject = useDeleteProject();
+
+  const handleConfirmDelete = async () => {
+    if (!project) return;
+    try {
+      await deleteProject.mutateAsync(project.id);
+      onClose();
+    } catch (_err) {
+      // Handled by deleteProject.error
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700 }}>Delete Project</DialogTitle>
+      <DialogContent dividers>
+        {deleteProject.error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {parseError(deleteProject.error)}
+          </Alert>
+        )}
+        <Typography variant="body2">
+          Are you sure you want to delete the project <strong>{project?.name}</strong>?
+          This will also soft-delete all Parts associated with it.
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={onClose} disabled={deleteProject.isPending}>Cancel</Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleConfirmDelete}
+          disabled={deleteProject.isPending}
+          startIcon={<DeleteIcon />}
+        >
+          {deleteProject.isPending ? 'Deleting...' : 'Delete'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// ==========================================
+// MAIN PAGE
+// ==========================================
 
 const formatDate = (date?: string) => {
   if (!date) return '—';
@@ -926,10 +448,6 @@ const formatDate = (date?: string) => {
   });
 };
 
-// ==========================================
-// MAIN PAGE
-// ==========================================
-
 export const ProjectListPage: React.FC = () => {
   const navigate = useNavigate();
 
@@ -938,9 +456,9 @@ export const ProjectListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [statusChangeRequest, setStatusChangeRequest] = useState<{ project: Project; status: string } | null>(null);
-  const [statusReasonInput, setStatusReasonInput] = useState('');
+
+  const [editingProject, setEditingProject] = useState<ParentProject | null>(null);
+  const [deletingProject, setDeletingProject] = useState<ParentProject | null>(null);
 
   const { data: projectsData, isLoading: projectsLoading } = useGetProjects({
     skip: page * rowsPerPage,
@@ -952,36 +470,9 @@ export const ProjectListPage: React.FC = () => {
 
   const { data: clientsData } = useGetClients({ limit: 200 });
 
-  const updateStatus = useUpdateProjectStatus();
-
-
   const projects = projectsData?.projects || [];
   const totalCount = projectsData?.total ?? 0;
   const clients = clientsData?.clients || [];
-
-  const handleStatusChange = useCallback(
-    (project: Project, status: string) => {
-      if (status === 'Cancelled' || project.status === 'Cancelled') {
-        setStatusChangeRequest({ project, status });
-        setStatusReasonInput('');
-      } else {
-        updateStatus.mutate({ id: project.id, status });
-      }
-    },
-    [updateStatus]
-  );
-
-  const handleConfirmStatusChange = useCallback(() => {
-    if (!statusChangeRequest) return;
-    updateStatus.mutate({
-      id: statusChangeRequest.project.id,
-      status: statusChangeRequest.status,
-      reason: statusReasonInput.trim(),
-    });
-    setStatusChangeRequest(null);
-    setStatusReasonInput('');
-  }, [statusChangeRequest, statusReasonInput, updateStatus]);
-
 
   const handleRowClick = (id: string) => {
     navigate(`/projects/${id}`);
@@ -992,22 +483,10 @@ export const ProjectListPage: React.FC = () => {
     label: c.name,
   }));
 
-  const progressPercent = (project: Project): number => {
-    if (!project.taskCount) return 0;
-    return Math.round((project.completedTaskCount / project.taskCount) * 100);
-  };
-
   return (
     <Box sx={{ width: '100%' }}>
       {/* Header */}
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 3,
-        }}
-      >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             Projects
@@ -1016,16 +495,6 @@ export const ProjectListPage: React.FC = () => {
             Engineering packages and client deliverables
           </Typography>
         </Box>
-        {useAuthStore.getState().hasPermission('Projects', 'create') && (
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => navigate('/projects/create')}
-          >
-            Create Project
-          </Button>
-        )}
       </Box>
 
       {/* Filters */}
@@ -1036,7 +505,7 @@ export const ProjectListPage: React.FC = () => {
             setSearch(val);
             setPage(0);
           }}
-          searchPlaceholder="Search by package name or part number..."
+          searchPlaceholder="Search projects by name..."
           filters={[
             {
               value: statusFilter,
@@ -1070,219 +539,92 @@ export const ProjectListPage: React.FC = () => {
       <Card>
         {projectsLoading && <LinearProgress />}
         <TableContainer component={Paper} elevation={0}>
-          <Table sx={{ minWidth: 1400 }} size="small">
+          <Table sx={{ minWidth: 1200 }} size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Part Number</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Package Name</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Project Name</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Client</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Manager</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Parts</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hours</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hours</TableCell>
+                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Progress</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Priority</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hrs</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hrs</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Tasks</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
                 <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {projects.map((project) => {
-                const pct = progressPercent(project);
-                return (
-                  <TableRow
-                    key={project.id}
-                    hover
-                    onClick={() => handleRowClick(project.id)}
-                    sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
-                  >
-                    {/* Part Number */}
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 700, color: 'primary.main', fontFamily: 'monospace', fontSize: '0.8rem' }}
-                      >
-                        {project.partNumber}
-                      </Typography>
-                    </TableCell>
+              {projects.map((project) => (
+                <TableRow
+                  key={project.id}
+                  hover
+                  onClick={() => handleRowClick(project.id)}
+                  sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
+                >
+                  {/* Name */}
+                  <TableCell sx={{ fontWeight: 600 }}>{project.name}</TableCell>
 
-                    {/* Package Name & Part Name */}
-                    <TableCell sx={{ maxWidth: 220 }}>
-                      <Tooltip title={project.name}>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        >
-                          {project.name}
-                        </Typography>
-                      </Tooltip>
-                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 550, color: 'text.secondary' }}>
-                        Part: {project.partName}
-                      </Typography>
-                      {project.description && (
-                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', fontStyle: 'italic' }}>
-                          {project.description}
-                        </Typography>
-                      )}
-                      {project.statusReason && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            display: 'block',
-                            fontWeight: 600,
-                            color: project.status === 'Cancelled' ? 'error.main' : 'success.main'
-                          }}
-                        >
-                          Status Reason: {project.statusReason}
-                        </Typography>
-                      )}
-                    </TableCell>
+                  {/* Client */}
+                  <TableCell>{project.clientName || '—'}</TableCell>
 
-                    {/* Client */}
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {project.clientName || '—'}
-                      </Typography>
-                    </TableCell>
+                  {/* Manager */}
+                  <TableCell>{project.projectManagerName || '—'}</TableCell>
 
-                    {/* Manager */}
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {project.projectManagerName || '—'}
-                      </Typography>
-                    </TableCell>
+                  {/* Total Parts */}
+                  <TableCell align="center" sx={{ fontWeight: 600 }}>{project.partCount}</TableCell>
 
-                    {/* Status — clickable to change */}
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <StatusChangeChip project={project} onStatusChange={handleStatusChange} />
-                    </TableCell>
+                  {/* Est. Hours */}
+                  <TableCell align="right">{project.estimatedHours.toLocaleString()}h</TableCell>
 
-                    {/* Priority */}
-                    <TableCell>
-                      <PriorityChip priority={project.priority} />
-                    </TableCell>
+                  {/* Act. Hours */}
+                  <TableCell align="right">{project.actualHours.toLocaleString()}h</TableCell>
 
-                    {/* Est. Hours */}
-                    <TableCell align="right">
-                      <Typography variant="body2">{project.estimatedHours.toLocaleString()}</Typography>
-                    </TableCell>
-
-                    {/* Act. Hours */}
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color:
-                            project.actualHours > project.estimatedHours && project.estimatedHours > 0
-                              ? 'error.main'
-                              : 'text.primary',
-                          fontWeight: project.actualHours > project.estimatedHours ? 700 : 400,
-                        }}
-                      >
-                        {project.actualHours.toLocaleString()}
-                      </Typography>
-                    </TableCell>
-
-                    {/* Tasks with progress bar */}
-                    <TableCell sx={{ minWidth: 120 }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          {project.completedTaskCount}/{project.taskCount}
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={pct}
-                          sx={{
-                            height: 5,
-                            borderRadius: 3,
-                            mt: 0.5,
-                            bgcolor: 'grey.200',
-                            '& .MuiLinearProgress-bar': {
-                              bgcolor:
-                                pct === 100
-                                  ? 'success.main'
-                                  : pct >= 50
-                                  ? 'primary.main'
-                                  : 'warning.main',
-                            },
-                          }}
-                        />
-                      </Box>
-                    </TableCell>
-
-                     {/* Planned Start Date */}
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDate(project.plannedStartDate)}
-                      </Typography>
-                    </TableCell>
-
-                    {/* Planned End Date */}
-                    <TableCell>
-                      {project.plannedEndDate ? (
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color:
-                              new Date(project.plannedEndDate) < new Date() &&
-                              project.status !== 'Completed' &&
-                              project.status !== 'Cancelled'
-                                ? 'error.main'
-                                : 'text.primary',
-                            fontWeight:
-                              new Date(project.plannedEndDate) < new Date() &&
-                              project.status !== 'Completed' &&
-                              project.status !== 'Cancelled'
-                                ? 700
-                                : 400,
-                          }}
-                        >
-                          {formatDate(project.plannedEndDate)}
-                        </Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          —
-                        </Typography>
-                      )}
-                    </TableCell>
-
-                    {/* Actual Start Date */}
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDate(project.actualStartDate)}
-                      </Typography>
-                    </TableCell>
-
-                    {/* Actual End Date */}
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDate(project.actualEndDate)}
-                      </Typography>
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <RowActions
-                        project={project}
-                        onStatusChange={handleStatusChange}
-                        onView={handleRowClick}
-                        onEdit={setEditingProject}
-                        canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
+                  {/* Progress */}
+                  <TableCell align="center">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={project.progress}
+                        sx={{ width: 50, height: 6, borderRadius: 3 }}
+                        color={project.progress >= 100 ? 'success' : 'primary'}
                       />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                        {Math.round(project.progress)}%
+                      </Typography>
+                    </Box>
+                  </TableCell>
 
-              {!projectsLoading && projects.length === 0 && (
+                  {/* Status */}
+                  <TableCell>
+                    <StatusChip status={project.status} />
+                  </TableCell>
+
+                  {/* Start Date */}
+                  <TableCell>{formatDate(project.plannedStartDate)}</TableCell>
+
+                  {/* End Date */}
+                  <TableCell>{formatDate(project.plannedEndDate)}</TableCell>
+
+                  {/* Actions */}
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                    <RowActions
+                      project={project}
+                      onView={handleRowClick}
+                      onEdit={setEditingProject}
+                      onDelete={setDeletingProject}
+                      canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
+                      canDelete={useAuthStore.getState().hasPermission('Projects', 'delete') || useAuthStore.getState().hasPermission('Projects', 'activate')}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {projects.length === 0 && !projectsLoading && (
                 <TableRow>
-                  <TableCell colSpan={14} align="center" sx={{ py: 4 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      No projects found. Create your first project to get started.
-                    </Typography>
+                  <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body2" color="text.secondary">No projects found.</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -1296,7 +638,7 @@ export const ProjectListPage: React.FC = () => {
           count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
-          onPageChange={(_, newPage) => setPage(newPage)}
+          onPageChange={(_e, newPage) => setPage(newPage)}
           onRowsPerPageChange={(e) => {
             setRowsPerPage(parseInt(e.target.value, 10));
             setPage(0);
@@ -1304,48 +646,17 @@ export const ProjectListPage: React.FC = () => {
         />
       </Card>
 
+      {/* Dialogs */}
       <EditProjectDialog
         project={editingProject}
         open={Boolean(editingProject)}
         onClose={() => setEditingProject(null)}
       />
-
-      <Dialog
-        open={Boolean(statusChangeRequest)}
-        onClose={() => setStatusChangeRequest(null)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Reason for Status Change</DialogTitle>
-        <DialogContent sx={{ py: 2 }}>
-          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-            You are changing the status of project <strong>{statusChangeRequest?.project.name}</strong> ({statusChangeRequest?.project.partNumber}) to <strong>{statusChangeRequest?.status}</strong>. Please provide a reason:
-          </Typography>
-          <TextField
-            autoFocus
-            label="Reason *"
-            placeholder="e.g. Scope revised or client cancelled..."
-            fullWidth
-            size="small"
-            value={statusReasonInput}
-            onChange={(e) => setStatusReasonInput(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setStatusChangeRequest(null)} color="inherit">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmStatusChange}
-            variant="contained"
-            color="primary"
-            disabled={!statusReasonInput.trim()}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DeleteProjectDialog
+        project={deletingProject}
+        open={Boolean(deletingProject)}
+        onClose={() => setDeletingProject(null)}
+      />
     </Box>
   );
 };

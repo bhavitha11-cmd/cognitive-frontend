@@ -53,6 +53,7 @@ import CalendarViewWeekOutlinedIcon from '@mui/icons-material/CalendarViewWeekOu
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined';
+import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
 
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -246,6 +247,7 @@ export const MainLayout: React.FC = () => {
       '/hr/audit-logs': 'audit_logs',
       '/hr/attendance-settings': 'attendance_settings',
       '/projects': 'projects',
+      '/parts': 'parts',
       '/tasks': 'tasks',
       '/timesheets/active': 'work_center',
       '/timesheets/weekly': 'weekly_timesheet',
@@ -271,6 +273,7 @@ export const MainLayout: React.FC = () => {
       'Clients': 'clients',
       'HR': 'hr',
       'Projects': 'projects',
+      'Parts': 'projects',
       'Tasks': 'tasks',
       'Timesheets': 'timesheets',
       'Calendar': 'calendar',
@@ -368,6 +371,11 @@ export const MainLayout: React.FC = () => {
       name: 'Projects',
       path: '/projects',
       icon: <FolderOutlinedIcon />,
+    },
+    {
+      name: 'Parts',
+      path: '/parts',
+      icon: <LayersOutlinedIcon />,
     },
     {
       name: 'Tasks',

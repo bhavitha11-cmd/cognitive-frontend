@@ -525,6 +525,7 @@ export interface EmployeeLookupItem {
   departmentId?: string;
   roleIds?: string[];
   teamId?: string;
+  reportingManagerId?: string;
 }
 
 export const useGetEmployeesLookup = () => {
@@ -541,6 +542,7 @@ export const useGetEmployeesLookup = () => {
         departmentId: e.department_id || undefined,
         roleIds: e.role_ids || [],
         teamId: e.team_id || undefined,
+        reportingManagerId: e.reporting_manager_id || undefined,
       }));
     },
   });

@@ -39,7 +39,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   dateOfBirth: z.string().min(1, 'Date of Birth is required'),
   profilePhoto: z.string().optional(),
 
-  departmentId: z.string().min(1, 'Department is required'),
+  departmentId: z.string().optional().or(z.literal('')),
   designationId: z.string().optional(),
   roleIds: z.array(z.string()).min(1, 'At least one role must be assigned'),
   reportingManagerId: z.string().optional().or(z.literal('')),
@@ -55,7 +55,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   emergencyContactPhone: z.string().length(10, 'Emergency contact phone must be exactly 10 digits').regex(/^\d{10}$/, 'Emergency contact phone must contain numeric characters only'),
   address: z.string().min(1, 'Address is required'),
   isDepartmentHead: z.boolean().optional(),
-  teamId: z.string().min(1, 'Team is required'),
+  teamId: z.string().optional().or(z.literal('')),
   isTeamLead: z.boolean().optional(),
 });
 
@@ -117,6 +117,9 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
 
   const selectedRoleIds = watch('roleIds') || [];
 
+  const selectedDepartmentId = watch('departmentId');
+  const selectedTeamId = watch('teamId');
+
   // Helper to trace ancestor role IDs
   const getAncestorRoleIds = (roleId: string): Set<string> => {
     const ancestors = new Set<string>();
@@ -147,11 +150,27 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
   const managerOptions = employeesLookup.filter((e) => {
     if (initialValues && e.id === initialValues.id) return false;
     
-    if (selectedRoleIds.length > 0) {
-      if (allowedManagerRoleIds.size > 0) {
-        return e.roleIds?.some((rid) => allowedManagerRoleIds.has(rid));
+    // 1. Filter by role hierarchy (if selected roles have defined reporting lines)
+    if (selectedRoleIds.length > 0 && allowedManagerRoleIds.size > 0) {
+      const hasManagerRole = e.roleIds?.some((rid) => allowedManagerRoleIds.has(rid));
+      if (!hasManagerRole) return false;
+    }
+
+    // 2. Filter by selected Department
+    if (selectedDepartmentId && e.departmentId !== selectedDepartmentId) {
+      return false;
+    }
+
+    // 3. Filter by selected Team
+    if (selectedTeamId) {
+      const sameTeam = e.teamId === selectedTeamId;
+      // Also allow managers in the same department but with no team (e.g. Department Head)
+      const sameDeptNoTeam = e.departmentId === selectedDepartmentId && !e.teamId;
+      if (!sameTeam && !sameDeptNoTeam) {
+        return false;
       }
     }
+    
     return true;
   });
 
@@ -414,7 +433,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
 
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.departmentId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department *</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Department</FormLabel>
             <Controller
               name="departmentId"
               control={control}
@@ -435,7 +454,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
 
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth size="small" error={!!errors.teamId}>
-            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team *</FormLabel>
+            <FormLabel sx={{ mb: 1, fontSize: '0.8125rem', fontWeight: 600 }}>Team</FormLabel>
             <Controller
               name="teamId"
               control={control}

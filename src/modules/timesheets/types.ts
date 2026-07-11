@@ -66,6 +66,7 @@ export interface LeaveType {
   color: string
   description?: string
   isActive: boolean
+  requiresDocument: boolean
 }
 
 export interface LeaveBalance {
@@ -100,6 +101,8 @@ export interface LeaveRequest {
   approvedAt?: string
   rejectionReason?: string
   hrNotes?: string
+  approvalSteps?: any[]
+  documentUrl?: string
 }
 
 export interface LeaveRequestCreate {
@@ -107,4 +110,5 @@ export interface LeaveRequestCreate {
   fromDate: string
   toDate: string
   reason?: string
+  documentUrl?: string
 }

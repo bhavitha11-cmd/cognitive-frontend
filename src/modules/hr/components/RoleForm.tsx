@@ -50,16 +50,24 @@ interface RoleFormProps {
   formId: string;
 }
 
+const EMPTY_ARRAY: any[] = [];
+
 export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, formId }) => {
-  const { data: roles = [] } = useGetRoles();
-  const { data: modules = [] } = useGetModules();
+  const { data: rolesData } = useGetRoles();
+  const { data: modulesData } = useGetModules();
+  
+  const roles = rolesData || EMPTY_ARRAY;
+  const modules = modulesData || EMPTY_ARRAY;
   
   // Load permissions for existing role
-  const { data: fetchedPermissions = [], isLoading: isPermsLoading } = 
+  const { data: fetchedPermissionsData, isLoading: isPermsLoading } = 
     useGetRoleFeaturePermissions(initialValues?.id || '');
+
+  const fetchedPermissions = fetchedPermissionsData || EMPTY_ARRAY;
 
   const [cloneSourceId, setCloneSourceId] = useState<string>('');
   const [isCloning, setIsCloning] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
   const parentRoleOptions = roles.filter(
     (r) => !initialValues || r.id !== initialValues.id
@@ -71,6 +79,7 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
     setValue,
     reset,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<RoleFormInputs>({
     resolver: zodResolver(roleSchema),
@@ -88,7 +97,7 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
   // Reset form when initial values or fetched permissions change
   useEffect(() => {
     if (initialValues) {
-      if (fetchedPermissions && fetchedPermissions.length > 0) {
+      if (fetchedPermissions && fetchedPermissions.length > 0 && !isInitialized) {
         reset({
           name: initialValues.name || '',
           description: initialValues.description || '',
@@ -96,10 +105,11 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
           status: initialValues.status || 'Active',
           featurePermissions: fetchedPermissions,
         });
+        setIsInitialized(true);
       }
     } else {
       // For new roles, populate default NONE permissions using modules from dynamic module registry
-      if (modules && modules.length > 0) {
+      if (modules && modules.length > 0 && !isInitialized) {
         const defaultPerms: any[] = [];
         modules.forEach((mod) => {
           mod.features.forEach((feat) => {
@@ -123,9 +133,10 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
           status: 'Active',
           featurePermissions: defaultPerms,
         });
+        setIsInitialized(true);
       }
     }
-  }, [initialValues, fetchedPermissions, modules, reset]);
+  }, [initialValues, fetchedPermissions, modules, reset, isInitialized]);
 
   // Handle cloning permissions from another role
   const handleCloneSelect = async (sourceId: string) => {
@@ -138,21 +149,21 @@ export const RoleForm: React.FC<RoleFormProps> = ({ initialValues, onSubmit, for
       
       // Update form permissions with clones
       if (sourcePerms.length > 0) {
-        // Map feature permission scope settings to matching features in form
-        const updatedPerms = watchPermissions.map((curr) => {
-          const match = sourcePerms.find((sp: any) => sp.feature_key === curr.feature_key);
-          if (match) {
-            return {
-              ...curr,
-              view_scope: match.view_scope,
-              create_scope: match.create_scope,
-              update_scope: match.update_scope,
-              delete_scope: match.delete_scope,
-            };
-          }
-          return curr;
+        const updatedPerms = sourcePerms.map((sp: any) => ({
+          feature_id: sp.feature_id,
+          feature_key: sp.feature_key,
+          feature_name: sp.feature_name,
+          module_key: sp.module_key,
+          module_name: sp.module_name,
+          view_scope: sp.view_scope,
+          create_scope: sp.create_scope,
+          update_scope: sp.update_scope,
+          delete_scope: sp.delete_scope,
+        }));
+        reset({
+          ...getValues(),
+          featurePermissions: updatedPerms,
         });
-        setValue('featurePermissions', updatedPerms);
       }
     } catch (err) {
       console.error('Failed to copy permissions:', err);
