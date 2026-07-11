@@ -2,8 +2,16 @@ import axios from 'axios';
 
 // ─── Resolve API base URL ──────────────────────────────────────────────────────
 // Priority: VITE_API_URL env var (set in .env or .env.local) → localhost fallback
-// For ngrok/remote access: set VITE_API_URL=https://your-backend.ngrok-free.app/api/v1
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  // If it's a remote URL like ngrok, use it. Otherwise, dynamically match the browser's hostname to prevent CORS/PNA issues.
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1') && !envUrl.includes('192.168.')) {
+    return envUrl;
+  }
+  return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 if (!import.meta.env.VITE_API_URL && import.meta.env.DEV) {
   console.warn(

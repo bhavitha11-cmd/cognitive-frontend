@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: [
+      {
+        find: /^es-toolkit\/compat\/(.*?)(?:\.js)?$/,
+        replacement: 'lodash-es/$1.js'
+      }
+    ]
+  },
   server: {
     host: '0.0.0.0',
     allowedHosts: true,
@@ -12,6 +20,12 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+    },
+  },
+  build: {
+    minify: true,
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   }
 })
