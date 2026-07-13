@@ -21,13 +21,18 @@ if (!import.meta.env.VITE_API_URL && import.meta.env.DEV) {
   );
 }
 
+const headers: Record<string, string> = {
+  'Content-Type': 'application/json',
+};
+
+if (API_BASE_URL.includes('ngrok')) {
+  headers['ngrok-skip-browser-warning'] = 'true';
+}
+
 // Create a configured Axios instance pointing to the FastAPI backend
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  },
+  headers,
 });
 
 // Auto-inject JWT access token into the request headers if present in localStorage

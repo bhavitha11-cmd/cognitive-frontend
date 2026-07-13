@@ -158,8 +158,6 @@ const RowActions: React.FC<RowActionsProps> = ({
   };
 
   const handleClose = () => setAnchorEl(null);
-  const transitions = STATUS_TRANSITIONS[part.status] || [];
-
   return (
     <>
       <Tooltip title="Actions">
@@ -209,22 +207,6 @@ const RowActions: React.FC<RowActionsProps> = ({
             Delete
           </MenuItem>
         )}
-        <Divider />
-        {transitions.map((s) => (
-          <MenuItem
-            key={s}
-            dense
-            onClick={() => {
-              handleClose();
-              onStatusChange(part, s);
-            }}
-          >
-            <StatusChip status={s} />
-            <Typography variant="caption" sx={{ ml: 1 }}>
-              Move to {STATUS_COLORS[s]?.label || s}
-            </Typography>
-          </MenuItem>
-        ))}
       </Menu>
     </>
   );
