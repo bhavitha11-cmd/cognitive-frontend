@@ -48,6 +48,7 @@ import {
   useStartBreak,
   useEndBreak
 } from '../services/workSessionService';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
 // TYPES
@@ -224,9 +225,10 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ label, count, color, bgcolor,
 
 interface PolicySettingsPanelProps {
   showSnack: (message: any, severity?: 'success' | 'error') => void;
+  canEdit: boolean;
 }
 
-const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) => {
+const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack, canEdit }) => {
   const queryClient = useQueryClient();
 
   const { data: rule, isLoading } = useQuery<any>({
@@ -285,6 +287,13 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
 
   return (
     <Box>
+      {/* Read-only notice for users without edit permission */}
+      {!canEdit && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          You have view-only access to Workforce Policy Settings. Contact an administrator to make changes.
+        </Alert>
+      )}
+
       {/* Section 1: Office Hours */}
       <Accordion defaultExpanded sx={{ mb: 1.5, '&:before': { display: 'none' }, border: '1px solid', borderColor: 'divider', borderRadius: '8px !important', overflow: 'hidden' }}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: 'background.paper', px: 3 }}>
@@ -312,6 +321,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('office_start_time', e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
                 helperText="When the official workday begins"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -324,6 +334,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('office_end_time', e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
                 helperText="When the official workday ends"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -336,6 +347,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('late_mark_after_minutes', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
                 helperText="Minutes after start time before marking late"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -348,6 +360,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('half_day_hours', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> } }}
                 helperText="Threshold for half-day classification"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -360,6 +373,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('overtime_threshold_hours', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> } }}
                 helperText="Daily hours before overtime accrues"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 6 }}>
@@ -370,6 +384,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 value={getValue('work_days')}
                 onChange={(e) => handleChange('work_days', e.target.value)}
                 helperText="Comma-separated: MON,TUE,WED,THU,FRI"
+                disabled={!canEdit}
               />
             </Grid>
           </Grid>
@@ -403,6 +418,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('required_productive_hours', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs/day</InputAdornment> } }}
                 helperText="Daily target for Productivity % and KPI calculations"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -415,6 +431,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('max_break_minutes', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
                 helperText="Exceeding this triggers a warning in Break KPI"
+                disabled={!canEdit}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -427,6 +444,7 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
                 onChange={(e) => handleChange('min_break_minutes', e.target.value)}
                 slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
                 helperText="Minimum recommended break per day"
+                disabled={!canEdit}
               />
             </Grid>
           </Grid>
@@ -443,8 +461,8 @@ const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack }) 
         </AccordionDetails>
       </Accordion>
 
-      {/* Save Button */}
-      {isDirty && (
+      {/* Save Button — only shown to editors */}
+      {canEdit && isDirty && (
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
           <Button
             variant="contained"
@@ -1406,7 +1424,7 @@ export const AttendancePage: React.FC = () => {
         )}
       </Card>
 
-      {/* ── Workforce Policy Settings ── */}
+      {/* ── Workforce Policy Settings — all users can view; only Super Admins can edit ── */}
       <Box sx={{ mt: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
           <SettingsIcon color="action" />
@@ -1417,7 +1435,10 @@ export const AttendancePage: React.FC = () => {
             — Configure attendance rules and productivity targets. Changes affect all employees.
           </Typography>
         </Box>
-        <PolicySettingsPanel showSnack={showSnack} />
+        <PolicySettingsPanel
+          showSnack={showSnack}
+          canEdit={useAuthStore.getState().isSuperAdmin()}
+        />
       </Box>
 
       {/* Clock In Confirmation Dialog */}

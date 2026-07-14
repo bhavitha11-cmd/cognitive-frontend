@@ -854,7 +854,16 @@ export const LeaveRequestPage: React.FC = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        {(req.status === 'PENDING' || req.status === 'APPROVED') && (
+                        {(req.status === 'PENDING' || req.status === 'APPROVED') && (() => {
+                          if (!req.fromDate) return false;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const parts = req.fromDate.split('-');
+                          const targetDate = parts.length === 3 
+                            ? new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+                            : new Date(req.fromDate);
+                          return targetDate >= today;
+                        })() && (
                           <Tooltip title="Cancel request">
                             <Button
                               size="small"

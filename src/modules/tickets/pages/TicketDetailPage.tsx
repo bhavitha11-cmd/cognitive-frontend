@@ -88,6 +88,7 @@ export const TicketDetailPage: React.FC = () => {
   // Local UI states
   const [commentText, setCommentText] = useState('');
   const [statusSelect, setStatusSelect] = useState('');
+  const [statusReason, setStatusReason] = useState('');
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Set initial status selection when ticket loads
@@ -108,6 +109,18 @@ export const TicketDetailPage: React.FC = () => {
     if (!id || !statusSelect) return;
     try {
       await updateStatusMutation.mutateAsync({ ticketId: id, statusId: statusSelect });
+      
+      // If a reason is provided, post it as a status-change system comment
+      if (statusReason.trim()) {
+        const newStatus = statuses.find((s) => s.id === statusSelect);
+        const statusText = newStatus ? newStatus.name : 'Updated';
+        await addCommentMutation.mutateAsync({
+          ticketId: id,
+          comment: `[Status changed to ${statusText}] Reason: ${statusReason.trim()}`,
+        });
+        setStatusReason('');
+      }
+      
       setMsg({ text: 'Ticket status updated successfully', type: 'success' });
     } catch (err: any) {
       setMsg({ text: err?.response?.data?.detail || err?.message || 'Failed to update status', type: 'error' });
@@ -293,30 +306,40 @@ export const TicketDetailPage: React.FC = () => {
                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
                   Update Ticket Status
                 </Typography>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <InputLabel id="status-update-label">Status</InputLabel>
-                    <Select
-                      labelId="status-update-label"
-                      label="Status"
-                      value={statusSelect}
-                      onChange={(e) => setStatusSelect(e.target.value)}
+                 <Stack spacing={2}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <InputLabel id="status-update-label">Status</InputLabel>
+                      <Select
+                        labelId="status-update-label"
+                        label="Status"
+                        value={statusSelect}
+                        onChange={(e) => setStatusSelect(e.target.value)}
+                      >
+                        {statuses.map((s) => (
+                          <MenuItem key={s.id} value={s.id}>
+                            {s.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="contained"
+                      onClick={handleStatusUpdate}
+                      disabled={updateStatusMutation.isPending}
+                      sx={{ textTransform: 'none', bgcolor: '#206bc4', px: 3 }}
                     >
-                      {statuses.map((s) => (
-                        <MenuItem key={s.id} value={s.id}>
-                          {s.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <Button
-                    variant="contained"
-                    onClick={handleStatusUpdate}
-                    disabled={updateStatusMutation.isPending}
-                    sx={{ textTransform: 'none', bgcolor: '#206bc4' }}
-                  >
-                    Apply Status
-                  </Button>
+                      Apply Status
+                    </Button>
+                  </Stack>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Reason for status change"
+                    placeholder="Enter the reason or resolution details..."
+                    value={statusReason}
+                    onChange={(e) => setStatusReason(e.target.value)}
+                  />
                 </Stack>
               </CardContent>
             </Card>

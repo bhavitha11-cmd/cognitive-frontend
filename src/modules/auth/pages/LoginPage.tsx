@@ -16,7 +16,7 @@ import {
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import PersonIcon from '@mui/icons-material/Person';
+import MailIcon from '@mui/icons-material/Mail';
 import { api, parseError } from '../../../utils/api';
 import { useAuthStore } from '../../../store/useAuthStore';
 
@@ -53,6 +53,8 @@ export const LoginPage: React.FC = () => {
         localStorage.setItem('cognitive_token', data.access_token);
         localStorage.setItem('cognitive_user', JSON.stringify(data.employee));
         
+        const mustChange = !!data.must_change_password;
+
         // Fetch full profile (me) to cache roles & permissions
         const meResponse = await api.get('/auth/me');
         if (meResponse.data?.success) {
@@ -60,11 +62,17 @@ export const LoginPage: React.FC = () => {
           localStorage.setItem('cognitive_profile', JSON.stringify(profile));
 
           // Hydrate the centralized auth store
-          authLogin(data.access_token, data.employee, profile);
+          authLogin(data.access_token, data.employee, profile, mustChange);
+        } else {
+          authLogin(data.access_token, data.employee, null, mustChange);
         }
 
-        // Navigate to default dashboard
-        navigate('/dashboard/private');
+        // Navigate to default dashboard or force change password page
+        if (mustChange) {
+          navigate('/change-password');
+        } else {
+          navigate('/dashboard/private');
+        }
       } else {
         setError(message || 'Authentication failed. Please try again.');
       }
@@ -131,8 +139,8 @@ export const LoginPage: React.FC = () => {
               margin="normal"
               required
               fullWidth
-              label="Username"
-              autoComplete="username"
+              label="Email Address"
+              autoComplete="email"
               autoFocus
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -141,7 +149,7 @@ export const LoginPage: React.FC = () => {
                 input: {
                   startAdornment: (
                     <InputAdornment position="start">
-                      <PersonIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                      <MailIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
                     </InputAdornment>
                   ),
                 },

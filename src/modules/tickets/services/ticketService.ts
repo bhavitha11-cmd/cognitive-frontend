@@ -39,6 +39,7 @@ export interface TicketCategoryHandler {
   categoryId: string;
   employeeId: string;
   employeeName?: string;
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -132,6 +133,7 @@ const mapHandlerFromBackend = (d: any): TicketCategoryHandler => ({
   categoryId: d.category_id,
   employeeId: d.employee_id,
   employeeName: d.employee_name,
+  isActive: d.is_active,
   createdAt: d.created_at,
 });
 
@@ -452,6 +454,21 @@ export const useDeleteCategoryHandler = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await api.delete(`/tickets/settings/handlers/${id}`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket-handlers'] });
+    },
+  });
+};
+
+export const useUpdateCategoryHandlerStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { id: string; isActive: boolean }) => {
+      const response = await api.put(`/tickets/settings/handlers/${data.id}`, null, {
+        params: { is_active: data.isActive },
+      });
       return response.data;
     },
     onSuccess: () => {

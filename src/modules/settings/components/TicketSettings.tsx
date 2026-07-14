@@ -53,6 +53,7 @@ import {
   useGetCategoryHandlers,
   useCreateCategoryHandler,
   useDeleteCategoryHandler,
+  useUpdateCategoryHandlerStatus,
 } from '../../tickets/services/ticketService';
 import { useGetEmployeesLookup } from '../../hr/services/hrService';
 
@@ -109,6 +110,7 @@ export const TicketSettings: React.FC = () => {
 
   const createHandlerMutation = useCreateCategoryHandler();
   const deleteHandlerMutation = useDeleteCategoryHandler();
+  const updateHandlerStatusMutation = useUpdateCategoryHandlerStatus();
 
   const handleShowAlert = (msg: string, isError: boolean = false) => {
     if (isError) {
@@ -263,6 +265,9 @@ export const TicketSettings: React.FC = () => {
       } else if (activeSubTab === 'statuses') {
         await updateStatusMutation.mutateAsync({ id: item.id, name: item.name, isActive: !item.isActive });
         handleShowAlert(`Status status updated`);
+      } else if (activeSubTab === 'handlers') {
+        await updateHandlerStatusMutation.mutateAsync({ id: item.id, isActive: !item.isActive });
+        handleShowAlert(`Handler status updated`);
       }
     } catch (err: any) {
       handleShowAlert(err?.response?.data?.detail || err?.message || 'Status toggle failed', true);
@@ -369,9 +374,6 @@ export const TicketSettings: React.FC = () => {
                       <IconButton size="small" onClick={() => handleOpenDialog('edit', cat)} sx={{ mr: 1 }}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(cat)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -457,9 +459,6 @@ export const TicketSettings: React.FC = () => {
                       <IconButton size="small" onClick={() => handleOpenDialog('edit', t)} sx={{ mr: 1 }}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(t)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -531,9 +530,6 @@ export const TicketSettings: React.FC = () => {
                       <IconButton size="small" onClick={() => handleOpenDialog('edit', prio)} sx={{ mr: 1 }}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(prio)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -591,9 +587,6 @@ export const TicketSettings: React.FC = () => {
                       <IconButton size="small" onClick={() => handleOpenDialog('edit', stat)} sx={{ mr: 1 }}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDelete(stat)}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -646,7 +639,7 @@ export const TicketSettings: React.FC = () => {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Employee Handler</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -656,10 +649,19 @@ export const TicketSettings: React.FC = () => {
                     <TableRow key={h.id} hover>
                       <TableCell sx={{ fontWeight: 600 }}>{catObj ? catObj.name : 'Unknown'}</TableCell>
                       <TableCell sx={{ fontWeight: 500 }}>{h.employeeName}</TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(h)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <TableCell align="center">
+                        <Switch
+                          size="small"
+                          checked={h.isActive}
+                          onChange={() => handleToggleStatus(h)}
+                        />
+                        <Chip
+                          label={h.isActive ? 'Active' : 'Inactive'}
+                          size="small"
+                          color={h.isActive ? 'success' : 'default'}
+                          variant="outlined"
+                          sx={{ ml: 1, height: 20, fontSize: '0.7rem', fontWeight: 600 }}
+                        />
                       </TableCell>
                     </TableRow>
                   );

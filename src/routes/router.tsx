@@ -31,6 +31,14 @@ export const router = createBrowserRouter([
     element: lazyLoad(() => import('../modules/auth/pages/LoginPage'), 'form'),
   },
   {
+    path: '/change-password',
+    element: (
+      <ProtectedRoute>
+        {lazyLoad(() => import('../modules/auth/pages/ForceChangePasswordPage'), 'form')}
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/',
     element: (
       <ProtectedRoute>
@@ -393,6 +401,11 @@ export const router = createBrowserRouter([
             {lazyLoad(() => import('../modules/settings/pages/SettingsPage'), 'form')}
           </ProtectedRoute>
         ),
+      },
+      // Profile & Security Settings
+      {
+        path: 'profile',
+        element: lazyLoad(() => import('../modules/auth/pages/UserProfilePage'), 'form'),
       },
       {
         path: '*',

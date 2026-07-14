@@ -16,7 +16,6 @@ import {
   ListItemIcon,
   ListItemText,
   Collapse,
-  Button,
   Avatar,
   Tooltip,
   Chip,
@@ -30,7 +29,6 @@ import { styled, alpha } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import AddIcon from '@mui/icons-material/Add';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -176,6 +174,7 @@ export const MainLayout: React.FC = () => {
   const authLogout = useAuthStore((s) => s.logout);
   const hydrateFromStorage = useAuthStore((s) => s.hydrateFromStorage);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const mustChangePassword = useAuthStore((s) => s.mustChangePassword);
 
   // Only poll /breaks/active when the user is authenticated to prevent an
   // unauthenticated request that triggers the 401 interceptor, which clears
@@ -191,7 +190,6 @@ export const MainLayout: React.FC = () => {
     'Master Data': false,
   });
 
-  const [quickAddAnchor, setQuickAddAnchor] = useState<null | HTMLElement>(null);
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
 
   // Hydrate auth store on mount if needed
@@ -713,23 +711,6 @@ export const MainLayout: React.FC = () => {
 
       {/* Sidebar Footer */}
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        {(!sidebarCollapsed || isMobile) && (
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            onClick={() => navigate('/settings')}
-            sx={{
-              mb: 2,
-              py: 1,
-              fontWeight: 600,
-              fontSize: '0.8125rem',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            App Settings
-          </Button>
-        )}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {(!sidebarCollapsed || isMobile) && (
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.3)' }}>
@@ -931,57 +912,6 @@ export const MainLayout: React.FC = () => {
               {/* Live Clock Widget */}
               <LiveClock />
 
-              {/* Quick Add Button */}
-              <Tooltip title="Quick Add">
-                <IconButton
-                  size="small"
-                  onClick={(e) => setQuickAddAnchor(e.currentTarget)}
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                  }}
-                >
-                  <AddIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-
-              {/* Quick Add Menu */}
-              <Menu
-                anchorEl={quickAddAnchor}
-                open={Boolean(quickAddAnchor)}
-                onClose={() => setQuickAddAnchor(null)}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setQuickAddAnchor(null);
-                    navigate('/clients');
-                  }}
-                  sx={{ display: authHasPermission('Clients', 'create') ? 'flex' : 'none' }}
-                >
-                  Add Client
-                </MenuItem>
-                <MenuItem
-                  onClick={() => {
-                    setQuickAddAnchor(null);
-                    navigate('/projects/create');
-                  }}
-                  sx={{ display: authHasPermission('Projects', 'create') ? 'flex' : 'none' }}
-                >
-                  Add Project
-                </MenuItem>
-                <MenuItem
-                  onClick={() => {
-                    setQuickAddAnchor(null);
-                    navigate('/tasks/create');
-                  }}
-                  sx={{ display: authHasPermission('Tasks', 'create') ? 'flex' : 'none' }}
-                >
-                  Add Task
-                </MenuItem>
-              </Menu>
 
               {/* Notification Bell — shows when available */}
               <IconButton size="small" disabled>
@@ -1029,23 +959,27 @@ export const MainLayout: React.FC = () => {
                   </Typography>
                 </Box>
                 <Divider />
-                <MenuItem
-                  onClick={() => {
-                    setProfileAnchor(null);
-                    navigate('/settings');
-                  }}
-                >
-                  Profile Settings
-                </MenuItem>
-                <MenuItem
-                  onClick={() => {
-                    setProfileAnchor(null);
-                    navigate('/settings');
-                  }}
-                >
-                  App Settings
-                </MenuItem>
-                <Divider />
+                {!mustChangePassword && (
+                  <>
+                    <MenuItem
+                      onClick={() => {
+                        setProfileAnchor(null);
+                        navigate('/profile');
+                      }}
+                    >
+                      Profile Settings
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setProfileAnchor(null);
+                        navigate('/settings');
+                      }}
+                    >
+                      App Settings
+                    </MenuItem>
+                    <Divider />
+                  </>
+                )}
                 <MenuItem
                   onClick={() => {
                     setProfileAnchor(null);

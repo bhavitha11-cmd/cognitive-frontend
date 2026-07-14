@@ -62,6 +62,7 @@ interface AuthState {
   modulePermissions: ModulePermissionDetail[];
   dataAccessLevel: DataAccessLevel;
   isAuthenticated: boolean;
+  mustChangePassword: boolean;
 
   // Computed
   isSuperAdmin: () => boolean;
@@ -69,7 +70,7 @@ interface AuthState {
   hasModuleAccess: (moduleOrFeature: string) => boolean;
 
   // Actions
-  login: (token: string, employee: any, profile: any) => void;
+  login: (token: string, employee: any, profile: any, mustChangePasswordParam?: boolean) => void;
   logout: () => void;
   hydrateFromStorage: () => void;
   refreshProfile: () => Promise<void>;
@@ -88,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
       modulePermissions: [],
       dataAccessLevel: 'SELF' as DataAccessLevel,
       isAuthenticated: false,
+      mustChangePassword: false,
 
       // ── Computed helpers ──────────────────────────────────────────────────
 
@@ -167,7 +169,7 @@ export const useAuthStore = create<AuthState>()(
 
       // ── Actions ────────────────────────────────────────────────────────────
 
-      login: (token: string, employee: any, profile: any) => {
+      login: (token: string, employee: any, profile: any, mustChangePasswordParam?: boolean) => {
         const user: AuthUser = {
           firstName: employee.first_name || employee.firstName || '',
           lastName: employee.last_name || employee.lastName || '',
@@ -184,6 +186,9 @@ export const useAuthStore = create<AuthState>()(
         const permissions: PermissionDetail[] = profile?.permissions || [];
         const modulePermissions: ModulePermissionDetail[] = profile?.module_permissions || [];
         const dataAccessLevel: DataAccessLevel = profile?.data_access_level || 'SELF';
+        const mustChangePassword = mustChangePasswordParam !== undefined
+          ? mustChangePasswordParam
+          : (profile?.must_change_password || employee?.must_change_password || false);
 
         // Backward compatibility: write to old localStorage keys
         localStorage.setItem('cognitive_token', token);
@@ -199,6 +204,7 @@ export const useAuthStore = create<AuthState>()(
           modulePermissions,
           dataAccessLevel,
           isAuthenticated: true,
+          mustChangePassword,
         });
       },
 
@@ -219,6 +225,7 @@ export const useAuthStore = create<AuthState>()(
           modulePermissions: [],
           dataAccessLevel: 'SELF',
           isAuthenticated: false,
+          mustChangePassword: false,
         });
 
         // Prevent cross-user data leaks on a shared browser:
@@ -277,6 +284,7 @@ export const useAuthStore = create<AuthState>()(
             modulePermissions: profile?.module_permissions || [],
             dataAccessLevel: profile?.data_access_level || 'SELF',
             isAuthenticated: true,
+            mustChangePassword: profile?.must_change_password || false,
           });
         }
       },
@@ -306,6 +314,7 @@ export const useAuthStore = create<AuthState>()(
               permissions: profile.permissions || [],
               modulePermissions: profile.module_permissions || [],
               dataAccessLevel: profile.data_access_level || 'SELF',
+              mustChangePassword: profile.must_change_password || false,
             });
           }
         } catch (error) {
@@ -324,6 +333,7 @@ export const useAuthStore = create<AuthState>()(
         modulePermissions: state.modulePermissions,
         dataAccessLevel: state.dataAccessLevel,
         isAuthenticated: state.isAuthenticated,
+        mustChangePassword: state.mustChangePassword,
       }),
     }
   )

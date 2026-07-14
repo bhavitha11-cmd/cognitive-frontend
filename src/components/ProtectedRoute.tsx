@@ -28,6 +28,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }, [isAuthenticated, hydrateFromStorage]);
 
+  const mustChangePassword = useAuthStore((s) => s.mustChangePassword);
+
   // If there's no token in store or localStorage, redirect to login
   const hasLocalToken = !!localStorage.getItem('cognitive_token');
   if (!token && !hasLocalToken) {
@@ -41,6 +43,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         <CircularProgress />
       </Box>
     );
+  }
+
+  // Force password change if required and not already on the change password page
+  if (mustChangePassword && window.location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  // Redirect to dashboard if trying to access change-password but not required
+  if (!mustChangePassword && window.location.pathname === '/change-password') {
+    return <Navigate to="/dashboard/private" replace />;
   }
 
   // If a module/action guard is specified, check permissions
