@@ -54,6 +54,7 @@ import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import LibraryBooksOutlinedIcon from '@mui/icons-material/LibraryBooksOutlined';
 import LayersOutlinedIcon from '@mui/icons-material/LayersOutlined';
+import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 
 import { useAppStore } from '../store/useAppStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -260,6 +261,8 @@ export const MainLayout: React.FC = () => {
       '/master-data/task-templates': 'task_title_library',
       '/master-data/calendar-config': 'calendar_configuration',
       '/settings': 'settings',
+      '/tickets/my': 'my_tickets',
+      '/tickets/support': 'category_tickets',
     };
 
     // If modulePermissions is empty (e.g. before initial profile fetch), fallback to hasPermission filter
@@ -280,6 +283,7 @@ export const MainLayout: React.FC = () => {
       'Reports': 'reports',
       'Master Data': 'master_data',
       'Settings': 'settings',
+      'Tickets': 'tickets',
     };
 
     return menuItems
@@ -393,6 +397,14 @@ export const MainLayout: React.FC = () => {
         { name: 'Attendance', path: '/timesheets/attendance', icon: <CheckCircleOutlinedIcon fontSize="small" /> },
         { name: 'My Leaves', path: '/timesheets/leave', icon: <EventBusyOutlinedIcon fontSize="small" /> },
         { name: 'Leave Approval', path: '/timesheets/leave-approval', icon: <CheckCircleOutlinedIcon fontSize="small" />, adminOnly: true },
+      ],
+    },
+    {
+      name: 'Tickets',
+      icon: <ConfirmationNumberOutlinedIcon />,
+      children: [
+        { name: 'My Tickets', path: '/tickets/my' },
+        { name: 'Support Queue', path: '/tickets/support' },
       ],
     },
     {

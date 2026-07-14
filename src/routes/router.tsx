@@ -343,6 +343,48 @@ export const router = createBrowserRouter([
           },
         ],
       },
+      // Tickets
+      {
+        path: 'tickets',
+        children: [
+          {
+            path: '',
+            element: <Navigate to="/tickets/my" replace />,
+          },
+          {
+            path: 'my',
+            element: (
+              <ProtectedRoute module="my_tickets" action="view">
+                {lazyLoad(() => import('../modules/tickets/pages/MyTicketsPage'), 'table')}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'raise',
+            element: (
+              <ProtectedRoute module="raise_ticket" action="view">
+                {lazyLoad(() => import('../modules/tickets/pages/RaiseTicketPage'), 'form')}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: 'support',
+            element: (
+              <ProtectedRoute module="category_tickets" action="view">
+                {lazyLoad(() => import('../modules/tickets/pages/CategoryTicketsPage'), 'table')}
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: ':id',
+            element: (
+              <ProtectedRoute module="my_tickets" action="view">
+                {lazyLoad(() => import('../modules/tickets/pages/TicketDetailPage'), 'dashboard')}
+              </ProtectedRoute>
+            ),
+          },
+        ],
+      },
       // Settings
       {
         path: 'settings',

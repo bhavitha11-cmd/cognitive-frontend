@@ -62,6 +62,8 @@ import {
   useCreateLeaveType,
   useUpdateLeaveType,
 } from '../../timesheets/services/leaveService';
+import TicketSettings from '../components/TicketSettings';
+import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 
 type SettingsTab =
   | 'company'
@@ -69,7 +71,8 @@ type SettingsTab =
   | 'profile'
   | 'email'
   | 'approval'
-  | 'leave';
+  | 'leave'
+  | 'tickets';
 
 export const SettingsPage: React.FC = () => {
   const settings = useAppStore((state) => state.settings);
@@ -371,6 +374,7 @@ export const SettingsPage: React.FC = () => {
     { id: 'email' as const, label: 'Email Integration', icon: <EmailIcon /> },
     { id: 'approval' as const, label: 'Approval Workflows', icon: <CheckCircleIcon /> },
     { id: 'leave' as const, label: 'Leave Settings', icon: <InfoIcon /> },
+    { id: 'tickets' as const, label: 'Ticket Management', icon: <ConfirmationNumberIcon /> },
   ];
 
   return (
@@ -1597,6 +1601,10 @@ export const SettingsPage: React.FC = () => {
                     </Box>
                   )}
                 </Box>
+              )}
+
+              {activeTab === 'tickets' && (
+                <TicketSettings />
               )}
 
             </CardContent>
