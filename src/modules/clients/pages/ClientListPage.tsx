@@ -39,8 +39,7 @@ import {
   useDeleteClient,
 } from '../services/clientService';
 import type { Client, ClientCreate, ClientUpdate } from '../types';
-import { parseError } from '../../../utils/api';
-import { COUNTRIES } from '../../../utils/countries';
+import { COUNTRIES, getCountryByName, validatePhoneNumber } from '../../../utils/countries';
 
 // ==========================================
 // HELPERS
@@ -100,7 +99,7 @@ const clientSchema = z.object({
     })
   ).optional().default([]),
 }).superRefine((data, ctx) => {
-  // Validate primary phone: numeric only and exactly 10 digits
+  // Validate primary phone: dynamic validation based on country/countryCode
   if (!data.contactPhone || data.contactPhone.trim() === '') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -108,17 +107,11 @@ const clientSchema = z.object({
       path: ['contactPhone'],
     });
   } else {
-    const primaryPhoneDigits = data.contactPhone.replace(/\D/g, '');
-    if (data.contactPhone !== primaryPhoneDigits) {
+    const res = validatePhoneNumber(data.contactPhone, data.country, data.countryCode);
+    if (!res.valid) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Phone number must contain numeric characters only.',
-        path: ['contactPhone'],
-      });
-    } else if (primaryPhoneDigits.length !== 10) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Phone number must be exactly 10 digits.',
+        message: res.message || 'Invalid primary contact number.',
         path: ['contactPhone'],
       });
     }
@@ -126,17 +119,11 @@ const clientSchema = z.object({
 
   // Validate alternate phone if provided
   if (data.alternatePhone && data.alternatePhone.trim() !== '') {
-    const altPhoneDigits = data.alternatePhone.replace(/\D/g, '');
-    if (data.alternatePhone !== altPhoneDigits) {
+    const res = validatePhoneNumber(data.alternatePhone, undefined, data.alternateCountryCode);
+    if (!res.valid) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Phone number must contain numeric characters only.',
-        path: ['alternatePhone'],
-      });
-    } else if (altPhoneDigits.length !== 10) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Alternate phone number must be exactly 10 digits.',
+        message: res.message || 'Invalid alternate phone number.',
         path: ['alternatePhone'],
       });
     }
@@ -177,17 +164,11 @@ const clientSchema = z.object({
           path: ['additionalContacts', idx, 'phone'],
         });
       } else {
-        const phoneDigits = ac.phone.replace(/\D/g, '');
-        if (ac.phone !== phoneDigits) {
+        const res = validatePhoneNumber(ac.phone, undefined, ac.countryCode);
+        if (!res.valid) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'Phone number must contain numeric characters only.',
-            path: ['additionalContacts', idx, 'phone'],
-          });
-        } else if (phoneDigits.length !== 10) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Phone number must be exactly 10 digits.',
+            message: res.message || 'Invalid phone number.',
             path: ['additionalContacts', idx, 'phone'],
           });
         }
@@ -243,6 +224,8 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
     formState: { errors },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema) as any,
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       name: '',
       clientCode: '',
@@ -269,16 +252,25 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
   });
 
   const watchedCountry = watch('country');
+  const watchedCountryCode = watch('countryCode');
+  const watchedAltCountryCode = watch('alternateCountryCode');
+  const watchedAdditionalContacts = watch('additionalContacts') || [];
+
+  const primaryCountryObj = getCountryByName(watchedCountry) || COUNTRIES.find((c) => c.dialCode === watchedCountryCode);
+  const primaryMaxLength = primaryCountryObj?.maxLength || 15;
+
+  const altCountryObj = COUNTRIES.find((c) => c.dialCode === watchedAltCountryCode);
+  const altMaxLength = altCountryObj?.maxLength || 15;
 
   // Automatically update primary and alternate country codes when country changes
   useEffect(() => {
     if (watchedCountry) {
-      const countryObj = COUNTRIES.find((c) => c.name === watchedCountry);
+      const countryObj = getCountryByName(watchedCountry);
       if (countryObj) {
-        setValue('countryCode', countryObj.dialCode);
+        setValue('countryCode', countryObj.dialCode, { shouldValidate: true });
         const currentAlt = getValues('alternateCountryCode');
         if (!currentAlt || currentAlt === '+91') {
-          setValue('alternateCountryCode', countryObj.dialCode);
+          setValue('alternateCountryCode', countryObj.dialCode, { shouldValidate: true });
         }
       }
     }
@@ -392,7 +384,14 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                 options={COUNTRIES.map((c) => c.name)}
                 value={field.value || null}
                 onChange={(_, newValue) => {
-                  field.onChange(newValue || '');
+                  const val = newValue || '';
+                  field.onChange(val);
+                  if (val) {
+                    const countryObj = getCountryByName(val);
+                    if (countryObj) {
+                      setValue('countryCode', countryObj.dialCode, { shouldValidate: true });
+                    }
+                  }
                 }}
                 openOnFocus
                 renderInput={(params) => (
@@ -483,9 +482,12 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                 size="small"
                 error={!!errors.contactPhone}
                 helperText={errors.contactPhone?.message}
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { maxLength: primaryMaxLength },
+                }}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  const val = e.target.value.replace(/\D/g, '').slice(0, primaryMaxLength);
                   field.onChange(val);
                 }}
               />
@@ -528,9 +530,12 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                 size="small"
                 error={!!errors.alternatePhone}
                 helperText={errors.alternatePhone?.message}
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{
+                  inputLabel: { shrink: true },
+                  htmlInput: { maxLength: altMaxLength },
+                }}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  const val = e.target.value.replace(/\D/g, '').slice(0, altMaxLength);
                   field.onChange(val);
                 }}
               />
@@ -683,20 +688,28 @@ const ClientFormContent: React.FC<ClientFormProps> = ({ isEdit, defaultValues, o
                       <Controller
                         name={`additionalContacts.${index}.phone`}
                         control={control}
-                        render={({ field }) => (
-                          <TextField
-                            {...field}
-                            label="Phone *"
-                            fullWidth
-                            size="small"
-                            error={!!errors.additionalContacts?.[index]?.phone}
-                            helperText={errors.additionalContacts?.[index]?.phone?.message}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                              field.onChange(val);
-                            }}
-                          />
-                        )}
+                        render={({ field }) => {
+                          const acDialCode = watchedAdditionalContacts[index]?.countryCode || '+91';
+                          const acCountryObj = COUNTRIES.find((c) => c.dialCode === acDialCode);
+                          const acMaxLength = acCountryObj?.maxLength || 15;
+                          return (
+                            <TextField
+                              {...field}
+                              label="Phone *"
+                              fullWidth
+                              size="small"
+                              error={!!errors.additionalContacts?.[index]?.phone}
+                              helperText={errors.additionalContacts?.[index]?.phone?.message}
+                              slotProps={{
+                                htmlInput: { maxLength: acMaxLength },
+                              }}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, acMaxLength);
+                                field.onChange(val);
+                              }}
+                            />
+                          );
+                        }}
                       />
                     </Grid>
                     <Grid size={{ xs: 2, sm: 1 }} sx={{ display: 'flex', justifyContent: 'center', mt: 0.5 }}>
@@ -888,17 +901,23 @@ export const ClientListPage: React.FC = () => {
   };
 
   const handleFormSubmit = (values: ClientFormValues) => {
-    const contactPhoneFormatted = `${values.countryCode} ${values.contactPhone}`;
-    const alternatePhoneFormatted =
-      values.alternatePhone && values.alternatePhone.trim() !== ''
-        ? `${values.alternateCountryCode || values.countryCode} ${values.alternatePhone}`
-        : undefined;
+    const primaryRes = validatePhoneNumber(values.contactPhone, values.country, values.countryCode);
+    const contactPhoneFormatted = primaryRes.normalized || `${values.countryCode} ${values.contactPhone}`;
 
-    const additionalContactsFormatted = (values.additionalContacts || []).map((ac) => ({
-      name: ac.name,
-      email: ac.email,
-      phone: `${ac.countryCode} ${ac.phone}`,
-    }));
+    let alternatePhoneFormatted: string | undefined = undefined;
+    if (values.alternatePhone && values.alternatePhone.trim() !== '') {
+      const altRes = validatePhoneNumber(values.alternatePhone, undefined, values.alternateCountryCode || values.countryCode);
+      alternatePhoneFormatted = altRes.normalized || `${values.alternateCountryCode || values.countryCode} ${values.alternatePhone}`;
+    }
+
+    const additionalContactsFormatted = (values.additionalContacts || []).map((ac) => {
+      const acRes = validatePhoneNumber(ac.phone, undefined, ac.countryCode);
+      return {
+        name: ac.name,
+        email: ac.email,
+        phone: acRes.normalized || `${ac.countryCode} ${ac.phone}`,
+      };
+    });
 
     const payload: ClientCreate = {
       name: values.name,

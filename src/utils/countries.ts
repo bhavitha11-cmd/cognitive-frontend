@@ -1,11 +1,22 @@
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
+
 export interface CountryData {
+  code: string;
+  isoCode: string;
+  name: string;
+  dialCode: string;
+  phoneLengths: number[];
+  maxLength: number;
+}
+
+interface RawCountryData {
   code: string;
   name: string;
   dialCode: string;
   phoneLengths: number[];
 }
 
-export const COUNTRIES: CountryData[] = [
+const RAW_COUNTRIES: RawCountryData[] = [
   { code: 'AF', name: 'Afghanistan', dialCode: '+93', phoneLengths: [9] },
   { code: 'AL', name: 'Albania', dialCode: '+355', phoneLengths: [9] },
   { code: 'DZ', name: 'Algeria', dialCode: '+213', phoneLengths: [9] },
@@ -84,7 +95,7 @@ export const COUNTRIES: CountryData[] = [
   { code: 'GA', name: 'Gabon', dialCode: '+241', phoneLengths: [7] },
   { code: 'GM', name: 'Gambia', dialCode: '+220', phoneLengths: [7] },
   { code: 'GE', name: 'Georgia', dialCode: '+995', phoneLengths: [9] },
-  { code: 'DE', name: 'Germany', dialCode: '+49', phoneLengths: [10, 11, 12] },
+  { code: 'DE', name: 'Germany', dialCode: '+49', phoneLengths: [10, 11] },
   { code: 'GH', name: 'Ghana', dialCode: '+233', phoneLengths: [9] },
   { code: 'GI', name: 'Gibraltar', dialCode: '+350', phoneLengths: [8] },
   { code: 'GR', name: 'Greece', dialCode: '+30', phoneLengths: [10] },
@@ -247,25 +258,98 @@ export const COUNTRIES: CountryData[] = [
   { code: 'ZW', name: 'Zimbabwe', dialCode: '+263', phoneLengths: [9] }
 ];
 
+export const COUNTRIES: CountryData[] = RAW_COUNTRIES.map((c) => ({
+  ...c,
+  isoCode: c.code,
+  maxLength: Math.max(...c.phoneLengths),
+}));
+
 export const getCountryByDialCode = (dialCode: string): CountryData | undefined => {
-  return COUNTRIES.find(c => c.dialCode === dialCode);
+  return COUNTRIES.find((c) => c.dialCode === dialCode);
 };
 
 export const getCountryByName = (name: string): CountryData | undefined => {
-  return COUNTRIES.find(c => c.name.toLowerCase() === name.toLowerCase());
+  return COUNTRIES.find((c) => c.name.toLowerCase() === name.toLowerCase());
 };
 
-export const validatePhoneNumber = (number: string, countryName?: string): boolean => {
-  const digitsOnly = number.replace(/\D/g, '');
-  if (!digitsOnly) return false;
+export const getCountryByIsoCode = (isoCode: string): CountryData | undefined => {
+  return COUNTRIES.find((c) => c.isoCode.toLowerCase() === isoCode.toLowerCase() || c.code.toLowerCase() === isoCode.toLowerCase());
+};
 
-  if (countryName) {
-    const country = getCountryByName(countryName);
-    if (country) {
-      return country.phoneLengths.includes(digitsOnly.length);
+export interface PhoneValidationResult {
+  valid: boolean;
+  normalized?: string;
+  message?: string;
+  maxLength: number;
+}
+
+export const validatePhoneNumber = (
+  phone?: string,
+  isoCodeOrCountryName?: string,
+  dialCode?: string
+): PhoneValidationResult => {
+  let country: CountryData | undefined;
+
+  if (isoCodeOrCountryName) {
+    country = COUNTRIES.find(
+      (c) =>
+        c.isoCode.toLowerCase() === isoCodeOrCountryName.toLowerCase() ||
+        c.code.toLowerCase() === isoCodeOrCountryName.toLowerCase() ||
+        c.name.toLowerCase() === isoCodeOrCountryName.toLowerCase()
+    );
+  }
+
+  if (!country && dialCode) {
+    country = COUNTRIES.find((c) => c.dialCode === dialCode);
+  }
+
+  const defaultMaxLength = 15;
+  const maxLength = country ? country.maxLength : defaultMaxLength;
+  const countryName = country ? country.name : 'the selected country';
+  const isoCode = country ? (country.isoCode as CountryCode) : undefined;
+  const targetDialCode = dialCode || (country ? country.dialCode : '');
+
+  const digits = (phone || '').replace(/\D/g, '');
+
+  if (!digits) {
+    return {
+      valid: false,
+      message: 'Phone number is required.',
+      maxLength,
+    };
+  }
+
+  if (country) {
+    const minLength = Math.min(...country.phoneLengths);
+    const maxLen = country.maxLength;
+    if (digits.length < minLength || digits.length > maxLen) {
+      const lenStr = minLength === maxLen ? `${minLength}` : `${minLength}–${maxLen}`;
+      return {
+        valid: false,
+        message: `Phone number must contain ${lenStr} digits for ${countryName}.`,
+        maxLength,
+      };
     }
   }
 
-  // General international length standard fallback
-  return digitsOnly.length >= 7 && digitsOnly.length <= 15;
+  const cleanDialCode = targetDialCode.replace(/[^\d+]/g, '');
+  const candidate = cleanDialCode ? `${cleanDialCode}${digits}` : `+${digits}`;
+
+  const phoneNumber = parsePhoneNumberFromString(candidate, isoCode);
+  const isValid = phoneNumber ? phoneNumber.isValid() : false;
+
+  if (!isValid) {
+    return {
+      valid: false,
+      message: `Please enter a valid ${countryName} phone number.`,
+      maxLength,
+    };
+  }
+
+  return {
+    valid: true,
+    normalized: phoneNumber?.number,
+    maxLength,
+  };
 };
+
