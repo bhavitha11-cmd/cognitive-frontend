@@ -112,6 +112,7 @@ export interface CompanyEventUpdate {
 export interface CalendarSettings {
   workingDays: string;
   weekendDays: string;
+  weeklyOffRules: Record<string, number[]> | null;
   officeStartTime: string;
   officeEndTime: string;
   defaultDailyHours: number;

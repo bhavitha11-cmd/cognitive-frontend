@@ -16,8 +16,11 @@ import {
   DialogContentText,
   DialogTitle,
   Divider,
+  FormControl,
   Grid,
   InputAdornment,
+  MenuItem,
+  Select,
   Snackbar,
   Stack,
   Table,
@@ -27,6 +30,8 @@ import {
   TableHead,
   TableRow,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -41,6 +46,9 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import SearchIcon from '@mui/icons-material/Search';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import HistoryIcon from '@mui/icons-material/History';
 
 import { api, parseError } from '../../../utils/api';
 import {
@@ -175,6 +183,51 @@ const fmtLateBy = (minutes?: number) => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
+};
+
+const fmtDate = (dStr?: string) => {
+  if (!dStr) return '—';
+  const d = new Date(dStr + 'T12:00:00');
+  if (isNaN(d.getTime())) return dStr;
+  return d.toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const getClockOutStatus = (rec: AttendanceRecord, todayStr: string) => {
+  if (rec.clockOut) {
+    return {
+      label: 'Clocked Out',
+      color: 'success' as const,
+      variant: 'filled' as const,
+      icon: <CheckCircleOutlinedIcon style={{ fontSize: 14 }} />,
+    };
+  }
+  if (rec.clockIn) {
+    if (rec.date === todayStr) {
+      return {
+        label: 'Working (Active)',
+        color: 'primary' as const,
+        variant: 'outlined' as const,
+        icon: <AccessTimeIcon style={{ fontSize: 14 }} />,
+      };
+    }
+    return {
+      label: 'Missed Clock-Out',
+      color: 'warning' as const,
+      variant: 'outlined' as const,
+      icon: <ScheduleIcon style={{ fontSize: 14 }} />,
+    };
+  }
+  return {
+    label: 'Not Clocked In',
+    color: 'default' as const,
+    variant: 'outlined' as const,
+    icon: undefined,
+  };
 };
 
 // ==========================================
@@ -487,6 +540,23 @@ export const AttendancePage: React.FC = () => {
   const today = toISODate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
 
+  // History & Date Range State
+  const [viewMode, setViewMode] = useState<'single' | 'history'>('single');
+
+  const sevenDaysAgo = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return toISODate(d);
+  }, []);
+
+  const [fromDate, setFromDate] = useState<string>(sevenDaysAgo);
+  const [toDate, setToDate] = useState<string>(today);
+
+  // Filters
+  const [clockOutFilter, setClockOutFilter] = useState<'all' | 'clocked_out' | 'working' | 'missed'>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -534,11 +604,18 @@ export const AttendancePage: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  // --- Attendance list for the selected date ---
-  const { data: records = [], isLoading: recordsLoading } = useQuery<AttendanceRecord[]>({
-    queryKey: ['attendance', selectedDate],
+  // --- Attendance list (single date or history date range) ---
+  const { data: rawRecords = [], isLoading: recordsLoading } = useQuery<AttendanceRecord[]>({
+    queryKey: ['attendance', viewMode, selectedDate, fromDate, toDate],
     queryFn: async () => {
-      const response = await api.get('/attendance', { params: { date: selectedDate } });
+      const params: Record<string, any> = {};
+      if (viewMode === 'single') {
+        params.date = selectedDate;
+      } else {
+        params.from_date = fromDate;
+        params.to_date = toDate;
+      }
+      const response = await api.get('/attendance', { params });
       const items =
         response.data?.data?.attendance ||
         response.data?.data?.records ||
@@ -548,6 +625,29 @@ export const AttendancePage: React.FC = () => {
       return Array.isArray(items) ? items.map(mapAttendanceRecord) : [];
     },
   });
+
+  // Filter records by search query, clock out status, and attendance status
+  const records = useMemo(() => {
+    return rawRecords.filter((rec) => {
+      // Clock-Out status filter
+      if (clockOutFilter === 'clocked_out' && !rec.clockOut) return false;
+      if (clockOutFilter === 'working' && (!rec.clockIn || rec.clockOut || rec.date !== today)) return false;
+      if (clockOutFilter === 'missed' && (!rec.clockIn || rec.clockOut || rec.date >= today)) return false;
+
+      // Attendance status filter
+      if (statusFilter !== 'all' && rec.status !== statusFilter) return false;
+
+      // Search query filter (employee name or code)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const nameMatch = rec.employeeName.toLowerCase().includes(q);
+        const codeMatch = rec.employeeCode?.toLowerCase().includes(q);
+        if (!nameMatch && !codeMatch) return false;
+      }
+
+      return true;
+    });
+  }, [rawRecords, clockOutFilter, statusFilter, searchQuery, today]);
 
   // --- My attendance for the selected date ---
   const { data: myAttendance, isLoading: myLoading } = useQuery<MyAttendance | null>({
@@ -616,7 +716,6 @@ export const AttendancePage: React.FC = () => {
       const response = await api.get('/attendance/missed-clockout-requests', { params: { status: 'PENDING' } });
       return response.data?.data?.requests ?? [];
     },
-    enabled: showPendingRequests,
   });
   const pendingRequests: any[] = pendingRequestsData ?? [];
 
@@ -684,7 +783,6 @@ export const AttendancePage: React.FC = () => {
       const response = await api.get('/attendance/missed-clockin-requests', { params: { status: 'PENDING' } });
       return response.data?.data?.requests ?? [];
     },
-    enabled: showPendingClockinRequests,
   });
   const pendingClockinRequests: any[] = pendingClockinRequestsData ?? [];
 
@@ -953,27 +1051,169 @@ export const AttendancePage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Date Picker */}
+      {/* Date & History Controls Card */}
       <Card sx={{ p: 2, mb: 3 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
-          <TextField
-            label="Date"
-            type="date"
-            size="small"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 200 }}
-          />
-          {selectedDate !== today && (
-            <Button
-              variant="outlined"
+        <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, val) => {
+                if (val) setViewMode(val);
+              }}
               size="small"
-              onClick={() => setSelectedDate(today)}
+              color="primary"
             >
-              Jump to Today
-            </Button>
+              <ToggleButton value="single" sx={{ fontWeight: 600, px: 2 }}>
+                <CalendarTodayIcon fontSize="small" sx={{ mr: 1 }} />
+                Single Day
+              </ToggleButton>
+              <ToggleButton value="history" sx={{ fontWeight: 600, px: 2 }}>
+                <HistoryIcon fontSize="small" sx={{ mr: 1 }} />
+                Attendance History Range
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {viewMode === 'single' ? (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                  label="Selected Date"
+                  type="date"
+                  size="small"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ width: 180 }}
+                />
+                {selectedDate !== today && (
+                  <Button variant="outlined" size="small" onClick={() => setSelectedDate(today)}>
+                    Today
+                  </Button>
+                )}
+              </Stack>
+            ) : (
+              <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
+                <Button
+                  size="small"
+                  variant={fromDate === sevenDaysAgo && toDate === today ? 'contained' : 'outlined'}
+                  onClick={() => {
+                    setFromDate(sevenDaysAgo);
+                    setToDate(today);
+                  }}
+                >
+                  Last 7 Days
+                </Button>
+                <Button
+                  size="small"
+                  variant={
+                    fromDate ===
+                      toISODate(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)) && toDate === today
+                      ? 'contained'
+                      : 'outlined'
+                  }
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 29);
+                    setFromDate(toISODate(d));
+                    setToDate(today);
+                  }}
+                >
+                  Last 30 Days
+                </Button>
+                <Button
+                  size="small"
+                  variant={
+                    fromDate === `${today.substring(0, 7)}-01` && toDate === today
+                      ? 'contained'
+                      : 'outlined'
+                  }
+                  onClick={() => {
+                    setFromDate(`${today.substring(0, 7)}-01`);
+                    setToDate(today);
+                  }}
+                >
+                  This Month
+                </Button>
+              </Stack>
+            )}
+          </Stack>
+
+          {viewMode === 'history' && (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+              <TextField
+                label="From Date"
+                type="date"
+                size="small"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 170 }}
+              />
+              <Typography variant="body2" color="text.secondary">to</Typography>
+              <TextField
+                label="To Date"
+                type="date"
+                size="small"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 170 }}
+              />
+            </Stack>
           )}
+
+          <Divider />
+
+          {/* Filter Row: Search, Clock-Out Status Filter, Attendance Status Filter */}
+          <Grid container spacing={2} alignItems="center">
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                placeholder="Search employee name or code..."
+                size="small"
+                fullWidth
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon fontSize="small" color="action" />
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={clockOutFilter}
+                  onChange={(e) => setClockOutFilter(e.target.value as any)}
+                  displayEmpty
+                >
+                  <MenuItem value="all">All Clock-Out Statuses</MenuItem>
+                  <MenuItem value="clocked_out">✓ Clocked Out (Done)</MenuItem>
+                  <MenuItem value="working">● Working (In Progress)</MenuItem>
+                  <MenuItem value="missed">⚠ Missed Clock-Out</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4 }}>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  displayEmpty
+                >
+                  <MenuItem value="all">All Attendance Statuses</MenuItem>
+                  <MenuItem value="PRESENT">Present</MenuItem>
+                  <MenuItem value="ABSENT">Absent</MenuItem>
+                  <MenuItem value="LATE">Late</MenuItem>
+                  <MenuItem value="ON_LEAVE">On Leave</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </Stack>
       </Card>
 
@@ -1307,14 +1547,16 @@ export const AttendancePage: React.FC = () => {
 
       {/* Attendance Table */}
       <Card>
-        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-            Attendance Log — {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-IN', {
-              weekday: 'long',
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            })}
+        <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {viewMode === 'single'
+              ? `Attendance Log — ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-IN', {
+                  weekday: 'long',
+                  day: '2-digit',
+                  month: 'long',
+                  year: 'numeric',
+                })}`
+              : `Attendance History — ${fmtDate(fromDate)} to ${fmtDate(toDate)} (${records.length} records)`}
           </Typography>
         </Box>
         <Divider />
@@ -1328,7 +1570,7 @@ export const AttendancePage: React.FC = () => {
         ) : records.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              No attendance records found for this date.
+              No attendance records found for the selected criteria.
             </Typography>
           </Box>
         ) : (
@@ -1337,12 +1579,14 @@ export const AttendancePage: React.FC = () => {
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
                   {[
+                    'Date',
                     'Employee',
                     'Department',
                     'Clock In',
                     'Clock Out',
+                    'Clock-Out Status',
                     'Total Hours',
-                    'Status',
+                    'Attendance Status',
                     'Late By',
                   ].map((h) => (
                     <TableCell
@@ -1358,8 +1602,18 @@ export const AttendancePage: React.FC = () => {
                 {records.map((rec) => {
                   const statusCfg = STATUS_CONFIG[rec.status] ?? { label: rec.status, color: 'default' as const };
                   const lateBy = fmtLateBy(rec.lateByMinutes);
+                  const clockOutStatus = getClockOutStatus(rec, today);
+
                   return (
                     <TableRow key={rec.id} hover>
+                      {/* Date Column */}
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+                          {fmtDate(rec.date)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Employee Column */}
                       <TableCell>
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1372,26 +1626,64 @@ export const AttendancePage: React.FC = () => {
                           )}
                         </Box>
                       </TableCell>
+
+                      {/* Department */}
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {rec.departmentName ?? '—'}
                         </Typography>
                       </TableCell>
+
+                      {/* Clock In */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                           {fmtTime(rec.clockIn)}
                         </Typography>
                       </TableCell>
+
+                      {/* Clock Out */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                           {fmtTime(rec.clockOut)}
                         </Typography>
                       </TableCell>
+
+                      {/* Clock-Out Status */}
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Chip
+                            icon={clockOutStatus.icon}
+                            label={clockOutStatus.label}
+                            size="small"
+                            color={clockOutStatus.color}
+                            variant={clockOutStatus.variant}
+                            sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+                          />
+                          {clockOutStatus.label === 'Missed Clock-Out' && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              sx={{ py: 0, px: 1, fontSize: '0.7rem', height: 24, whiteSpace: 'nowrap' }}
+                              onClick={() => {
+                                setMissedDate(rec.date);
+                                setMissedDialogOpen(true);
+                              }}
+                            >
+                              Request Fix
+                            </Button>
+                          )}
+                        </Stack>
+                      </TableCell>
+
+                      {/* Total Hours */}
                       <TableCell>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {fmtHours(rec.totalHours)}
                         </Typography>
                       </TableCell>
+
+                      {/* Attendance Status */}
                       <TableCell>
                         <Chip
                           label={statusCfg.label}
@@ -1400,6 +1692,8 @@ export const AttendancePage: React.FC = () => {
                           sx={{ fontWeight: 600 }}
                         />
                       </TableCell>
+
+                      {/* Late By */}
                       <TableCell>
                         {lateBy ? (
                           <Chip

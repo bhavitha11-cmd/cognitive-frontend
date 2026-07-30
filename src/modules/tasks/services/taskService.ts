@@ -93,6 +93,7 @@ export interface TaskListParams {
   deptCat?: string;
   search?: string;
   employeeId?: string;
+  isActive?: boolean;
 }
 
 // ==========================================
@@ -111,6 +112,7 @@ export const useGetTasks = (params?: TaskListParams, options?: any) => {
       if (params?.deptCat && params.deptCat !== 'all') queryParams.department_category = params.deptCat;
       if (params?.search) queryParams.search = params.search;
       if (params?.employeeId) queryParams.employee_id = params.employeeId;
+      if (params?.isActive !== undefined) queryParams.is_active = params.isActive;
 
       const response = await api.get('/tasks', { params: queryParams });
       const data = response.data?.data || response.data || {};
@@ -293,6 +295,25 @@ export const useDeleteTask = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+};
+
+export const useToggleTaskActive = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, isActive, reason }: { id: string; isActive: boolean; reason?: string }) => {
+      const payload: Record<string, any> = { is_active: isActive };
+      if (reason) {
+        payload.remarks = reason;
+      }
+      const response = await api.put(`/tasks/${id}`, payload);
+      const raw = response.data?.data?.task || response.data?.data || response.data;
+      return mapBackendTaskToFrontend(raw);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', variables.id] });
     },
   });
 };

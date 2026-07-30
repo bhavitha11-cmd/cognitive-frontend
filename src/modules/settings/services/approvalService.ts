@@ -204,7 +204,21 @@ export const useActionApprovalStep = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['approval-history'] });
       queryClient.invalidateQueries({ queryKey: ['leave-requests-all'] });
+    },
+  });
+};
+
+export const useGetApprovalHistory = (moduleType?: string) => {
+  return useQuery<PendingApprovalInstance[]>({
+    queryKey: ['approval-history', moduleType],
+    queryFn: async () => {
+      const params: Record<string, any> = {};
+      if (moduleType) params.module_type = moduleType;
+      const response = await api.get('/approvals/history', { params });
+      const items = response.data?.data?.history || [];
+      return items.map(mapPendingInstanceFromBackend);
     },
   });
 };

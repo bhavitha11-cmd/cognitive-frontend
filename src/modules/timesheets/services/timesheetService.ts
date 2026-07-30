@@ -24,6 +24,7 @@ const mapBackendTimeEntryToFrontend = (e: any): TimeEntry => ({
   status: e.status || 'DRAFT',
   submittedAt: e.submitted_at || undefined,
   approvedBy: e.approved_by || undefined,
+  approvedByName: e.approved_by_name || undefined,
   approvedAt: e.approved_at || undefined,
   rejectionReason: e.rejection_reason || undefined,
   createdAt: e.created_at || undefined,

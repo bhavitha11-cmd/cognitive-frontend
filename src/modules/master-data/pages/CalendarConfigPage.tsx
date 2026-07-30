@@ -32,6 +32,9 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  Checkbox,
+  FormGroup,
+  Tooltip,
 } from '@mui/material';
 
 // Icons
@@ -46,6 +49,8 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 // Services
 import {
@@ -476,8 +481,77 @@ export const CalendarConfigPage: React.FC = () => {
       updated = current.filter((d) => d !== day);
     } else {
       updated = [...current, day];
+      // Auto-cleanup: remove this day from weekly off rules since it's now a full weekend day
+      if (settingsForm.weeklyOffRules && day in settingsForm.weeklyOffRules) {
+        const cleanedRules = { ...settingsForm.weeklyOffRules };
+        delete cleanedRules[day];
+        handleSettingsFieldChange('weeklyOffRules', Object.keys(cleanedRules).length > 0 ? cleanedRules : null);
+      }
     }
     handleSettingsFieldChange('weekendDays', updated.join(','));
+  };
+
+  // ── Weekly Off Rules helpers ──────────────────────────────────────────────
+  const ORDINAL_LABELS = ['1st', '2nd', '3rd', '4th', '5th'];
+
+  const getAvailableDaysForRules = (): string[] => {
+    const weekendSet = new Set(settingsForm.weekendDays?.split(',') || []);
+    const existingRuleDays = new Set(Object.keys(settingsForm.weeklyOffRules || {}));
+    return daysOfWeek.filter((d) => !weekendSet.has(d) && !existingRuleDays.has(d));
+  };
+
+  const addDayRule = (day: string) => {
+    const current = settingsForm.weeklyOffRules || {};
+    handleSettingsFieldChange('weeklyOffRules', { ...current, [day]: [] });
+  };
+
+  const removeDayRule = (day: string) => {
+    const current = { ...(settingsForm.weeklyOffRules || {}) };
+    delete current[day];
+    handleSettingsFieldChange('weeklyOffRules', Object.keys(current).length > 0 ? current : null);
+  };
+
+  const toggleOrdinal = (day: string, ordinal: number) => {
+    const current = { ...(settingsForm.weeklyOffRules || {}) };
+    const ordinals = current[day] || [];
+    if (ordinals.includes(ordinal)) {
+      current[day] = ordinals.filter((o) => o !== ordinal);
+    } else {
+      current[day] = [...ordinals, ordinal].sort((a, b) => a - b);
+    }
+    // Remove day if no ordinals selected
+    if (current[day].length === 0) {
+      delete current[day];
+    }
+    handleSettingsFieldChange('weeklyOffRules', Object.keys(current).length > 0 ? current : null);
+  };
+
+  const applyPreset = (preset: 'SAT_2_4' | 'SAT_1_3' | 'SAT_ALT') => {
+    let rules: Record<string, number[]>;
+    switch (preset) {
+      case 'SAT_2_4':
+        rules = { SAT: [2, 4] };
+        break;
+      case 'SAT_1_3':
+        rules = { SAT: [1, 3] };
+        break;
+      case 'SAT_ALT':
+        rules = { SAT: [2, 4] }; // Alternate = 2nd & 4th most commonly
+        break;
+      default:
+        rules = {};
+    }
+    // Ensure SAT is in working days and not in weekend days
+    const weekendSet = new Set(settingsForm.weekendDays?.split(',') || []);
+    if (weekendSet.has('SAT')) {
+      weekendSet.delete('SAT');
+      handleSettingsFieldChange('weekendDays', Array.from(weekendSet).join(','));
+    }
+    const workingArr = settingsForm.workingDays?.split(',') || [];
+    if (!workingArr.includes('SAT')) {
+      handleSettingsFieldChange('workingDays', [...workingArr, 'SAT'].join(','));
+    }
+    handleSettingsFieldChange('weeklyOffRules', rules);
   };
 
   if (settingsLoading) {
@@ -1010,6 +1084,120 @@ export const CalendarConfigPage: React.FC = () => {
                     );
                   })}
                 </Box>
+              </Grid>
+
+              {/* Custom Weekly Off Pattern */}
+              <Grid size={{ xs: 12 }}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  Custom Weekly Off Pattern (Optional)
+                </Typography>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 2 }}>
+                  Configure specific weeks of the month as off for any working day. For example, make the 2nd &amp; 4th Saturday a holiday.
+                </Typography>
+
+                {/* Quick Presets */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => applyPreset('SAT_2_4')}
+                    sx={{ textTransform: 'none', borderRadius: 2, fontSize: '0.8rem' }}
+                  >
+                    2nd &amp; 4th Saturday Off
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => applyPreset('SAT_1_3')}
+                    sx={{ textTransform: 'none', borderRadius: 2, fontSize: '0.8rem' }}
+                  >
+                    1st &amp; 3rd Saturday Off
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="error"
+                    onClick={() => handleSettingsFieldChange('weeklyOffRules', null)}
+                    sx={{ textTransform: 'none', borderRadius: 2, fontSize: '0.8rem' }}
+                  >
+                    Clear All Rules
+                  </Button>
+                </Box>
+
+                {/* Active Day Rules */}
+                {settingsForm.weeklyOffRules && Object.keys(settingsForm.weeklyOffRules).length > 0 && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+                    {Object.entries(settingsForm.weeklyOffRules).map(([day, ordinals]) => (
+                      <Paper
+                        key={day}
+                        variant="outlined"
+                        sx={{ p: 2, borderRadius: 2, backgroundColor: 'action.hover' }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {day}
+                          </Typography>
+                          <Tooltip title={`Remove ${day} rule`}>
+                            <IconButton size="small" onClick={() => removeDayRule(day)} color="error">
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                        <Typography variant="caption" color="textSecondary" sx={{ mb: 1, display: 'block' }}>
+                          Which {day.charAt(0) + day.slice(1).toLowerCase()}s of the month are off?
+                        </Typography>
+                        <FormGroup row>
+                          {ORDINAL_LABELS.map((label, idx) => (
+                            <FormControlLabel
+                              key={idx}
+                              control={
+                                <Checkbox
+                                  checked={ordinals.includes(idx + 1)}
+                                  onChange={() => toggleOrdinal(day, idx + 1)}
+                                  size="small"
+                                />
+                              }
+                              label={label}
+                              sx={{ mr: 2 }}
+                            />
+                          ))}
+                        </FormGroup>
+                      </Paper>
+                    ))}
+                  </Box>
+                )}
+
+                {/* Add Day Rule */}
+                {getAvailableDaysForRules().length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                      <InputLabel>Add Day Rule</InputLabel>
+                      <Select
+                        label="Add Day Rule"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) addDayRule(e.target.value as string);
+                        }}
+                      >
+                        {getAvailableDaysForRules().map((day) => (
+                          <MenuItem key={day} value={day}>{day}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Tooltip title="Select a day to configure which ordinal weeks are off">
+                      <InfoOutlinedIcon fontSize="small" color="action" />
+                    </Tooltip>
+                  </Box>
+                )}
+
+                {/* Info note */}
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1.5, display: 'block' }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 14, verticalAlign: 'text-bottom', mr: 0.5 }} />
+                  5th occurrence only exists in months with 29+ days. Holidays, weekends, and weekly off rules are never double-counted.
+                </Typography>
               </Grid>
 
               {/* Time Setup */}

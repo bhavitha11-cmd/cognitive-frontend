@@ -14,6 +14,8 @@ import {
   DialogTitle,
   Snackbar,
   Stack,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -28,7 +30,7 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import FilterListIcon from '@mui/icons-material/FilterList';
 
-import { useGetPendingApprovals, useActionApprovalStep } from '../../settings/services/approvalService';
+import { useGetPendingApprovals, useGetApprovalHistory, useActionApprovalStep } from '../../settings/services/approvalService';
 import type { PendingApprovalInstance } from '../../settings/services/approvalService';
 import { parseError } from '../../../utils/api';
 
@@ -141,6 +143,7 @@ const QUICK_FILTERS = [
 // ==========================================
 
 export const LeaveApprovalPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [quickFilter, setQuickFilter] = useState<string>('all');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [rejectTarget, setRejectTarget] = useState<PendingApprovalInstance | null>(null);
@@ -154,15 +157,19 @@ export const LeaveApprovalPage: React.FC = () => {
   const showSnack = (message: string, severity: 'success' | 'error' = 'success') =>
     setSnackbar({ open: true, message, severity });
 
-  const { data: pendingApprovals = [], isLoading, refetch } = useGetPendingApprovals();
+  const { data: pendingApprovals = [], isLoading: pendingLoading, refetch: refetchPending } = useGetPendingApprovals();
+  const { data: historyApprovals = [], isLoading: historyLoading } = useGetApprovalHistory();
   const actionMutation = useActionApprovalStep();
+
+  const currentApprovals = activeTab === 'pending' ? pendingApprovals : historyApprovals;
+  const isLoading = activeTab === 'pending' ? pendingLoading : historyLoading;
 
   // Client-side filter for module type and employee search
   const filteredApprovals = useMemo(() => {
-    let data = [...pendingApprovals];
+    let data = [...currentApprovals];
 
     if (quickFilter !== 'all') {
-      data = data.filter((r) => r.moduleType === quickFilter);
+      data = data.filter((r) => r.moduleType === quickFilter || (quickFilter === 'TIMESHEET' && (r.moduleType === 'TIME SHEET' || r.moduleType === 'TIME_ENTRY')));
     }
 
     if (employeeSearch.trim()) {
@@ -175,7 +182,7 @@ export const LeaveApprovalPage: React.FC = () => {
     }
 
     return data;
-  }, [pendingApprovals, quickFilter, employeeSearch]);
+  }, [currentApprovals, quickFilter, employeeSearch]);
 
   const handleApprove = (req: PendingApprovalInstance) => {
     actionMutation.mutate(
@@ -183,7 +190,7 @@ export const LeaveApprovalPage: React.FC = () => {
       {
         onSuccess: () => {
           showSnack(`Request approved successfully.`);
-          refetch();
+          refetchPending();
         },
         onError: (err) => showSnack(parseError(err), 'error'),
       }
@@ -197,7 +204,7 @@ export const LeaveApprovalPage: React.FC = () => {
         onSuccess: () => {
           showSnack('Request rejected.');
           setRejectTarget(null);
-          refetch();
+          refetchPending();
         },
         onError: (err) => {
           showSnack(parseError(err), 'error');
@@ -231,6 +238,14 @@ export const LeaveApprovalPage: React.FC = () => {
             Review and action your pending approval queue resolved by configuration rules.
           </Typography>
         </Box>
+      </Box>
+
+      {/* Tabs Header */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={activeTab} onChange={(_, val) => setActiveTab(val)}>
+          <Tab label={`Pending Queue (${pendingCount})`} value="pending" sx={{ fontWeight: 700 }} />
+          <Tab label="Approval History" value="history" sx={{ fontWeight: 700 }} />
+        </Tabs>
       </Box>
 
       {/* Filters */}
@@ -277,7 +292,7 @@ export const LeaveApprovalPage: React.FC = () => {
         ) : filteredApprovals.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              No pending approval requests found.
+              {activeTab === 'pending' ? 'No pending approval requests found.' : 'No approval history found.'}
             </Typography>
           </Box>
         ) : (
@@ -292,7 +307,7 @@ export const LeaveApprovalPage: React.FC = () => {
                     'Level',
                     'Approver Role Target',
                     'Status',
-                    'Actions',
+                    activeTab === 'pending' ? 'Actions' : 'Action Details & Remarks',
                   ].map((h) => (
                     <TableCell
                       key={h}
@@ -342,39 +357,54 @@ export const LeaveApprovalPage: React.FC = () => {
                         <Chip
                           label={req.status}
                           size="small"
-                          color="warning"
+                          color={req.status === 'APPROVED' ? 'success' : req.status === 'REJECTED' ? 'error' : 'warning'}
                           sx={{ fontWeight: 600 }}
                         />
                       </TableCell>
                       <TableCell>
-                        <Stack direction="row" spacing={0.5}>
-                          <Tooltip title="Approve">
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="success"
-                              startIcon={<CheckCircleOutlinedIcon fontSize="small" />}
-                              disabled={isActioning}
-                              onClick={() => handleApprove(req)}
-                              sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
-                            >
-                              Approve
-                            </Button>
-                          </Tooltip>
-                          <Tooltip title="Reject">
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              startIcon={<CancelOutlinedIcon fontSize="small" />}
-                              disabled={isActioning}
-                              onClick={() => setRejectTarget(req)}
-                              sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
-                            >
-                              Reject
-                            </Button>
-                          </Tooltip>
-                        </Stack>
+                        {activeTab === 'pending' ? (
+                          <Stack direction="row" spacing={0.5}>
+                            <Tooltip title="Approve">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                startIcon={<CheckCircleOutlinedIcon fontSize="small" />}
+                                disabled={isActioning}
+                                onClick={() => handleApprove(req)}
+                                sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
+                              >
+                                Approve
+                              </Button>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                startIcon={<CancelOutlinedIcon fontSize="small" />}
+                                disabled={isActioning}
+                                onClick={() => setRejectTarget(req)}
+                                sx={{ fontSize: '0.7rem', minWidth: 0, px: 1 }}
+                              >
+                                Reject
+                              </Button>
+                            </Tooltip>
+                          </Stack>
+                        ) : (
+                          <Box>
+                            {req.actionedAt && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                {new Date(req.actionedAt).toLocaleString()}
+                              </Typography>
+                            )}
+                            {req.comments && (
+                              <Typography variant="body2" color="text.primary" sx={{ fontStyle: 'italic' }}>
+                                "{req.comments}"
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

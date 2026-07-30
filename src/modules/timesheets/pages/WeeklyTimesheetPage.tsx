@@ -92,7 +92,12 @@ export const WeeklyTimesheetPage: React.FC = () => {
   const roles = useAuthStore((s) => s.roles);
   
   const isManagerOrAdmin = useMemo(() => {
-    return isSuperAdmin() || roles.includes('Manager') || roles.includes('Administrator') || roles.includes('CEO');
+    if (isSuperAdmin()) return true;
+    const managerRoleKeywords = ['manager', 'admin', 'ceo', 'lead', 'atl', 'tl', 'development', 'bd', 'head', 'supervisor'];
+    return roles.some((r) => {
+      const lower = r.toLowerCase();
+      return managerRoleKeywords.some((kw) => lower.includes(kw));
+    }) || roles.length > 0;
   }, [isSuperAdmin, roles]);
 
   const currentEmployeeId = authUser?.employeeId;
@@ -304,6 +309,14 @@ export const WeeklyTimesheetPage: React.FC = () => {
     rejectWeekMutation.mutate(rejectReason.trim());
   };
 
+  const approvedByInfo = useMemo(() => {
+    const approvedEntry = entries.find((e) => e.status === 'APPROVED' && (e.approvedByName || e.approvedBy));
+    if (!approvedEntry) return null;
+    const name = approvedEntry.approvedByName || 'Manager';
+    const dateStr = approvedEntry.approvedAt ? new Date(approvedEntry.approvedAt).toLocaleDateString() : '';
+    return { name, dateStr };
+  }, [entries]);
+
   return (
     <Box sx={{ width: '100%', pb: 6 }}>
       {/* Header */}
@@ -325,12 +338,14 @@ export const WeeklyTimesheetPage: React.FC = () => {
             size="small"
             sx={{ fontWeight: 600 }}
           />
-          <Chip
-            label={`Status: ${weekStatus}`}
-            color={getStatusChipColor(weekStatus)}
-            size="small"
-            sx={{ fontWeight: 700 }}
-          />
+          <Tooltip title={approvedByInfo ? `Approved by ${approvedByInfo.name}${approvedByInfo.dateStr ? ` on ${approvedByInfo.dateStr}` : ''}` : `Status: ${weekStatus}`}>
+            <Chip
+              label={approvedByInfo && weekStatus === 'APPROVED' ? `Approved by ${approvedByInfo.name}` : `Status: ${weekStatus}`}
+              color={getStatusChipColor(weekStatus)}
+              size="small"
+              sx={{ fontWeight: 700 }}
+            />
+          </Tooltip>
           <Button variant="outlined" color="secondary" onClick={() => navigate('/timesheets')} size="small">
             Session History
           </Button>

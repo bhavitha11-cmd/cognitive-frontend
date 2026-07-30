@@ -16,6 +16,7 @@ export interface TimeEntry {
   status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
   submittedAt?: string
   approvedBy?: string
+  approvedByName?: string
   approvedAt?: string
   rejectionReason?: string
   createdAt?: string

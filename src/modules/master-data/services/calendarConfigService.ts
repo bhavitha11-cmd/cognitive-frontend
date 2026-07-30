@@ -78,6 +78,7 @@ const mapCompanyEventFrontendToBackend = (data: any) => {
 const mapSettingsBackendToFrontend = (s: any): CalendarSettings => ({
   workingDays: s.working_days || 'MON,TUE,WED,THU,FRI,SAT',
   weekendDays: s.weekend_days || 'SUN',
+  weeklyOffRules: s.weekly_off_rules || null,
   officeStartTime: s.office_start_time || '09:00',
   officeEndTime: s.office_end_time || '18:00',
   defaultDailyHours: s.default_daily_hours ?? 8.0,
@@ -98,6 +99,7 @@ const mapSettingsFrontendToBackend = (s: Partial<CalendarSettings>) => {
   const payload: Record<string, unknown> = {};
   if (s.workingDays !== undefined) payload.working_days = s.workingDays;
   if (s.weekendDays !== undefined) payload.weekend_days = s.weekendDays;
+  if (s.weeklyOffRules !== undefined) payload.weekly_off_rules = s.weeklyOffRules;
   if (s.officeStartTime !== undefined) payload.office_start_time = s.officeStartTime;
   if (s.officeEndTime !== undefined) payload.office_end_time = s.officeEndTime;
   if (s.defaultDailyHours !== undefined) payload.default_daily_hours = s.defaultDailyHours;

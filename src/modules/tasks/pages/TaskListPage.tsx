@@ -27,7 +27,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import BlockIcon from '@mui/icons-material/Block';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -36,7 +37,7 @@ import { DataTable } from '../../../components/DataTable';
 import type { Column } from '../../../components/DataTable';
 import {
   useGetTasks,
-  useDeleteTask,
+  useToggleTaskActive,
 } from '../services/taskService';
 import type { Task } from '../types';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -278,41 +279,103 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, open, onClose }
 };
 
 // ==========================================
-// DELETE CONFIRM DIALOG
+// TOGGLE ACTIVE CONFIRM DIALOG
 // ==========================================
 
-interface DeleteConfirmProps {
+interface ToggleActiveConfirmProps {
   open: boolean;
-  taskCode: string;
-  onConfirm: () => void;
+  task: Task | null;
+  onConfirm: (reason?: string) => void;
   onCancel: () => void;
   loading: boolean;
 }
 
-const DeleteConfirmDialog: React.FC<DeleteConfirmProps> = ({
+const ToggleActiveConfirmDialog: React.FC<ToggleActiveConfirmProps> = ({
   open,
-  taskCode,
+  task,
   onConfirm,
   onCancel,
   loading,
-}) => (
-  <Dialog open={open} onClose={onCancel} maxWidth="xs" fullWidth>
-    <DialogTitle sx={{ fontWeight: 700 }}>Delete Task</DialogTitle>
-    <DialogContent>
-      <Typography variant="body2">
-        Are you sure you want to delete task <strong>{taskCode}</strong>? This action cannot be undone.
-      </Typography>
-    </DialogContent>
-    <DialogActions>
-      <Button onClick={onCancel} disabled={loading}>
-        Cancel
-      </Button>
-      <Button onClick={onConfirm} color="error" variant="contained" disabled={loading}>
-        {loading ? <CircularProgress size={16} /> : 'Delete'}
-      </Button>
-    </DialogActions>
-  </Dialog>
-);
+}) => {
+  const [reason, setReason] = React.useState('');
+  const [reasonError, setReasonError] = React.useState('');
+
+  React.useEffect(() => {
+    if (open) {
+      setReason('');
+      setReasonError('');
+    }
+  }, [open]);
+
+  if (!task) return null;
+  const isDeactivating = task.isActive;
+
+  const handleConfirm = () => {
+    if (isDeactivating && !reason.trim()) {
+      setReasonError('Deactivation reason is required.');
+      return;
+    }
+    onConfirm(reason.trim());
+  };
+
+  return (
+    <Dialog open={open} onClose={onCancel} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700 }}>
+        {isDeactivating ? 'Deactivate Task' : 'Activate Task'}
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ mb: isDeactivating ? 2 : 0 }}>
+          {isDeactivating ? (
+            <>
+              Please provide a reason for deactivating task <strong>{task.taskCode}</strong>.
+            </>
+          ) : (
+            <>
+              Are you sure you want to activate task <strong>{task.taskCode}</strong>?
+            </>
+          )}
+        </Typography>
+        {isDeactivating && (
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Deactivation Reason *"
+            type="text"
+            fullWidth
+            multiline
+            rows={3}
+            value={reason}
+            onChange={(e) => {
+              setReason(e.target.value);
+              if (e.target.value.trim()) setReasonError('');
+            }}
+            error={!!reasonError}
+            helperText={reasonError}
+          />
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel} disabled={loading}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          color={isDeactivating ? 'warning' : 'success'}
+          variant="contained"
+          disabled={loading}
+        >
+          {loading ? (
+            <CircularProgress size={16} />
+          ) : isDeactivating ? (
+            'Deactivate'
+          ) : (
+            'Activate'
+          )}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 // ==========================================
 // MAIN PAGE
@@ -326,6 +389,7 @@ export const TaskListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active');
 
   // Pagination
   const [page, setPage] = useState(0);
@@ -334,7 +398,7 @@ export const TaskListPage: React.FC = () => {
   // Modals
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [deleteTask, setDeleteTask] = useState<Task | null>(null);
+  const [toggleTask, setToggleTask] = useState<Task | null>(null);
 
   // Error state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -346,23 +410,30 @@ export const TaskListPage: React.FC = () => {
     deptCat: deptFilter !== 'all' ? deptFilter : undefined,
     search: searchQuery || undefined,
     projectId: projectFilter || undefined,
+    isActive: activeFilter === 'active' ? true : activeFilter === 'inactive' ? false : undefined,
   });
 
-  const deleteMutation = useDeleteTask();
+  const toggleMutation = useToggleTaskActive();
 
   const tasks = data?.tasks ?? [];
   const totalCount = data?.total ?? 0;
 
-
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteTask) return;
+  const handleToggleConfirm = async (reason?: string) => {
+    if (!toggleTask) return;
     try {
-      await deleteMutation.mutateAsync(deleteTask.id);
-      setDeleteTask(null);
+      await toggleMutation.mutateAsync({
+        id: toggleTask.id,
+        isActive: !toggleTask.isActive,
+        reason,
+      });
+      setToggleTask(null);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.detail || err?.message || 'Failed to delete task');
-      setDeleteTask(null);
+      setErrorMsg(
+        err?.response?.data?.detail ||
+          err?.message ||
+          `Failed to ${toggleTask.isActive ? 'deactivate' : 'activate'} task`
+      );
+      setToggleTask(null);
     }
   };
 
@@ -376,13 +447,22 @@ export const TaskListPage: React.FC = () => {
       id: 'taskCode',
       label: 'Part # / Code',
       render: (row) => (
-        <Box sx={{ minWidth: 140 }}>
+        <Box sx={{ minWidth: 140, display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
             variant="body2"
-            sx={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '0.8rem', color: 'primary.main' }}
+            sx={{
+              fontWeight: 700,
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              color: row.isActive ? 'primary.main' : 'text.disabled',
+              textDecoration: row.isActive ? 'none' : 'line-through',
+            }}
           >
             {row.taskCode}
           </Typography>
+          {!row.isActive && (
+            <Chip label="Inactive" size="small" color="default" sx={{ height: 18, fontSize: '0.65rem' }} />
+          )}
         </Box>
       ),
     },
@@ -650,16 +730,16 @@ export const TaskListPage: React.FC = () => {
             </Tooltip>
           )}
           {useAuthStore.getState().hasPermission('Tasks', 'activate') && (
-            <Tooltip title="Delete Task">
+            <Tooltip title={row.isActive ? 'Deactivate Task' : 'Activate Task'}>
               <IconButton
                 size="small"
-                color="error"
+                color={row.isActive ? 'warning' : 'success'}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setDeleteTask(row);
+                  setToggleTask(row);
                 }}
               >
-                <DeleteIcon fontSize="small" />
+                {row.isActive ? <BlockIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           )}
@@ -766,7 +846,7 @@ export const TaskListPage: React.FC = () => {
           </Grid>
 
           {/* Project Filter */}
-          <Grid size={{ xs: 12, sm: 4, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 4, md: 2.5 }}>
             <TextField
               placeholder="Filter by project ID..."
               variant="outlined"
@@ -778,6 +858,23 @@ export const TaskListPage: React.FC = () => {
                 setPage(0);
               }}
             />
+          </Grid>
+
+          {/* Active Status Filter */}
+          <Grid size={{ xs: 6, sm: 4, md: 2.5 }}>
+            <FormControl fullWidth size="small">
+              <Select
+                value={activeFilter}
+                onChange={(e) => {
+                  setActiveFilter(e.target.value as any);
+                  setPage(0);
+                }}
+              >
+                <MenuItem value="active">Active Only</MenuItem>
+                <MenuItem value="inactive">Inactive Only</MenuItem>
+                <MenuItem value="all">All Tasks</MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
         </Grid>
       </Card>
@@ -821,13 +918,13 @@ export const TaskListPage: React.FC = () => {
         }}
       />
 
-      {/* Delete Confirmation */}
-      <DeleteConfirmDialog
-        open={!!deleteTask}
-        taskCode={deleteTask?.taskCode ?? ''}
-        onConfirm={handleDeleteConfirm}
-        onCancel={() => setDeleteTask(null)}
-        loading={deleteMutation.isPending}
+      {/* Toggle Active Confirmation */}
+      <ToggleActiveConfirmDialog
+        open={!!toggleTask}
+        task={toggleTask}
+        onConfirm={handleToggleConfirm}
+        onCancel={() => setToggleTask(null)}
+        loading={toggleMutation.isPending}
       />
     </Box>
   );
