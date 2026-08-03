@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Card, CardContent, Typography, Button, FormControl, InputLabel, Select, MenuItem, CircularProgress } from '@mui/material';
+import { Box, Card, CardContent, Typography, Button, FormControl, InputLabel, Select, MenuItem, CircularProgress, Alert } from '@mui/material';
 import { useGetDevices } from '../../services/deviceService';
 import { useTestConnection } from '../../services/deviceHealthService';
 import { ConnectionTestResult } from '../../components/ConnectionTestResult';
@@ -8,6 +8,19 @@ export const ConnectionTestPage: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   const { data: devicesData } = useGetDevices();
   const testConnection = useTestConnection();
+
+  const getErrorMessage = () => {
+    if (!testConnection.error) return null;
+    const err = testConnection.error as any;
+    const detail = err.response?.data?.detail;
+    if (typeof detail === 'string') {
+      if (detail.includes('No active connection profile')) {
+        return 'No active connection profile found for this device. Go to Connection Profiles page to save device credentials first.';
+      }
+      return detail;
+    }
+    return err.message || 'Failed to test connection';
+  };
 
   return (
     <Box>
@@ -35,6 +48,12 @@ export const ConnectionTestPage: React.FC = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {testConnection.isError && (
+        <Box sx={{ mb: 3 }}>
+          <Alert severity="error">{getErrorMessage()}</Alert>
+        </Box>
+      )}
 
       {testConnection.data && (
         <ConnectionTestResult result={testConnection.data} isLoading={testConnection.isPending} />

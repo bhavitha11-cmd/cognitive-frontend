@@ -9,6 +9,10 @@ export const useGetBiometricLogs = (filters: BiometricLogFilters) => {
       const response = await api.get('/biometric/logs', { params: filters });
       return response.data?.data || { logs: [], total: 0, page: 1, page_size: 10 };
     },
+    staleTime: 0,       // Always fetch fresh data — never serve cached UUIDs
+    gcTime: 0,          // Don't cache between navigations
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 };
 
