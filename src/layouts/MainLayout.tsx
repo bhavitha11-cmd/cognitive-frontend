@@ -30,6 +30,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import FingerprintIcon from '@mui/icons-material/Fingerprint';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLess from '@mui/icons-material/ExpandLess';
@@ -257,10 +258,18 @@ export const MainLayout: React.FC = () => {
       '/calendar': 'calendar',
       '/reports': 'reports',
       '/master-data/task-templates': 'task_title_library',
-      '/master-data/calendar-config': 'calendar_configuration',
       '/settings': 'settings',
       '/tickets/my': 'my_tickets',
       '/tickets/support': 'category_tickets',
+      '/biometric/settings/devices': 'biometric_devices',
+      '/biometric/settings/connections': 'biometric_connections',
+      '/biometric/settings/mapping': 'biometric_mapping',
+      '/biometric/settings/sync-config': 'biometric_sync_config',
+      '/biometric/settings/test': 'biometric_test',
+      '/biometric/attendance/logs': 'biometric_logs',
+      '/biometric/attendance/live': 'biometric_live',
+      '/biometric/attendance/sync-history': 'biometric_sync_history',
+      '/biometric/attendance/health': 'biometric_device_health',
     };
 
     // If modulePermissions is empty (e.g. before initial profile fetch), fallback to hasPermission filter
@@ -282,6 +291,8 @@ export const MainLayout: React.FC = () => {
       'Master Data': 'master_data',
       'Settings': 'settings',
       'Tickets': 'tickets',
+      'Biometric Settings': 'biometric_settings',
+      'Biometric Attendance': 'biometric_attendance',
     };
 
     return menuItems
@@ -420,13 +431,33 @@ export const MainLayout: React.FC = () => {
       icon: <LibraryBooksOutlinedIcon />,
       children: [
         { name: 'Task Title Library', path: '/master-data/task-templates' },
-        { name: 'Calendar Configuration', path: '/master-data/calendar-config', adminOnly: true },
       ],
     },
     {
       name: 'Settings',
       path: '/settings',
       icon: <SettingsOutlinedIcon />,
+    },
+    {
+      name: 'Biometric Settings',
+      icon: <FingerprintIcon />,
+      children: [
+        { name: 'Devices', path: '/biometric/settings/devices' },
+        { name: 'Connection Profiles', path: '/biometric/settings/connections' },
+        { name: 'Employee Mapping', path: '/biometric/settings/mapping' },
+        { name: 'Sync Configuration', path: '/biometric/settings/sync-config' },
+        { name: 'Connection Test', path: '/biometric/settings/test' },
+      ],
+    },
+    {
+      name: 'Biometric Attendance',
+      icon: <AccessTimeIcon />,
+      children: [
+        { name: 'Biometric Logs', path: '/biometric/attendance/logs' },
+        { name: 'Live Attendance', path: '/biometric/attendance/live' },
+        { name: 'Sync History', path: '/biometric/attendance/sync-history' },
+        { name: 'Device Health', path: '/biometric/attendance/health' },
+      ],
     },
   ];
 
@@ -651,15 +682,6 @@ export const MainLayout: React.FC = () => {
                             if (!authHasPermission(child.requiredPermission, 'view')) return false;
                           }
 
-                          // Legacy adminOnly flag (e.g. calendar-config)
-                          if (child.adminOnly) {
-                            if (!isAuthenticated) return true;
-                            if (child.path === '/master-data/calendar-config') {
-                              return authHasPermission('CalendarSettings', 'edit');
-                            }
-                            return authIsSuperAdmin() || authRoles.includes('Manager');
-                          }
-
                           return true;
                         })
                         .map((child) => {
@@ -788,6 +810,26 @@ export const MainLayout: React.FC = () => {
       if (second === 'audit-logs') return 'Audit Logs';
       if (second === 'attendance-settings') return 'Attendance Settings';
       return 'HR Management';
+    }
+    if (first === 'biometric') {
+      if (second === 'settings') {
+        const third = paths[2];
+        if (third === 'devices') return 'Biometric Devices';
+        if (third === 'connections') return 'Connection Profiles';
+        if (third === 'mapping') return 'Employee Mapping';
+        if (third === 'sync-config') return 'Sync Configuration';
+        if (third === 'test') return 'Connection Test';
+        return 'Biometric Settings';
+      }
+      if (second === 'attendance') {
+        const third = paths[2];
+        if (third === 'logs') return 'Biometric Logs';
+        if (third === 'live') return 'Live Attendance';
+        if (third === 'sync-history') return 'Sync History';
+        if (third === 'health') return 'Device Health';
+        return 'Biometric Attendance';
+      }
+      return 'Biometric';
     }
 
     return first.charAt(0).toUpperCase() + first.slice(1);

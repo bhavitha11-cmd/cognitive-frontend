@@ -341,14 +341,6 @@ export const router = createBrowserRouter([
               </ProtectedRoute>
             ),
           },
-          {
-            path: 'calendar-config',
-            element: (
-              <ProtectedRoute module="CalendarSettings" action="edit">
-                {lazyLoad(() => import('../modules/master-data/pages/CalendarConfigPage'), 'dashboard')}
-              </ProtectedRoute>
-            ),
-          },
         ],
       },
       // Tickets
@@ -406,6 +398,100 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: lazyLoad(() => import('../modules/auth/pages/UserProfilePage'), 'form'),
+      },
+      // ── Biometric Module (isolated, additive) ────────────────────────────────
+      {
+        path: 'biometric',
+        children: [
+          {
+            path: '',
+            element: <Navigate to="/biometric/settings/devices" replace />,
+          },
+          // Biometric Settings
+          {
+            path: 'settings',
+            children: [
+              {
+                path: 'devices',
+                element: (
+                  <ProtectedRoute module="biometric_devices" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/settings/BiometricDevicesPage'), 'table')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'connections',
+                element: (
+                  <ProtectedRoute module="biometric_connections" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/settings/ConnectionProfilesPage'), 'form')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'mapping',
+                element: (
+                  <ProtectedRoute module="biometric_mapping" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/settings/EmployeeMappingPage'), 'table')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'sync-config',
+                element: (
+                  <ProtectedRoute module="biometric_sync_config" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/settings/SyncConfigPage'), 'form')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'test',
+                element: (
+                  <ProtectedRoute module="biometric_test" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/settings/ConnectionTestPage'), 'form')}
+                  </ProtectedRoute>
+                ),
+              },
+            ],
+          },
+          // Biometric Attendance
+          {
+            path: 'attendance',
+            children: [
+              {
+                path: 'logs',
+                element: (
+                  <ProtectedRoute module="biometric_logs" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/attendance/BiometricLogsPage'), 'table')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'live',
+                element: (
+                  <ProtectedRoute module="biometric_live" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/attendance/LiveAttendancePage'), 'dashboard')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'sync-history',
+                element: (
+                  <ProtectedRoute module="biometric_sync_history" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/attendance/SyncHistoryPage'), 'table')}
+                  </ProtectedRoute>
+                ),
+              },
+              {
+                path: 'health',
+                element: (
+                  <ProtectedRoute module="biometric_device_health" action="view">
+                    {lazyLoad(() => import('../modules/biometric/pages/attendance/DeviceHealthPage'), 'dashboard')}
+                  </ProtectedRoute>
+                ),
+              },
+            ],
+          },
+        ],
       },
       {
         path: '*',

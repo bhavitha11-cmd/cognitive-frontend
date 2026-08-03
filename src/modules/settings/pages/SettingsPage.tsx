@@ -64,6 +64,8 @@ import {
 } from '../../timesheets/services/leaveService';
 import TicketSettings from '../components/TicketSettings';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import { CalendarConfigPage } from '../../master-data/pages/CalendarConfigPage';
 
 type SettingsTab =
   | 'company'
@@ -72,7 +74,8 @@ type SettingsTab =
   | 'email'
   | 'approval'
   | 'leave'
-  | 'tickets';
+  | 'tickets'
+  | 'calendar';
 
 export const SettingsPage: React.FC = () => {
   const settings = useAppStore((state) => state.settings);
@@ -375,6 +378,7 @@ export const SettingsPage: React.FC = () => {
     { id: 'approval' as const, label: 'Approval Workflows', icon: <CheckCircleIcon /> },
     { id: 'leave' as const, label: 'Leave Settings', icon: <InfoIcon /> },
     { id: 'tickets' as const, label: 'Ticket Management', icon: <ConfirmationNumberIcon /> },
+    { id: 'calendar' as const, label: 'Calendar Configuration', icon: <CalendarMonthIcon /> },
   ];
 
   return (
@@ -1605,6 +1609,13 @@ export const SettingsPage: React.FC = () => {
 
               {activeTab === 'tickets' && (
                 <TicketSettings />
+              )}
+
+              {/* Tab: Calendar Configuration — full functional embed from Master Data */}
+              {activeTab === 'calendar' && (
+                <Box sx={{ mx: -3, mt: -3 }}>
+                  <CalendarConfigPage />
+                </Box>
               )}
 
             </CardContent>
