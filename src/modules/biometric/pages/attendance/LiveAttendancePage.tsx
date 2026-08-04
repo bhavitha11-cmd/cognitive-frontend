@@ -67,7 +67,9 @@ export const LiveAttendancePage: React.FC = () => {
       case 'IN':
         return 'success';
       case 'OUT':
-        return 'error';
+        return 'warning';
+      case 'ABSENT':
+        return 'default';
       default:
         return 'default';
     }
@@ -109,6 +111,10 @@ export const LiveAttendancePage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const countIn = attendance?.filter((r) => r.current_status === 'IN').length || 0;
+  const countOut = attendance?.filter((r) => r.current_status === 'OUT').length || 0;
+  const countAbsent = attendance?.filter((r) => r.current_status === 'ABSENT').length || 0;
+
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
 
   return (
@@ -148,7 +154,7 @@ export const LiveAttendancePage: React.FC = () => {
 
         <Grid container spacing={2} alignItems="center">
           {/* Target Date Selector */}
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3.5 }}>
             <TextField
               fullWidth
               size="small"
@@ -161,7 +167,7 @@ export const LiveAttendancePage: React.FC = () => {
           </Grid>
 
           {/* Search Employee Name/Code */}
-          <Grid size={{ xs: 12, sm: 6, md: 5 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4.5 }}>
             <TextField
               fullWidth
               size="small"
@@ -181,7 +187,7 @@ export const LiveAttendancePage: React.FC = () => {
           </Grid>
 
           {/* Status Dropdown Filter */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <FormControl fullWidth size="small">
               <InputLabel id="live-status-select-label">Status Filter</InputLabel>
               <Select
@@ -191,10 +197,11 @@ export const LiveAttendancePage: React.FC = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <MenuItem value="">
-                  <em>All Statuses</em>
+                  <em>All Employees ({attendance?.length || 0})</em>
                 </MenuItem>
-                <MenuItem value="IN">Present (Currently IN)</MenuItem>
-                <MenuItem value="OUT">Out (Punched OUT)</MenuItem>
+                <MenuItem value="IN">Currently IN ({countIn})</MenuItem>
+                <MenuItem value="OUT">Punched OUT ({countOut})</MenuItem>
+                <MenuItem value="ABSENT">Absent / Not In Yet ({countAbsent})</MenuItem>
               </Select>
             </FormControl>
           </Grid>
