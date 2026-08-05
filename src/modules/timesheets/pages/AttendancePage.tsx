@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -34,10 +31,6 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import SettingsIcon from '@mui/icons-material/Settings';
-import WorkIcon from '@mui/icons-material/Work';
-import TimerIcon from '@mui/icons-material/Timer';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -56,6 +49,7 @@ import {
   useStartBreak,
   useEndBreak
 } from '../services/workSessionService';
+import { useGetCalendarSettings } from '../../master-data/services/calendarConfigService';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
@@ -273,261 +267,78 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ label, count, color, bgcolor,
 );
 
 // ==========================================
-// POLICY SETTINGS PANEL COMPONENT
+// SHIFT & WORKDAYS INFO CARD (read-only)
+// Sourced from Master Data → Calendar Configuration
 // ==========================================
 
-interface PolicySettingsPanelProps {
-  showSnack: (message: any, severity?: 'success' | 'error') => void;
-  canEdit: boolean;
-}
+const ShiftInfoCard: React.FC = () => {
+  const { data: settings, isLoading } = useGetCalendarSettings();
 
-const PolicySettingsPanel: React.FC<PolicySettingsPanelProps> = ({ showSnack, canEdit }) => {
-  const queryClient = useQueryClient();
+  if (isLoading || !settings) return null;
 
-  const { data: rule, isLoading } = useQuery<any>({
-    queryKey: ['attendance-rules'],
-    queryFn: async () => {
-      const res = await api.get('/attendance/rules');
-      return res.data?.data?.rule || res.data?.data || null;
-    },
-  });
-
-  const [draft, setDraft] = useState<Record<string, any>>({});
-
-  const isDirty = Object.keys(draft).length > 0;
-
-  const updateMutation = useMutation({
-    mutationFn: async (payload: Record<string, any>) => {
-      const res = await api.put('/attendance/rules', payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance-rules'] });
-      setDraft({});
-      showSnack('Workforce policy updated successfully.', 'success');
-    },
-    onError: (err: any) => {
-      showSnack(parseError(err), 'error');
-    },
-  });
-
-  const getValue = (field: string) => {
-    if (field in draft) return draft[field];
-    return rule?.[field] ?? '';
-  };
-
-  const handleChange = (field: string, value: any) => {
-    setDraft((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSave = () => {
-    const payload: Record<string, any> = {};
-    Object.entries(draft).forEach(([k, v]) => {
-      if (v !== '' && v !== null && v !== undefined) {
-        payload[k] = typeof v === 'string' && !isNaN(Number(v)) ? Number(v) : v;
-      }
-    });
-    updateMutation.mutate(payload);
-  };
-
-  if (isLoading) {
-    return (
-      <Card sx={{ p: 3 }}>
-        <Typography color="text.secondary">Loading policy settings…</Typography>
-      </Card>
-    );
-  }
+  const days = settings.workingDays
+    ? settings.workingDays.split(',').map((d) => d.trim())
+    : [];
 
   return (
-    <Box>
-      {/* Read-only notice for users without edit permission */}
-      {!canEdit && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          You have view-only access to Workforce Policy Settings. Contact an administrator to make changes.
-        </Alert>
-      )}
-
-      {/* Section 1: Office Hours */}
-      <Accordion defaultExpanded sx={{ mb: 1.5, '&:before': { display: 'none' }, border: '1px solid', borderColor: 'divider', borderRadius: '8px !important', overflow: 'hidden' }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: 'background.paper', px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <WorkIcon color="primary" fontSize="small" />
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Office Hours &amp; Attendance Rules
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Configure work schedule, late marks, and daily thresholds
-              </Typography>
-            </Box>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails sx={{ p: 3 }}>
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Office Start Time"
-                type="time"
-                size="small"
-                fullWidth
-                value={getValue('office_start_time')}
-                onChange={(e) => handleChange('office_start_time', e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                helperText="When the official workday begins"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Office End Time"
-                type="time"
-                size="small"
-                fullWidth
-                value={getValue('office_end_time')}
-                onChange={(e) => handleChange('office_end_time', e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                helperText="When the official workday ends"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Late Mark Grace Period"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('late_mark_after_minutes')}
-                onChange={(e) => handleChange('late_mark_after_minutes', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
-                helperText="Minutes after start time before marking late"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Half Day Hours"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('half_day_hours')}
-                onChange={(e) => handleChange('half_day_hours', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> } }}
-                helperText="Threshold for half-day classification"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Overtime Threshold"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('overtime_threshold_hours')}
-                onChange={(e) => handleChange('overtime_threshold_hours', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs</InputAdornment> } }}
-                helperText="Daily hours before overtime accrues"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 6 }}>
-              <TextField
-                label="Working Days"
-                size="small"
-                fullWidth
-                value={getValue('work_days')}
-                onChange={(e) => handleChange('work_days', e.target.value)}
-                helperText="Comma-separated: MON,TUE,WED,THU,FRI"
-                disabled={!canEdit}
-              />
-            </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
-
-      {/* Section 2: Productivity Policy */}
-      <Accordion defaultExpanded sx={{ mb: 1.5, '&:before': { display: 'none' }, border: '1px solid', borderColor: 'divider', borderRadius: '8px !important', overflow: 'hidden' }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: 'background.paper', px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <TimerIcon color="success" fontSize="small" />
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Productivity &amp; Break Policy
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Set required productive hours and break time limits for KPI calculations
-              </Typography>
-            </Box>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails sx={{ p: 3 }}>
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                label="Required Productive Hours"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('required_productive_hours')}
-                onChange={(e) => handleChange('required_productive_hours', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">hrs/day</InputAdornment> } }}
-                helperText="Daily target for Productivity % and KPI calculations"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                label="Max Break Time"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('max_break_minutes')}
-                onChange={(e) => handleChange('max_break_minutes', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
-                helperText="Exceeding this triggers a warning in Break KPI"
-                disabled={!canEdit}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                label="Min Break Time"
-                type="number"
-                size="small"
-                fullWidth
-                value={getValue('min_break_minutes')}
-                onChange={(e) => handleChange('min_break_minutes', e.target.value)}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">min</InputAdornment> } }}
-                helperText="Minimum recommended break per day"
-                disabled={!canEdit}
-              />
-            </Grid>
-          </Grid>
-          <Alert severity="info" sx={{ mt: 3 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>
-              KPI Formula Reference
-            </Typography>
-            <Typography variant="caption" component="span">
-              Productivity % = Productive ÷ Org Time × 100 &nbsp;|&nbsp;
-              Org Utilization % = Org ÷ Presence × 100 &nbsp;|&nbsp;
-              Attendance Util % = Productive ÷ Presence × 100
-            </Typography>
-          </Alert>
-        </AccordionDetails>
-      </Accordion>
-
-      {/* Save Button — only shown to editors */}
-      {canEdit && isDirty && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSave}
-            disabled={updateMutation.isPending}
-          >
-            {updateMutation.isPending ? 'Saving…' : 'Save Policy Changes'}
-          </Button>
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <AccessTimeIcon color="primary" fontSize="small" />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Shift &amp; Workdays
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+            — Configured in Master Data › Calendar Configuration
+          </Typography>
         </Box>
-      )}
-    </Box>
+        <Divider sx={{ mb: 2 }} />
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Office Start
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.officeStartTime || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Office End
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.officeEndTime || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Daily Hours
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.workingHoursPerDay} hrs
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Weekend
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.weekendDays || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Working Days
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 0.75 }}>
+              {days.map((d) => (
+                <Chip key={d} label={d} size="small" color="primary" variant="outlined" sx={{ fontWeight: 600 }} />
+              ))}
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -1718,22 +1529,8 @@ export const AttendancePage: React.FC = () => {
         )}
       </Card>
 
-      {/* ── Workforce Policy Settings — all users can view; only Super Admins can edit ── */}
-      <Box sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
-          <SettingsIcon color="action" />
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Workforce Policy Settings
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-            — Configure attendance rules and productivity targets. Changes affect all employees.
-          </Typography>
-        </Box>
-        <PolicySettingsPanel
-          showSnack={showSnack}
-          canEdit={useAuthStore.getState().isSuperAdmin()}
-        />
-      </Box>
+      {/* ── Shift & Workdays Info (read-only, sourced from Master Data → Calendar Configuration) ── */}
+      <ShiftInfoCard />
 
       {/* Clock In Confirmation Dialog */}
       <Dialog
