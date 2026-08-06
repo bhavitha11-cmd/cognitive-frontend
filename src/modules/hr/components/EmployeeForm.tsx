@@ -25,6 +25,7 @@ import { useGetTeamsLookup, useGetEmployeesLookup } from '../services/hrService'
 import type { Employee } from '../types';
 
 const getEmployeeSchema = (isEditing: boolean) => z.object({
+  employeeCode: z.string().min(2, 'Employee Code must be at least 2 characters').max(20, 'Employee Code must be at most 20 characters'),
   firstName: z.string().min(2, 'First Name must be at least 2 characters'),
   middleName: z.string().optional(),
   lastName: z.string().min(2, 'Last Name must be at least 2 characters'),
@@ -40,7 +41,7 @@ const getEmployeeSchema = (isEditing: boolean) => z.object({
   profilePhoto: z.string().optional(),
 
   departmentId: z.string().optional().or(z.literal('')),
-  designationId: z.string().optional(),
+  designationName: z.string().optional(),
   roleIds: z.array(z.string()).min(1, 'At least one role must be assigned'),
   reportingManagerId: z.string().optional().or(z.literal('')),
   dateOfJoining: z.string().min(1, 'Date of Joining is required'),
@@ -83,6 +84,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
   } = useForm<EmployeeFormInputs>({
     resolver: zodResolver(getEmployeeSchema(isEditing)),
     defaultValues: {
+      employeeCode: initialValues?.employeeCode || '',
       firstName: initialValues?.firstName || '',
       middleName: initialValues?.middleName || '',
       lastName: initialValues?.lastName || '',
@@ -97,7 +99,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       dateOfBirth: initialValues?.dateOfBirth || '',
       profilePhoto: initialValues?.profilePhoto || '',
       departmentId: initialValues?.departmentId || '',
-      designationId: initialValues?.designationId || '',
+      designationName: initialValues?.designationName || '',
       roleIds: initialValues?.roleIds || [],
       reportingManagerId: initialValues?.reportingManagerId || '',
       dateOfJoining: initialValues?.dateOfJoining || '',
@@ -155,21 +157,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
       const hasManagerRole = e.roleIds?.some((rid) => allowedManagerRoleIds.has(rid));
       if (!hasManagerRole) return false;
     }
-
-    // 2. Filter by selected Department
-    if (selectedDepartmentId && e.departmentId !== selectedDepartmentId) {
-      return false;
-    }
-
-    // 3. Filter by selected Team
-    if (selectedTeamId) {
-      const sameTeam = e.teamId === selectedTeamId;
-      // Also allow managers in the same department but with no team (e.g. Department Head)
-      const sameDeptNoTeam = e.departmentId === selectedDepartmentId && !e.teamId;
-      if (!sameTeam && !sameDeptNoTeam) {
-        return false;
-      }
-    }
     
     return true;
   });
@@ -182,6 +169,24 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
         Personal Information
       </Typography>
       <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <Controller
+            name="employeeCode"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Emp ID *"
+                fullWidth
+                size="small"
+                disabled={isEditing}
+                error={!!errors.employeeCode}
+                helperText={errors.employeeCode?.message}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            )}
+          />
+        </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <Controller
             name="firstName"
@@ -450,6 +455,25 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
             />
             {errors.departmentId && <FormHelperText>{errors.departmentId.message}</FormHelperText>}
           </FormControl>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <Controller
+            name="designationName"
+            control={control}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                label="Designation"
+                placeholder="e.g. Software Engineer"
+                fullWidth
+                size="small"
+                error={!!errors.designationName}
+                helperText={errors.designationName?.message}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+            )}
+          />
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6 }}>

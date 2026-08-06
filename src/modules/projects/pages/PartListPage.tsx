@@ -46,6 +46,8 @@ import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import AddIcon from '@mui/icons-material/Add';
 
 import { SearchFilters } from '../../../components/SearchFilters';
+import { DataTable } from '../../../components/DataTable';
+import type { Column } from '../../../components/DataTable';
 import {
   useGetParts,
   useUpdatePart,
@@ -870,23 +872,19 @@ export const PartListPage: React.FC = () => {
   const [statusReasonRequest, setStatusReasonRequest] = useState<{ part: Project; status: string } | null>(null);
 
   const { data: partsData, isLoading: partsLoading } = useGetParts({
-    skip: page * rowsPerPage,
-    limit: rowsPerPage,
-    search: search || undefined,
-    status: statusFilter !== 'all' ? statusFilter : undefined,
-    clientId: clientFilter !== 'all' ? clientFilter : undefined,
+    skip: 0,
+    limit: 500,
   });
 
   const { data: clientsData } = useGetClients({ limit: 200 });
   const updateStatus = useUpdatePartStatus();
 
-  const parts = partsData?.parts || [];
-  const totalCount = partsData?.total ?? 0;
+  const allParts = partsData?.parts || [];
   const clients = clientsData?.clients || [];
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     navigate(`/parts/${id}`);
-  };
+  }, [navigate]);
 
   const handleStatusChange = useCallback(
     (part: Project, status: string) => {
@@ -898,6 +896,139 @@ export const PartListPage: React.FC = () => {
     },
     [updateStatus]
   );
+
+  const filteredParts = useMemo(() => {
+    return allParts.filter((p) => {
+      // General search
+      if (search) {
+        const q = search.toLowerCase();
+        const matches =
+          p.partNumber.toLowerCase().includes(q) ||
+          p.partName.toLowerCase().includes(q) ||
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.clientName && p.clientName.toLowerCase().includes(q)) ||
+          (p.projectManagerName && p.projectManagerName.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      // Status filter
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      // Client filter
+      if (clientFilter !== 'all' && p.clientId !== clientFilter) return false;
+      return true;
+    });
+  }, [allParts, search, statusFilter, clientFilter]);
+
+  const columns: Column<Project>[] = useMemo(() => [
+    {
+      id: 'partNumber',
+      label: 'Part Number',
+      render: (row) => (
+        <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'primary.main' }}>
+          {row.partNumber}
+        </Typography>
+      ),
+    },
+    {
+      id: 'partName',
+      label: 'Part Name',
+      render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.partName}</Typography>,
+    },
+    {
+      id: 'name',
+      label: 'Package Name',
+      render: (row) => <Typography variant="body2" color="textSecondary">{row.name}</Typography>,
+    },
+    {
+      id: 'clientName',
+      label: 'Client',
+      render: (row) => <Typography variant="body2">{row.clientName || '—'}</Typography>,
+    },
+    {
+      id: 'projectManagerName',
+      label: 'Manager',
+      render: (row) => <Typography variant="body2">{row.projectManagerName || '—'}</Typography>,
+    },
+    {
+      id: 'estimatedHours',
+      label: 'Est. Hours',
+      align: 'right',
+      render: (row) => <Typography variant="body2">{row.estimatedHours}h</Typography>,
+    },
+    {
+      id: 'actualHours',
+      label: 'Act. Hours',
+      align: 'right',
+      render: (row) => <Typography variant="body2">{row.actualHours}h</Typography>,
+    },
+    {
+      id: 'tasks',
+      label: 'Tasks',
+      render: (row) => <Typography variant="body2">{row.completedTaskCount} / {row.taskCount}</Typography>,
+    },
+    {
+      id: 'progress',
+      label: 'Progress',
+      render: (row) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 80 }}>
+          <LinearProgress
+            variant="determinate"
+            value={row.progress}
+            sx={{ width: 40, height: 6, borderRadius: 3 }}
+            color={row.progress >= 100 ? 'success' : 'primary'}
+          />
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+            {Math.round(row.progress)}%
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      render: (row) => <StatusChip status={row.status} />,
+    },
+    {
+      id: 'plannedStartDate',
+      label: 'Planned Start',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.plannedStartDate)}</Typography>,
+    },
+    {
+      id: 'plannedEndDate',
+      label: 'Planned End',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.plannedEndDate)}</Typography>,
+    },
+    {
+      id: 'actualStartDate',
+      label: 'Actual Start',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.actualStartDate)}</Typography>,
+    },
+    {
+      id: 'actualEndDate',
+      label: 'Actual End',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.actualEndDate)}</Typography>,
+    },
+    {
+      id: 'actions',
+      label: 'Actions',
+      align: 'center',
+      render: (row) => (
+        <RowActions
+          part={row}
+          onStatusChange={handleStatusChange}
+          onView={handleRowClick}
+          onEdit={setEditingPart}
+          onDelete={setDeletingPart}
+          canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
+        />
+      ),
+    },
+  ], [handleStatusChange, handleRowClick]);
+
+
 
   const handleConfirmStatusChange = useCallback(
     (reason: string) => {
@@ -982,100 +1113,11 @@ export const PartListPage: React.FC = () => {
       {/* Table */}
       <Card>
         {partsLoading && <LinearProgress />}
-        <TableContainer component={Paper} elevation={0}>
-          <Table sx={{ minWidth: 1400 }} size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Part Number</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Part Name</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Package Name</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Client</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Manager</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hours</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hours</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Tasks</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Progress</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {parts.map((part) => (
-                <TableRow
-                  key={part.id}
-                  hover
-                  onClick={() => handleRowClick(part.id)}
-                  sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
-                >
-                  <TableCell sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'primary.main' }}>
-                    {part.partNumber}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{part.partName}</TableCell>
-                  <TableCell color="textSecondary">{part.name}</TableCell>
-                  <TableCell>{part.clientName || '—'}</TableCell>
-                  <TableCell>{part.projectManagerName || '—'}</TableCell>
-                  <TableCell align="right">{part.estimatedHours}h</TableCell>
-                  <TableCell align="right">{part.actualHours}h</TableCell>
-                  <TableCell>{part.completedTaskCount} / {part.taskCount}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 80 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={part.progress}
-                        sx={{ width: 40, height: 6, borderRadius: 3 }}
-                        color={part.progress >= 100 ? 'success' : 'primary'}
-                      />
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        {Math.round(part.progress)}%
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <StatusChip status={part.status} />
-                  </TableCell>
-                  <TableCell>{formatDate(part.plannedStartDate)}</TableCell>
-                  <TableCell>{formatDate(part.plannedEndDate)}</TableCell>
-                  <TableCell>{formatDate(part.actualStartDate)}</TableCell>
-                  <TableCell>{formatDate(part.actualEndDate)}</TableCell>
-                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                    <RowActions
-                      part={part}
-                      onStatusChange={handleStatusChange}
-                      onView={handleRowClick}
-                      onEdit={setEditingPart}
-                      onDelete={setDeletingPart}
-                      canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {parts.length === 0 && !partsLoading && (
-                <TableRow>
-                  <TableCell colSpan={15} align="center" sx={{ py: 4 }}>
-                    <Typography variant="body2" color="text.secondary">No parts found.</Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          component="div"
-          count={totalCount}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(_e, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
+        <DataTable<Project>
+          columns={columns}
+          data={filteredParts}
+          keyExtractor={(row) => row.id}
+          onRowClick={(row) => handleRowClick(row.id)}
         />
       </Card>
 

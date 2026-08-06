@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Box,
@@ -340,18 +340,35 @@ export const TaskListPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useGetTasks({
-    skip: page * rowsPerPage,
-    limit: rowsPerPage,
-    status: statusFilter !== 'all' ? statusFilter : undefined,
-    deptCat: deptFilter !== 'all' ? deptFilter : undefined,
-    search: searchQuery || undefined,
-    projectId: projectFilter || undefined,
+    skip: 0,
+    limit: 500,
   });
 
   const deleteMutation = useDeleteTask();
 
-  const tasks = data?.tasks ?? [];
-  const totalCount = data?.total ?? 0;
+  const allTasks = data?.tasks ?? [];
+
+  const filteredTasks = useMemo(() => {
+    return allTasks.filter((t) => {
+      // General search
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matches =
+          t.taskCode.toLowerCase().includes(q) ||
+          t.title.toLowerCase().includes(q) ||
+          (t.projectName && t.projectName.toLowerCase().includes(q)) ||
+          (t.assignedToName && t.assignedToName.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      // Status filter
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      // Department filter
+      if (deptFilter !== 'all' && t.deptCat !== deptFilter) return false;
+      // Project filter
+      if (projectFilter && t.projectId !== projectFilter) return false;
+      return true;
+    });
+  }, [allTasks, searchQuery, statusFilter, deptFilter, projectFilter]);
 
 
 
@@ -468,6 +485,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'plannedStartDate',
       label: 'Planned Start',
+      type: 'date',
       render: (row) => (
         <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
           {formatDate(row.plannedStartDate)}
@@ -477,6 +495,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'plannedEndDate',
       label: 'Planned End',
+      type: 'date',
       render: (row) => (
         <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
           {formatDate(row.plannedEndDate)}
@@ -486,6 +505,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'actualStartDate',
       label: 'Actual Start',
+      type: 'date',
       render: (row) => (
         <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
           {formatDate(row.actualStartDate)}
@@ -495,6 +515,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'actualEndDate',
       label: 'Actual End',
+      type: 'date',
       render: (row) => (
         <Typography variant="body2" sx={{ fontSize: '0.8rem', minWidth: 90 }}>
           {formatDate(row.actualEndDate)}
@@ -543,6 +564,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'plannedDeliveryDate',
       label: 'Delivery Date',
+      type: 'date',
       render: (row) => {
         const isCompleted = row.status === 'COMPLETED' || row.status === 'CANCELLED';
         const actualDate = row.actualDeliveryDate;
@@ -796,15 +818,11 @@ export const TaskListPage: React.FC = () => {
           >
             <DataTable<Task>
               columns={columns}
-              data={tasks}
+              data={filteredTasks}
               keyExtractor={(row) => row.id}
-              page={page}
-              rowsPerPage={rowsPerPage}
-              totalCount={totalCount}
-              onPageChange={(newPage) => setPage(newPage)}
-              onRowsPerPageChange={(newSize) => {
-                setRowsPerPage(newSize);
-                setPage(0);
+              onRowClick={(row) => {
+                setSelectedTask(row);
+                setDetailOpen(true);
               }}
             />
           </Box>

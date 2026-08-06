@@ -94,6 +94,7 @@ const mapBackendEmployeeToFrontend = (e: any): Employee => ({
 });
 
 const mapFrontendEmployeeToBackend = (data: any) => ({
+  employee_code: data.employeeCode,
   first_name: data.firstName,
   middle_name: data.middleName || null,
   last_name: data.lastName,
@@ -109,6 +110,7 @@ const mapFrontendEmployeeToBackend = (data: any) => ({
   profile_photo_url: data.profilePhoto || null,
   department_id: data.departmentId || null,
   designation_id: data.designationId || null,
+  designation_name: data.designationName || null,
   role_ids: data.roleIds || [],
   reporting_manager_id: data.reportingManagerId || null,
   date_of_joining: data.dateOfJoining || null,
@@ -567,6 +569,7 @@ export const useUpdateEmployee = () => {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const payload: any = {};
+      if (data.employeeCode !== undefined) payload.employee_code = data.employeeCode;
       if (data.firstName !== undefined) payload.first_name = data.firstName;
       if (data.middleName !== undefined) payload.middle_name = data.middleName || null;
       if (data.lastName !== undefined) payload.last_name = data.lastName;
@@ -582,6 +585,7 @@ export const useUpdateEmployee = () => {
       if (data.profilePhoto !== undefined) payload.profile_photo_url = data.profilePhoto || null;
       if (data.departmentId !== undefined) payload.department_id = data.departmentId || null;
       if (data.designationId !== undefined) payload.designation_id = data.designationId || null;
+      if (data.designationName !== undefined) payload.designation_name = data.designationName || null;
       if (data.roleIds !== undefined) payload.role_ids = data.roleIds;
       if (data.reportingManagerId !== undefined) payload.reporting_manager_id = data.reportingManagerId || null;
       if (data.dateOfJoining !== undefined) payload.date_of_joining = data.dateOfJoining;
