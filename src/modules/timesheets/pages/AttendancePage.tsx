@@ -49,6 +49,7 @@ import {
   useStartBreak,
   useEndBreak
 } from '../services/workSessionService';
+import { useGetCalendarSettings } from '../../master-data/services/calendarConfigService';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 // ==========================================
@@ -266,6 +267,80 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ label, count, color, bgcolor,
 );
 
 // ==========================================
+// SHIFT & WORKDAYS INFO CARD (read-only)
+// Sourced from Master Data → Calendar Configuration
+// ==========================================
+
+const ShiftInfoCard: React.FC = () => {
+  const { data: settings, isLoading } = useGetCalendarSettings();
+
+  if (isLoading || !settings) return null;
+
+  const days = settings.workingDays
+    ? settings.workingDays.split(',').map((d) => d.trim())
+    : [];
+
+  return (
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <AccessTimeIcon color="primary" fontSize="small" />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Shift &amp; Workdays
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
+            — Configured in Master Data › Calendar Configuration
+          </Typography>
+        </Box>
+        <Divider sx={{ mb: 2 }} />
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Office Start
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.officeStartTime || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Office End
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.officeEndTime || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Daily Hours
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.workingHoursPerDay} hrs
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Weekend
+            </Typography>
+            <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
+              {settings.weekendDays || '—'}
+            </Typography>
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Working Days
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 0.75 }}>
+              {days.map((d) => (
+                <Chip key={d} label={d} size="small" color="primary" variant="outlined" sx={{ fontWeight: 600 }} />
+              ))}
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+};
 // MAIN PAGE
 // ==========================================
 
@@ -1452,7 +1527,8 @@ export const AttendancePage: React.FC = () => {
         )}
       </Card>
 
-
+      {/* ── Shift & Workdays Info (read-only, sourced from Master Data → Calendar Configuration) ── */}
+      <ShiftInfoCard />
 
       {/* Clock In Confirmation Dialog */}
       <Dialog

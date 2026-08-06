@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -870,18 +870,35 @@ export const ClientListPage: React.FC = () => {
   const isActiveParam =
     activeFilter === 'active' ? true : activeFilter === 'inactive' ? false : undefined;
 
+  // Fetch all clients (up to 500) to support full client-side Excel-like column sorting and filtering
   const { data, isLoading } = useGetClients({
-    skip: page * rowsPerPage,
-    limit: rowsPerPage,
-    search: debouncedSearch || undefined,
-    isActive: isActiveParam,
+    skip: 0,
+    limit: 500,
   });
 
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();
 
-  const clients = data?.clients ?? [];
-  const totalCount = data?.total ?? 0;
+  const allClients = data?.clients ?? [];
+
+  const filteredClients = useMemo(() => {
+    return allClients.filter((c) => {
+      // General search filter
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        const matches =
+          c.name.toLowerCase().includes(q) ||
+          c.clientCode.toLowerCase().includes(q) ||
+          (c.contactPerson && c.contactPerson.toLowerCase().includes(q)) ||
+          (c.contactEmail && c.contactEmail.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      // Status filter
+      if (activeFilter === 'active' && c.status !== 'Active') return false;
+      if (activeFilter === 'inactive' && c.status !== 'Inactive') return false;
+      return true;
+    });
+  }, [allClients, debouncedSearch, activeFilter]);
 
   // ---- Handlers ----
 
@@ -1175,16 +1192,8 @@ export const ClientListPage: React.FC = () => {
         ) : (
           <DataTable<Client>
             columns={columns}
-            data={clients}
+            data={filteredClients}
             keyExtractor={(row) => row.id}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            totalCount={totalCount}
-            onPageChange={(newPage) => setPage(newPage)}
-            onRowsPerPageChange={(newRpp) => {
-              setRowsPerPage(newRpp);
-              setPage(0);
-            }}
           />
         )}
       </Card>

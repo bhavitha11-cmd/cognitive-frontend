@@ -186,7 +186,7 @@ export const EmployeeProfilePage: React.FC = () => {
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 6, sm: 4 }}>
                     <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>Employee ID</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{employee.id}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{employee.employeeCode || employee.id}</Typography>
                   </Grid>
                   <Grid size={{ xs: 6, sm: 4 }}>
                     <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>Department</Typography>

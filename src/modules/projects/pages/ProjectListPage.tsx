@@ -42,6 +42,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
 
 import { SearchFilters } from '../../../components/SearchFilters';
+import { DataTable } from '../../../components/DataTable';
+import type { Column } from '../../../components/DataTable';
 import {
   useGetProjects,
   useUpdateProject,
@@ -461,22 +463,138 @@ export const ProjectListPage: React.FC = () => {
   const [deletingProject, setDeletingProject] = useState<ParentProject | null>(null);
 
   const { data: projectsData, isLoading: projectsLoading } = useGetProjects({
-    skip: page * rowsPerPage,
-    limit: rowsPerPage,
-    search: search || undefined,
-    status: statusFilter !== 'all' ? statusFilter : undefined,
-    clientId: clientFilter !== 'all' ? clientFilter : undefined,
+    skip: 0,
+    limit: 500,
   });
 
   const { data: clientsData } = useGetClients({ limit: 200 });
 
-  const projects = projectsData?.projects || [];
-  const totalCount = projectsData?.total ?? 0;
+  const allProjects = projectsData?.projects || [];
   const clients = clientsData?.clients || [];
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     navigate(`/projects/${id}`);
-  };
+  }, [navigate]);
+
+  const filteredProjects = useMemo(() => {
+    return allProjects.filter((p) => {
+      // General search
+      if (search) {
+        const q = search.toLowerCase();
+        const matches =
+          p.name.toLowerCase().includes(q) ||
+          p.projectCode.toLowerCase().includes(q) ||
+          (p.clientName && p.clientName.toLowerCase().includes(q)) ||
+          (p.projectManagerName && p.projectManagerName.toLowerCase().includes(q));
+        if (!matches) return false;
+      }
+      // Status filter
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      // Client filter
+      if (clientFilter !== 'all' && p.clientId !== clientFilter) return false;
+      return true;
+    });
+  }, [allProjects, search, statusFilter, clientFilter]);
+
+  const columns: Column<ParentProject>[] = useMemo(() => [
+    {
+      id: 'name',
+      label: 'Project Name',
+      render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>,
+    },
+    {
+      id: 'clientName',
+      label: 'Client',
+      render: (row) => <Typography variant="body2">{row.clientName || '—'}</Typography>,
+    },
+    {
+      id: 'projectManagerName',
+      label: 'Manager',
+      render: (row) => <Typography variant="body2">{row.projectManagerName || '—'}</Typography>,
+    },
+    {
+      id: 'partCount',
+      label: 'Parts',
+      align: 'center',
+      render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.partCount}</Typography>,
+    },
+    {
+      id: 'estimatedHours',
+      label: 'Est. Hours',
+      align: 'right',
+      render: (row) => <Typography variant="body2">{row.estimatedHours.toLocaleString()}h</Typography>,
+    },
+    {
+      id: 'actualHours',
+      label: 'Act. Hours',
+      align: 'right',
+      render: (row) => <Typography variant="body2">{row.actualHours.toLocaleString()}h</Typography>,
+    },
+    {
+      id: 'progress',
+      label: 'Progress',
+      align: 'center',
+      render: (row) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
+          <LinearProgress
+            variant="determinate"
+            value={row.progress}
+            sx={{ width: 50, height: 6, borderRadius: 3 }}
+            color={row.progress >= 100 ? 'success' : 'primary'}
+          />
+          <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+            {Math.round(row.progress)}%
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      render: (row) => <StatusChip status={row.status} />,
+    },
+    {
+      id: 'plannedStartDate',
+      label: 'Planned Start',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.plannedStartDate)}</Typography>,
+    },
+    {
+      id: 'plannedEndDate',
+      label: 'Planned End',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.plannedEndDate)}</Typography>,
+    },
+    {
+      id: 'actualStartDate',
+      label: 'Actual Start',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.actualStartDate)}</Typography>,
+    },
+    {
+      id: 'actualEndDate',
+      label: 'Actual End',
+      type: 'date',
+      render: (row) => <Typography variant="body2">{formatDate(row.actualEndDate)}</Typography>,
+    },
+    {
+      id: 'actions',
+      label: 'Actions',
+      align: 'center',
+      render: (row) => (
+        <RowActions
+          project={row}
+          onView={handleRowClick}
+          onEdit={setEditingProject}
+          onDelete={setDeletingProject}
+          canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
+          canDelete={useAuthStore.getState().hasPermission('Projects', 'delete') || useAuthStore.getState().hasPermission('Projects', 'activate')}
+        />
+      ),
+    },
+  ], [handleRowClick]);
+
+
 
   const clientOptions = clients.map((c) => ({
     value: c.id,
@@ -538,119 +656,11 @@ export const ProjectListPage: React.FC = () => {
       {/* Table */}
       <Card>
         {projectsLoading && <LinearProgress />}
-        <TableContainer component={Paper} elevation={0}>
-          <Table sx={{ minWidth: 1200 }} size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.50' }}>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Project Name</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Client</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Manager</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Parts</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Est. Hours</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="right">Act. Hours</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Progress</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned Start</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Planned End</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual Start</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actual End</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }} align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {projects.map((project) => (
-                <TableRow
-                  key={project.id}
-                  hover
-                  onClick={() => handleRowClick(project.id)}
-                  sx={{ cursor: 'pointer', '&:last-child td': { borderBottom: 0 } }}
-                >
-                  {/* Name */}
-                  <TableCell sx={{ fontWeight: 600 }}>{project.name}</TableCell>
-
-                  {/* Client */}
-                  <TableCell>{project.clientName || '—'}</TableCell>
-
-                  {/* Manager */}
-                  <TableCell>{project.projectManagerName || '—'}</TableCell>
-
-                  {/* Total Parts */}
-                  <TableCell align="center" sx={{ fontWeight: 600 }}>{project.partCount}</TableCell>
-
-                  {/* Est. Hours */}
-                  <TableCell align="right">{project.estimatedHours.toLocaleString()}h</TableCell>
-
-                  {/* Act. Hours */}
-                  <TableCell align="right">{project.actualHours.toLocaleString()}h</TableCell>
-
-                  {/* Progress */}
-                  <TableCell align="center">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={project.progress}
-                        sx={{ width: 50, height: 6, borderRadius: 3 }}
-                        color={project.progress >= 100 ? 'success' : 'primary'}
-                      />
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
-                        {Math.round(project.progress)}%
-                      </Typography>
-                    </Box>
-                  </TableCell>
-
-                  {/* Status */}
-                  <TableCell>
-                    <StatusChip status={project.status} />
-                  </TableCell>
-
-                  {/* Start Date */}
-                  <TableCell>{formatDate(project.plannedStartDate)}</TableCell>
-
-                  {/* End Date */}
-                  <TableCell>{formatDate(project.plannedEndDate)}</TableCell>
-
-                  {/* Actual Start Date */}
-                  <TableCell>{formatDate(project.actualStartDate)}</TableCell>
-
-                  {/* Actual End Date */}
-                  <TableCell>{formatDate(project.actualEndDate)}</TableCell>
-
-                  {/* Actions */}
-                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                    <RowActions
-                      project={project}
-                      onView={handleRowClick}
-                      onEdit={setEditingProject}
-                      onDelete={setDeletingProject}
-                      canEdit={useAuthStore.getState().hasPermission('Projects', 'edit')}
-                      canDelete={useAuthStore.getState().hasPermission('Projects', 'delete') || useAuthStore.getState().hasPermission('Projects', 'activate')}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-
-              {projects.length === 0 && !projectsLoading && (
-                <TableRow>
-                  <TableCell colSpan={13} align="center" sx={{ py: 4 }}>
-                    <Typography variant="body2" color="text.secondary">No projects found.</Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          component="div"
-          count={totalCount}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(_e, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
+        <DataTable<ParentProject>
+          columns={columns}
+          data={filteredProjects}
+          keyExtractor={(row) => row.id}
+          onRowClick={(row) => handleRowClick(row.id)}
         />
       </Card>
 

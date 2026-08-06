@@ -136,7 +136,7 @@ export const EmployeeListPage: React.FC = () => {
               username: newEmpResponse.username,
               email: newEmpResponse.email,
               password: rawPassword,
-              employeeCode: newEmpResponse.id,
+              employeeCode: newEmpResponse.employeeCode || newEmpResponse.id,
             });
             setIsCredsOpen(true);
           }
@@ -204,7 +204,7 @@ export const EmployeeListPage: React.FC = () => {
       label: 'Employee ID',
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-          {row.id.slice(0, 8)}…
+          {row.employeeCode || row.id.slice(0, 8)}
         </Typography>
       ),
     },
@@ -238,6 +238,15 @@ export const EmployeeListPage: React.FC = () => {
               (Head)
             </Typography>
           )}
+        </Typography>
+      ),
+    },
+    {
+      id: 'designationName',
+      label: 'Designation',
+      render: (row) => (
+        <Typography variant="body2">
+          {row.designationName || '-'}
         </Typography>
       ),
     },
