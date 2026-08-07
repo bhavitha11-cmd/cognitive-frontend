@@ -136,6 +136,7 @@ const QUICK_FILTERS = [
   { value: 'all', label: 'All Modules' },
   { value: 'LEAVE', label: 'Leaves' },
   { value: 'TIMESHEET', label: 'Timesheets' },
+  { value: 'ATTENDANCE_CORRECTION', label: 'Attendance Correction' },
 ];
 
 // ==========================================

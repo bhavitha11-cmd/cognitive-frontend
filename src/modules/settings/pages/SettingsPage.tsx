@@ -1043,6 +1043,7 @@ export const SettingsPage: React.FC = () => {
                                   >
                                     <MenuItem value="LEAVE">Leave Management</MenuItem>
                                     <MenuItem value="TIMESHEET">Timesheet Approval</MenuItem>
+                                    <MenuItem value="ATTENDANCE_CORRECTION">Attendance Correction</MenuItem>
                                   </Select>
                                 </FormControl>
                               </Grid>

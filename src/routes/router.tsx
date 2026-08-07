@@ -237,7 +237,11 @@ export const router = createBrowserRouter([
           },
           {
             path: 'attendance',
-            element: lazyLoad(() => import('../modules/timesheets/pages/AttendancePage'), 'table'),
+            element: (
+              <ProtectedRoute module="Attendance" action="view">
+                {lazyLoad(() => import('../modules/timesheets/pages/AttendancePage'), 'table')}
+              </ProtectedRoute>
+            ),
           },
         ],
       },
