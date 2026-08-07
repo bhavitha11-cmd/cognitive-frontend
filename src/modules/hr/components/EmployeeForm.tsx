@@ -179,9 +179,8 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialValues, onSub
                 label="Emp ID *"
                 fullWidth
                 size="small"
-                disabled={isEditing}
                 error={!!errors.employeeCode}
-                helperText={errors.employeeCode?.message}
+                helperText={errors.employeeCode?.message || (isEditing ? 'Changing the ID may affect biometric mapping and integrations.' : '')}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             )}

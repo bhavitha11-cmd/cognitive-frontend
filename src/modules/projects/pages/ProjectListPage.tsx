@@ -500,40 +500,47 @@ export const ProjectListPage: React.FC = () => {
     {
       id: 'name',
       label: 'Project Name',
+      getValue: (row) => row.name,
       render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>,
     },
     {
       id: 'clientName',
       label: 'Client',
+      getValue: (row) => row.clientName || '—',
       render: (row) => <Typography variant="body2">{row.clientName || '—'}</Typography>,
     },
     {
       id: 'projectManagerName',
       label: 'Manager',
+      getValue: (row) => row.projectManagerName || '—',
       render: (row) => <Typography variant="body2">{row.projectManagerName || '—'}</Typography>,
     },
     {
       id: 'partCount',
       label: 'Parts',
       align: 'center',
+      getValue: (row) => row.partCount,
       render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.partCount}</Typography>,
     },
     {
       id: 'estimatedHours',
       label: 'Est. Hours',
       align: 'right',
+      getValue: (row) => row.estimatedHours,
       render: (row) => <Typography variant="body2">{row.estimatedHours.toLocaleString()}h</Typography>,
     },
     {
       id: 'actualHours',
       label: 'Act. Hours',
       align: 'right',
+      getValue: (row) => row.actualHours,
       render: (row) => <Typography variant="body2">{row.actualHours.toLocaleString()}h</Typography>,
     },
     {
       id: 'progress',
       label: 'Progress',
       align: 'center',
+      getValue: (row) => Math.round(row.progress),
       render: (row) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1 }}>
           <LinearProgress
@@ -551,6 +558,7 @@ export const ProjectListPage: React.FC = () => {
     {
       id: 'status',
       label: 'Status',
+      getValue: (row) => row.status,
       render: (row) => <StatusChip status={row.status} />,
     },
     {

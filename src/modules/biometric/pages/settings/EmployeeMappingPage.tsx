@@ -112,7 +112,14 @@ export const EmployeeMappingPage: React.FC = () => {
               <Autocomplete
                 sx={{ minWidth: 280 }}
                 options={employees}
-                getOptionLabel={(opt) => `${opt.displayName} (${opt.employeeCode})`}
+                isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
+                getOptionLabel={(opt) => {
+                  if (!opt) return '';
+                  if (typeof opt === 'string') return opt;
+                  const name = opt.displayName || 'Employee';
+                  const code = opt.employeeCode ? ` (${opt.employeeCode})` : '';
+                  return `${name}${code}`;
+                }}
                 value={selectedEmployee}
                 onChange={(_, val) => setSelectedEmployee(val)}
                 loading={employeesLoading}
@@ -120,6 +127,7 @@ export const EmployeeMappingPage: React.FC = () => {
                   <TextField {...params} label="Search Employee" placeholder="Type name or code..." />
                 )}
               />
+
 
               {/* Biometric user ID from the device — just a number */}
               <TextField

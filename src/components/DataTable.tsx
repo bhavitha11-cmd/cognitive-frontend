@@ -135,15 +135,142 @@ export function DataTable<T>({
     onSelectionChange(newSelected);
   };
 
+  function extractTextFromReactNode(node: React.ReactNode): string {
+    if (node == null || typeof node === 'boolean') return '';
+    if (typeof node === 'string' || typeof node === 'number') return String(node).trim();
+    if (Array.isArray(node)) {
+      return node.map(extractTextFromReactNode).filter(Boolean).join(' ').trim();
+    }
+    if (React.isValidElement(node)) {
+      const props = node.props as any;
+      if (!props) return '';
+      const typeName = typeof node.type === 'string' ? node.type : (node.type as any)?.name || (node.type as any)?.displayName || '';
+      if (typeName.includes('Avatar')) {
+        return '';
+      }
+      if (props.label != null && (typeof props.label === 'string' || typeof props.label === 'number')) {
+        return String(props.label).trim();
+      }
+      if (props.children) {
+        return extractTextFromReactNode(props.children);
+      }
+    }
+    return '';
+  }
+
   const getCellValueString = (row: T, col: Column<T>): string => {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const r = row as any;
+
+    // 1. Try col.getValue if provided
     if (col.getValue) {
       const val = col.getValue(row);
-      return val != null ? String(val) : '';
+      if (val != null) {
+        const s = String(val).trim();
+        if (s && !UUID_REGEX.test(s)) return s;
+      }
     }
-    const val = (row as any)[col.id];
-    if (val == null) return '';
-    if (typeof val === 'object') return '';
-    return String(val);
+
+    // 2. Try col.render text extraction if provided
+    if (col.render) {
+      try {
+        const rendered = col.render(row);
+        const textFromRender = extractTextFromReactNode(rendered).trim();
+        if (textFromRender && !UUID_REGEX.test(textFromRender)) {
+          return textFromRender;
+        }
+      } catch (err) {
+        // Fallback
+      }
+    }
+
+    // 3. Entity Fallback Check
+    if (
+      col.id === 'id' ||
+      col.id === 'employeeId' ||
+      col.id === 'employee_id' ||
+      col.id === 'employeeCode' ||
+      col.id === 'employee_code'
+    ) {
+      if (r.employeeCode || r.employee_code) return String(r.employeeCode || r.employee_code);
+    }
+
+    if (
+      col.id === 'name' ||
+      col.id === 'employeeName' ||
+      col.id === 'userName' ||
+      col.id === 'assignedTo' ||
+      col.id === 'manager' ||
+      col.id === 'user'
+    ) {
+      const nameStr = `${r.firstName || r.first_name || ''} ${r.lastName || r.last_name || ''}`.trim();
+      if (nameStr) return nameStr;
+      if (r.displayName && !UUID_REGEX.test(r.displayName)) return String(r.displayName);
+      if (r.display_name && !UUID_REGEX.test(r.display_name)) return String(r.display_name);
+      if (r.name && !UUID_REGEX.test(r.name)) return String(r.name);
+      if (r.username) return String(r.username);
+      if (r.email || r.officialEmail || r.official_email) return String(r.email || r.officialEmail || r.official_email);
+      if (r.employeeCode || r.employee_code) return String(r.employeeCode || r.employee_code);
+    }
+
+    if (col.id === 'departmentId' || col.id === 'department_id' || col.id === 'department') {
+      if (r.departmentName || r.department_name || r.department?.name) {
+        return String(r.departmentName || r.department_name || r.department?.name);
+      }
+    }
+
+    if (col.id === 'clientId' || col.id === 'client_id' || col.id === 'clientName') {
+      if (r.clientName || r.client_name || r.client?.name) {
+        return String(r.clientName || r.client_name || r.client?.name);
+      }
+    }
+
+    if (col.id === 'projectId' || col.id === 'project_id' || col.id === 'projectName') {
+      if (r.projectName || r.project_name || r.project?.name) {
+        return String(r.projectName || r.project_name || r.project?.name);
+      }
+    }
+
+    if (col.id === 'designationId' || col.id === 'designation_id' || col.id === 'designation') {
+      if (r.designationName || r.designation_name || r.designation?.name) {
+        return String(r.designationName || r.designation_name || r.designation?.name);
+      }
+    }
+
+    if (col.id === 'teamId' || col.id === 'team_id' || col.id === 'team') {
+      if (r.teamName || r.team_name || r.team?.team_name) {
+        return String(r.teamName || r.team_name || r.team?.team_name);
+      }
+    }
+
+    // 4. General Property Lookup
+    const val = r[col.id];
+    const strVal = (val != null && typeof val !== 'object') ? String(val).trim() : '';
+
+    if (strVal && !UUID_REGEX.test(strVal)) {
+      return strVal;
+    }
+
+    // 5. Final fallback if strVal is UUID or empty: NEVER RETURN A RAW UUID!
+    const baseId = col.id.endsWith('Id') ? col.id.slice(0, -2) : col.id;
+    const nameProp = baseId + 'Name';
+    if (r[nameProp] && typeof r[nameProp] === 'string' && !UUID_REGEX.test(r[nameProp])) {
+      return r[nameProp];
+    }
+    if (r[baseId] && typeof r[baseId] === 'string' && !UUID_REGEX.test(r[baseId])) {
+      return r[baseId];
+    }
+    if (r[baseId] && typeof r[baseId] === 'object' && r[baseId]?.name) {
+      return String(r[baseId].name);
+    }
+    if (r.email) return String(r.email);
+    if (r.employeeCode || r.employee_code) return String(r.employeeCode || r.employee_code);
+
+    if (UUID_REGEX.test(strVal)) {
+      return strVal.slice(0, 8);
+    }
+
+    return strVal;
   };
 
   const getCellValueRaw = (row: T, col: Column<T>): any => {

@@ -314,6 +314,7 @@ export const DesignationListPage: React.FC = () => {
     {
       id: 'code',
       label: 'Code',
+      getValue: (row) => row.code,
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
           {row.code}
@@ -323,16 +324,19 @@ export const DesignationListPage: React.FC = () => {
     {
       id: 'name',
       label: 'Designation',
+      getValue: (row) => row.name,
       render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>,
     },
     {
       id: 'departmentId',
       label: 'Department',
+      getValue: (row) => getDeptName(row.departmentId),
       render: (row) => <Typography variant="body2">{getDeptName(row.departmentId)}</Typography>,
     },
     {
       id: 'level',
       label: 'Level',
+      getValue: (row) => row.level ? `L${row.level}` : '—',
       render: (row) => (
         row.level ? (
           <Chip label={`L${row.level}`} size="small" variant="outlined" />

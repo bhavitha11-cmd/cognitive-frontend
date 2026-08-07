@@ -922,6 +922,7 @@ export const PartListPage: React.FC = () => {
     {
       id: 'partNumber',
       label: 'Part Number',
+      getValue: (row) => row.partNumber,
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 700, fontFamily: 'monospace', color: 'primary.main' }}>
           {row.partNumber}
@@ -931,21 +932,25 @@ export const PartListPage: React.FC = () => {
     {
       id: 'partName',
       label: 'Part Name',
+      getValue: (row) => row.partName,
       render: (row) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.partName}</Typography>,
     },
     {
       id: 'name',
       label: 'Package Name',
+      getValue: (row) => row.name,
       render: (row) => <Typography variant="body2" color="textSecondary">{row.name}</Typography>,
     },
     {
       id: 'clientName',
       label: 'Client',
+      getValue: (row) => row.clientName || '—',
       render: (row) => <Typography variant="body2">{row.clientName || '—'}</Typography>,
     },
     {
       id: 'projectManagerName',
       label: 'Manager',
+      getValue: (row) => row.projectManagerName || '—',
       render: (row) => <Typography variant="body2">{row.projectManagerName || '—'}</Typography>,
     },
     {

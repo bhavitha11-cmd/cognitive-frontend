@@ -462,6 +462,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'taskCode',
       label: 'Part # / Code',
+      getValue: (row) => row.taskCode,
       render: (row) => (
         <Box sx={{ minWidth: 140, display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
@@ -485,6 +486,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'title',
       label: 'Title',
+      getValue: (row) => row.title,
       render: (row) => (
         <Box sx={{ maxWidth: 200 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
@@ -501,6 +503,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'projectName',
       label: 'Project',
+      getValue: (row) => row.projectName || row.projectId || '—',
       render: (row) => (
         <Chip
           label={row.projectName || row.projectId}
@@ -513,6 +516,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'scopeName',
       label: 'Scope',
+      getValue: (row) => row.scopeName || '—',
       render: (row) => (
         <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
           {row.scopeName || '—'}
@@ -523,6 +527,7 @@ export const TaskListPage: React.FC = () => {
       id: 'departmentCategory',
       label: 'Dept',
       align: 'center',
+      getValue: (row) => row.departmentCategory || '—',
       render: (row) =>
         row.departmentCategory ? (
           <Chip
@@ -539,6 +544,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'status',
       label: 'Status',
+      getValue: (row) => STATUS_LABELS[row.status] || row.status,
       render: (row) => (
         <Chip
           label={STATUS_LABELS[row.status] || row.status}
@@ -551,6 +557,7 @@ export const TaskListPage: React.FC = () => {
     {
       id: 'priority',
       label: 'Priority',
+      getValue: (row) => PRIORITY_LABELS[row.priority] || row.priority,
       render: (row) => (
         <Chip
           label={PRIORITY_LABELS[row.priority] || row.priority}

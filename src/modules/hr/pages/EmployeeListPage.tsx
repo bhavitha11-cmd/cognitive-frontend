@@ -202,6 +202,7 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'id',
       label: 'Employee ID',
+      getValue: (row) => row.employeeCode || row.id.slice(0, 8),
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem' }}>
           {row.employeeCode || row.id.slice(0, 8)}
@@ -211,25 +212,43 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'name',
       label: 'Name',
-      render: (row) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar src={row.profilePhoto} sx={{ width: 34, height: 34, fontSize: '0.8125rem' }}>
-            {(row.firstName || '').charAt(0)}{(row.lastName || '').charAt(0)}
-          </Avatar>
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {row.firstName} {row.lastName}
-            </Typography>
-            <Typography variant="caption" color="textSecondary">
-              {row.email}
-            </Typography>
+      getValue: (row) => {
+        const full = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+        if (full) return full;
+        if (row.displayName) return row.displayName;
+        if (row.username) return row.username;
+        if (row.email) return row.email;
+        if (row.employeeCode) return row.employeeCode;
+        return row.id ? row.id.slice(0, 8) : '';
+      },
+      render: (row) => {
+        const fullName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+        const mainText = fullName || row.displayName || row.username || row.email || row.employeeCode || (row.id ? row.id.slice(0, 8) : '');
+        const subText = fullName ? row.email : undefined;
+
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar src={row.profilePhoto} sx={{ width: 34, height: 34, fontSize: '0.8125rem' }}>
+              {(row.firstName || mainText || 'E').charAt(0).toUpperCase()}
+            </Avatar>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {mainText}
+              </Typography>
+              {subText && (
+                <Typography variant="caption" color="textSecondary">
+                  {subText}
+                </Typography>
+              )}
+            </Box>
           </Box>
-        </Box>
-      ),
+        );
+      },
     },
     {
       id: 'departmentId',
       label: 'Department',
+      getValue: (row) => getDeptName(row.departmentId),
       render: (row) => (
         <Typography variant="body2">
           {getDeptName(row.departmentId)}
@@ -244,6 +263,7 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'designationName',
       label: 'Designation',
+      getValue: (row) => row.designationName || '—',
       render: (row) => (
         <Typography variant="body2">
           {row.designationName || '-'}
@@ -253,6 +273,7 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'teamName',
       label: 'Team',
+      getValue: (row) => row.teamName || '—',
       render: (row) => (
         <Typography variant="body2">
           {row.teamName || '-'}
@@ -267,6 +288,7 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'roles',
       label: 'Assigned Roles',
+      getValue: (row) => getRoleNames(row.roleIds).join(', ') || 'No roles',
       render: (row) => (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxWidth: 220 }}>
           {getRoleNames(row.roleIds).map((name, index) => (
@@ -281,11 +303,13 @@ export const EmployeeListPage: React.FC = () => {
     {
       id: 'manager',
       label: 'Manager',
+      getValue: (row) => getManagerName(row),
       render: (row) => <Typography variant="body2">{getManagerName(row)}</Typography>,
     },
     {
       id: 'status',
       label: 'Status',
+      getValue: (row) => row.status,
       render: (row) => <StatusBadge status={row.status} />,
     },
     {

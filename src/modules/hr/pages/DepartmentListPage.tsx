@@ -222,6 +222,7 @@ export const DepartmentListPage: React.FC = () => {
     {
       id: 'name',
       label: 'Department Name',
+      getValue: (row) => row.name,
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 500 }}>
           {row.name}
@@ -231,6 +232,7 @@ export const DepartmentListPage: React.FC = () => {
     {
       id: 'description',
       label: 'Description',
+      getValue: (row) => row.description || '—',
       render: (row) => (
         <Typography
           variant="body2"
@@ -249,6 +251,7 @@ export const DepartmentListPage: React.FC = () => {
     {
       id: 'departmentHeadName',
       label: 'Department Head',
+      getValue: (row) => row.departmentHeadName || '—',
       render: (row) => (
         <Typography variant="body2">{row.departmentHeadName || '-'}</Typography>
       ),

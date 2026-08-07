@@ -986,6 +986,7 @@ export const ClientListPage: React.FC = () => {
     {
       id: 'clientCode',
       label: 'Client Code',
+      getValue: (row) => row.clientCode || '—',
       render: (row) => (
         <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', color: 'text.secondary' }}>
           {row.clientCode || '—'}
@@ -995,6 +996,7 @@ export const ClientListPage: React.FC = () => {
     {
       id: 'name',
       label: 'Name',
+      getValue: (row) => row.name,
       render: (row) => (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Box
@@ -1020,6 +1022,7 @@ export const ClientListPage: React.FC = () => {
     {
       id: 'industry',
       label: 'Industry',
+      getValue: (row) => row.industry || '—',
       render: (row) => (
         <Typography variant="body2" color="text.secondary">
           {row.industry || '—'}
