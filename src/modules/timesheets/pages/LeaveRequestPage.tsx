@@ -40,6 +40,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import {
   useGetLeaveTypes,
@@ -132,11 +133,14 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
   totalAllowed,
   carriedForward,
 }) => {
-  const pct = totalAllowed > 0 ? Math.min(100, (remaining / totalAllowed) * 100) : 0;
+  const isNegative = remaining < 0;
+  const cardColor = isNegative ? '#dc2626' : color;
+  const pct = totalAllowed > 0 ? Math.min(100, Math.max(0, (remaining / totalAllowed) * 100)) : 0;
+
   return (
     <Card
       sx={{
-        borderTop: `4px solid ${color}`,
+        borderTop: `4px solid ${cardColor}`,
         height: '100%',
         transition: 'box-shadow 0.2s',
         '&:hover': { boxShadow: 4 },
@@ -148,11 +152,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {name}
             </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, color, lineHeight: 1.2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: cardColor, lineHeight: 1.2 }}>
               {remaining}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              days remaining
+            <Typography variant="caption" color={isNegative ? 'error.main' : 'text.secondary'} sx={{ fontWeight: isNegative ? 600 : 400 }}>
+              {isNegative ? 'days (LOP)' : 'days remaining'}
             </Typography>
           </Box>
           <Box
@@ -160,13 +164,13 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
               width: 36,
               height: 36,
               borderRadius: '50%',
-              bgcolor: `${color}20`,
+              bgcolor: `${cardColor}20`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <BeachAccessIcon sx={{ color, fontSize: 18 }} />
+            <BeachAccessIcon sx={{ color: cardColor, fontSize: 18 }} />
           </Box>
         </Stack>
 
@@ -175,9 +179,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
           <Box sx={{ bgcolor: 'grey.100', borderRadius: 2, height: 6, overflow: 'hidden' }}>
             <Box
               sx={{
-                width: `${pct}%`,
+                width: isNegative ? '100%' : `${pct}%`,
                 height: '100%',
-                bgcolor: color,
+                bgcolor: cardColor,
                 borderRadius: 2,
                 transition: 'width 0.5s ease',
               }}
@@ -216,7 +220,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
   const uploadDoc = useUploadLeaveDocument();
 
   const [selectedFile, setSelectedFile] = useState<globalThis.File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     control,
@@ -265,11 +269,19 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
     [balances, watchedType]
   );
 
+  const isCappedLeave = useMemo(() => {
+    if (!selectedLeaveType) return false;
+    const code = (selectedLeaveType.code || '').toUpperCase();
+    const name = (selectedLeaveType.name || '').toLowerCase();
+    return code === 'UL' || name.includes('marriage');
+  }, [selectedLeaveType]);
+
   const insufficientBalance = selectedBalance !== undefined && days > 0 && days > selectedBalance.remaining;
+  const isCappedExceeded = isCappedLeave && insufficientBalance;
 
   const handleClose = () => {
     setSelectedFile(null);
-    setUploadError(null);
+    setSubmitError(null);
     reset();
     onClose();
   };
@@ -281,12 +293,12 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
         return;
       }
       if (!selectedFile) {
-        setUploadError('Document upload is mandatory for extra leaves');
+        setSubmitError('Document upload is mandatory for extra leaves');
         return;
       }
     }
 
-    setUploadError(null);
+    setSubmitError(null);
 
     try {
       let documentUrl: string | undefined = undefined;
@@ -307,13 +319,16 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
       applyLeave.mutate(payload, {
         onSuccess: () => {
           setSelectedFile(null);
-          setUploadError(null);
+          setSubmitError(null);
           reset();
           onSuccess();
         },
+        onError: (err: any) => {
+          setSubmitError(parseError(err));
+        },
       });
     } catch (err: any) {
-      setUploadError(parseError(err));
+      setSubmitError(parseError(err));
     }
   };
 
@@ -323,6 +338,13 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <DialogContent sx={{ pt: 1 }}>
           <Grid container spacing={2}>
+            {submitError && (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity="error" onClose={() => setSubmitError(null)}>
+                  {submitError}
+                </Alert>
+              </Grid>
+            )}
             {/* Leave Type */}
             <Grid size={{ xs: 12 }}>
               <Controller
@@ -466,14 +488,19 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             {days > 0 && (
               <Grid size={{ xs: 12 }}>
                 <Alert
-                  severity={insufficientBalance ? 'warning' : 'info'}
+                  severity={isCappedExceeded ? 'error' : insufficientBalance ? 'warning' : 'info'}
                   sx={{ py: 0.5 }}
                 >
                   {days} working day{days !== 1 ? 's' : ''} selected.
-                  {insufficientBalance &&
-                    ` Warning: you only have ${selectedBalance?.remaining} day(s) remaining for this leave type.`}
-                  {!insufficientBalance && selectedBalance !== undefined &&
-                    ` ${selectedBalance.remaining} days available.`}
+                  {isCappedExceeded && (
+                    ` Marriage Leave cannot exceed allowed limit (${selectedBalance?.totalAllowed || 0} days). You only have ${Math.max(0, selectedBalance?.remaining || 0)} day(s) left.`
+                  )}
+                  {!isCappedExceeded && insufficientBalance && selectedBalance !== undefined && (
+                    ` Note: This request exceeds your remaining balance by ${(days - selectedBalance.remaining).toFixed(1)} day(s), which will be calculated as Loss of Pay (LOP).`
+                  )}
+                  {!insufficientBalance && selectedBalance !== undefined && (
+                    ` ${selectedBalance.remaining} days available.`
+                  )}
                 </Alert>
               </Grid>
             )}
@@ -514,7 +541,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
                           setSelectedFile(e.target.files[0]);
-                          setUploadError(null);
+                          setSubmitError(null);
                         }
                       }}
                     />
@@ -540,7 +567,7 @@ const ApplyLeaveDialog: React.FC<ApplyLeaveDialogProps> = ({ open, onClose, onSu
             type="submit"
             variant="contained"
             size="small"
-            disabled={applyLeave.isPending || uploadDoc.isPending}
+            disabled={applyLeave.isPending || uploadDoc.isPending || isCappedExceeded}
           >
             {applyLeave.isPending || uploadDoc.isPending ? 'Submitting…' : 'Submit Application'}
           </Button>
@@ -614,6 +641,15 @@ export const LeaveRequestPage: React.FC = () => {
     });
   }, [balances, leaveTypes]);
 
+  // Calculate total LOP (Loss of Pay) days across all balances
+  const totalLOP = useMemo(() => {
+    return balances.reduce((sum, bal) => {
+      const entitlement = (bal.totalAllowed || 0) + (bal.carriedForward || 0);
+      const excess = (bal.used || 0) - entitlement;
+      return sum + (excess > 0 ? excess : 0);
+    }, 0);
+  }, [balances]);
+
   return (
     <Box>
       {/* Header */}
@@ -655,6 +691,70 @@ export const LeaveRequestPage: React.FC = () => {
                 />
               </Grid>
             ))}
+
+            {/* Loss of Pay (LOP) Box */}
+            <Grid key="lop-summary-box" size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+              <Card
+                sx={{
+                  borderTop: '4px solid #dc2626',
+                  height: '100%',
+                  bgcolor: '#fef2f2',
+                  transition: 'box-shadow 0.2s',
+                  '&:hover': { boxShadow: 4 },
+                }}
+              >
+                <CardContent sx={{ pb: '16px !important' }}>
+                  <Stack direction="row" sx={{ mb: 1, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#dc2626' }}
+                      >
+                        Loss of Pay (LOP)
+                      </Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700, color: '#dc2626', lineHeight: 1.2 }}>
+                        {totalLOP}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        total LOP days
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        bgcolor: '#fee2e2',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <WarningAmberIcon sx={{ color: '#dc2626', fontSize: 18 }} />
+                    </Box>
+                  </Stack>
+
+                  {/* Progress bar */}
+                  <Box sx={{ mt: 1.5, mb: 1 }}>
+                    <Box sx={{ bgcolor: '#fca5a5', borderRadius: 2, height: 6, overflow: 'hidden' }}>
+                      <Box
+                        sx={{
+                          width: totalLOP > 0 ? '100%' : '0%',
+                          height: '100%',
+                          bgcolor: '#dc2626',
+                          borderRadius: 2,
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
+                    </Box>
+                  </Box>
+
+                  <Typography variant="caption" color={totalLOP > 0 ? 'error.main' : 'text.secondary'} sx={{ fontWeight: totalLOP > 0 ? 600 : 400 }}>
+                    {totalLOP > 0 ? `${totalLOP} day(s) excess leave (LOP)` : 'No excess leave taken'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
         )}
       </Box>
